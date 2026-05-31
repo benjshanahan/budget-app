@@ -494,16 +494,33 @@ function setSyncStatus(status){
   text.textContent=status==='syncing'?'Saving...':status==='error'?'Sync error':'Synced';
 }
 
+async function ensureSheets(){
+  // Get existing sheet names
+  const meta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:SPREADSHEET_ID});
+  const existing = meta.result.sheets.map(s=>s.properties.title);
+  const needed = ['Transactions','Config','MoneyOwed','Spending','Workflow'];
+  const toCreate = needed.filter(n=>!existing.includes(n));
+  if(toCreate.length>0){
+    await gapi.client.sheets.spreadsheets.batchUpdate({
+      spreadsheetId:SPREADSHEET_ID,
+      resource:{requests:toCreate.map(title=>({addSheet:{properties:{title}}}))}
+    });
+  }
+}
+
 async function loadFromSheets(){
   try{
     setSyncStatus('syncing');
     gapi.client.setToken({access_token:accessToken});
     sessionStorage.setItem('shbn_token',accessToken);
 
+    // Ensure all required sheets exist
+    await ensureSheets();
+
     // Try to read existing data
     const resp = await gapi.client.sheets.spreadsheets.values.batchGet({
       spreadsheetId: SPREADSHEET_ID,
-      ranges: ['Transactions!A:J','Config!A:B','MoneyOwed!A:C','Spending!A:C','Workflow!A:B']
+      ranges: ['Transactions!A:K','Config!A:B','MoneyOwed!A:C','Spending!A:B','Workflow!A:B']
     });
 
     const ranges = resp.result.valueRanges;
@@ -519,8 +536,9 @@ async function loadFromSheets(){
         flag:r[9]||'',notes:r[10]||''
       })).filter(t=>t.id);
     } else {
-      // First load — write imported data
+      // First load — write all imported data
       await writeImportedData();
+      return;
     }
 
     // Parse Config
@@ -547,7 +565,9 @@ async function loadFromSheets(){
     const spendRows = ranges[3].values||[];
     const sp={};
     spendRows.forEach(r=>{if(r[0])sp[r[0]]=parseFloat(r[1])||0;});
-    if(sp.benjCurrent!==undefined){S.spendingBalances={benj:{current:sp.benjCurrent},kasie:{current:sp.kasieCurrents||sp.kasieCurrent}};}
+    if(sp.benjCurrent!==undefined){
+      S.spendingBalances={benj:{current:sp.benjCurrent},kasie:{current:sp.kasieCurrent||0}};
+    }
 
     // Parse Workflow
     const wfRows = ranges[4].values||[];
@@ -558,7 +578,6 @@ async function loadFromSheets(){
   } catch(e){
     console.error('Load error:',e);
     setSyncStatus('error');
-    // Fall back to local defaults
   }
 }
 
