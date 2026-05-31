@@ -234,7 +234,6 @@ input[type=file]{display:none}
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
           <div class="card-title" style="margin:0">Overall savings</div>
-          <span class="badge" id="savings-badge">—</span>
         </div>
         <div class="stat-grid" id="overall-stats"></div>
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
@@ -254,9 +253,27 @@ input[type=file]{display:none}
         <select id="f-cat" onchange="renderTxList()"><option value="">All categories</option></select>
         <select id="f-status" onchange="renderTxList()"><option value="">All status</option><option value="accepted">Accepted</option><option value="pending">Pending</option><option value="flagged">Flagged</option></select>
         <select id="f-method" onchange="renderTxList()"><option value="">All methods</option><option value="credit">Credit card</option><option value="cash">Cash</option><option value="transfer">Transfer</option></select>
+        <select id="f-period" onchange="renderTxList()">
+          <option value="">All time</option>
+          <option value="this-fn">This fortnight</option>
+          <option value="last-fn">Last fortnight</option>
+          <option value="this-month">This month</option>
+          <option value="last-month">Last month</option>
+          <option value="this-year">This budget year</option>
+          <option value="custom">Custom range</option>
+        </select>
         <button class="btn btn-sm" onclick="exportCSV()" style="margin-left:auto">⬇ Export CSV</button>
       </div>
-      <div id="tx-count" style="font-size:12px;color:var(--text2);margin-bottom:8px"></div>
+      <div id="f-custom-range" style="display:none;gap:8px;margin-bottom:10px;flex-wrap:wrap" class="filter-row">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">From</div>
+        <input type="date" id="f-date-from" onchange="renderTxList()" style="font-size:12px;padding:5px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text)">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">To</div>
+        <input type="date" id="f-date-to" onchange="renderTxList()" style="font-size:12px;padding:5px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text)">
+      </div>
+      <div id="tx-summary" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div id="tx-count" style="font-size:12px;color:var(--text2)"></div>
+        <div id="tx-total" style="font-size:13px;font-weight:600;color:var(--text)"></div>
+      </div>
       <div class="tx-list" id="tx-list-main"></div>
     </div>
 
@@ -668,7 +685,6 @@ function renderHeader(){
 }
 
 function renderOverall(){
-  const ns=getNetSavings();
   const{actualSavings,ndisOwed,cashSavings,mortgageAhead,moneyOwed}=S.overall;
   document.getElementById('overall-stats').innerHTML=`
     <div class="stat"><div class="stat-label">Target</div><div class="stat-value">$10,000</div></div>
@@ -676,9 +692,7 @@ function renderOverall(){
     <div class="stat"><div class="stat-label">Cash savings</div><div class="stat-value">${fmt(cashSavings)}</div></div>
     <div class="stat"><div class="stat-label">Mortgage ahead</div><div class="stat-value">${fmt(mortgageAhead)}</div></div>
     <div class="stat" style="cursor:pointer" onclick="openModal('moneyOwedDetail')"><div class="stat-label">Money owed ↗</div><div class="stat-value pos">${fmt(moneyOwed)}</div></div>`;
-  const b=document.getElementById('savings-badge');
-  if(ns>=10000){b.textContent='On target';b.className='badge bg';}
-  else{b.textContent=fmt(Math.abs(10000-ns))+' short';b.className='badge br';}
+
 }
 
 function renderBanners(){
@@ -724,15 +738,55 @@ function renderBudgetGrid(){
   }
 }
 
+function getPeriodDates(period){
+  const now=new Date();
+  const today=now.toISOString().split('T')[0];
+  const budgetStart='2026-04-22';
+  // Find current fortnight
+  const fnIdx=MONEY_DAYS.findIndex(d=>d>now);
+  const fnStart=fnIdx>0?MONEY_DAYS[fnIdx-1]:MONEY_DAYS[0];
+  const fnEnd=fnIdx>=0?MONEY_DAYS[fnIdx]:new Date('2027-04-21');
+  const prevFnStart=fnIdx>1?MONEY_DAYS[fnIdx-2]:MONEY_DAYS[0];
+  // Month
+  const monthStart=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
+  const lastMonthStart=new Date(now.getFullYear(),now.getMonth()-1,1).toISOString().split('T')[0];
+  const lastMonthEnd=new Date(now.getFullYear(),now.getMonth(),0).toISOString().split('T')[0];
+  if(period==='this-fn')return{from:fnStart.toISOString().split('T')[0],to:today};
+  if(period==='last-fn')return{from:prevFnStart.toISOString().split('T')[0],to:fnStart.toISOString().split('T')[0]};
+  if(period==='this-month')return{from:monthStart,to:today};
+  if(period==='last-month')return{from:lastMonthStart,to:lastMonthEnd};
+  if(period==='this-year')return{from:budgetStart,to:today};
+  if(period==='custom'){
+    const from=document.getElementById('f-date-from')?.value||'';
+    const to=document.getElementById('f-date-to')?.value||today;
+    return{from,to};
+  }
+  return null;
+}
+
 function renderTxList(){
   const cf=document.getElementById('f-cat').value;
   const sf=document.getElementById('f-status').value;
   const mf=document.getElementById('f-method').value;
+  const pf=document.getElementById('f-period')?.value||'';
+  // Show/hide custom range
+  const customRange=document.getElementById('f-custom-range');
+  if(customRange)customRange.style.display=pf==='custom'?'flex':'none';
   let txs=[...S.transactions].sort((a,b)=>b.date.localeCompare(a.date));
   if(cf)txs=txs.filter(t=>t.category===cf);
   if(sf)txs=txs.filter(t=>t.status===sf);
   if(mf)txs=txs.filter(t=>t.method===mf);
+  if(pf){
+    const dates=getPeriodDates(pf);
+    if(dates){
+      if(dates.from)txs=txs.filter(t=>t.date>=dates.from);
+      if(dates.to)txs=txs.filter(t=>t.date<=dates.to);
+    }
+  }
+  const total=txs.reduce((a,t)=>a+(t.amount||0),0);
   document.getElementById('tx-count').textContent=txs.length+' transaction'+(txs.length!==1?'s':'');
+  const totalEl=document.getElementById('tx-total');
+  if(totalEl)totalEl.innerHTML=`Total: <span style="color:${total<0?'var(--green)':total>0?'var(--red)':'var(--text)'}">${total<0?'-':''}${fmt(Math.abs(total))}</span>`;
   const list=document.getElementById('tx-list-main');
   if(!txs.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">No transactions</div>';return;}
   list.innerHTML=txs.map(t=>`<div class="tx ${t.status}" onclick="openTxDetail('${t.id}')"><span class="tx-date">${t.date.slice(5)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}${t.flag?'<small style="color:var(--red)">⚠ '+t.flag+'</small>':''}</span><span class="tx-cat">${t.category}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join('');
@@ -1416,10 +1470,12 @@ function exportCSV(){
   const cf=document.getElementById('f-cat').value;
   const sf=document.getElementById('f-status').value;
   const mf=document.getElementById('f-method').value;
+  const pf=document.getElementById('f-period')?.value||'';
   let txs=[...S.transactions].sort((a,b)=>b.date.localeCompare(a.date));
   if(cf)txs=txs.filter(t=>t.category===cf);
   if(sf)txs=txs.filter(t=>t.status===sf);
   if(mf)txs=txs.filter(t=>t.method===mf);
+  if(pf){const dates=getPeriodDates(pf);if(dates){if(dates.from)txs=txs.filter(t=>t.date>=dates.from);if(dates.to)txs=txs.filter(t=>t.date<=dates.to);}}
   const rows=[['Date','Description','Amount','Category','Sub-category','Method','Status','Notes']];
   txs.forEach(t=>rows.push([t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.notes||'']));
   const csv=rows.map(r=>r.join(',')).join('\r\n');
