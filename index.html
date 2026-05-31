@@ -278,7 +278,6 @@ input[type=file]{display:none}
         <option value="debit">Debit / bank transfer</option>
       </select>
     </div>
-    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500"><input type="checkbox" id="qt-split-chk" onchange="toggleSplit()"> Split across multiple categories</label></div>
     <div id="qt-split-area" style="display:none">
       <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Split amounts</div>
       <div id="split-rows"></div>
@@ -324,6 +323,7 @@ input[type=file]{display:none}
         <div class="field"><label>Description</label><input type="text" id="ow-desc" placeholder="Who owes and why"></div>
         <div class="field"><label>Amount ($)</label><input type="number" id="ow-amt" step="0.01" min="0" placeholder="0.00"></div>
       </div>
+      <div class="field"><label>Date</label><input type="date" id="ow-date"></div>
       <button class="btn btn-sm btn-primary" onclick="addOwedEntry()">+ Add</button>
     </div>
     <div class="modal-actions"><button class="btn" onclick="closeModal('moneyOwedDetail')">Close</button></div>
@@ -530,7 +530,7 @@ async function loadFromSheets(){
     if(txRows.length>1){
       S.transactions = txRows.slice(1).map(r=>({
         id:r[0]||'',date:r[1]||'',description:r[2]||'',
-        amount:parseFloat(r[3])||0,category:r[4]||'',
+        amount:parseFloat(String(r[3]).replace(/[^0-9.-]/g,''))||0,category:r[4]||'',
         subcat:r[5]||'',method:r[6]||'',
         status:r[7]||'accepted',source:r[8]||'',
         flag:r[9]||'',notes:r[10]||''
@@ -664,19 +664,13 @@ function renderOverall(){
   const{actualSavings,ndisOwed,cashSavings,mortgageAhead,moneyOwed}=S.overall;
   document.getElementById('overall-stats').innerHTML=`
     <div class="stat"><div class="stat-label">Target</div><div class="stat-value">$10,000</div></div>
-    <div class="stat"><div class="stat-label">Actual savings</div><div class="stat-value">${fmt(actualSavings)}</div></div>
-    <div class="stat"><div class="stat-label">NDIS owed</div><div class="stat-value pos">${fmt(ndisOwed)}</div></div>
+    <div class="stat"><div class="stat-label">Actual savings</div><div class="stat-value ${(actualSavings||0)>=10000?'pos':'neg'}">${fmt(actualSavings)}</div></div>
     <div class="stat"><div class="stat-label">Cash savings</div><div class="stat-value">${fmt(cashSavings)}</div></div>
     <div class="stat"><div class="stat-label">Mortgage ahead</div><div class="stat-value">${fmt(mortgageAhead)}</div></div>
-    <div class="stat"><div class="stat-label">Money owed</div><div class="stat-value pos">${fmt(moneyOwed)}</div></div>
-    <div class="stat" style="grid-column:span 2">
-      <div class="stat-label">Net savings position</div>
-      <div class="stat-value ${ns>=10000?'pos':ns>=0?'warn':'neg'}">${fmtS(ns)} <span style="font-size:12px;font-weight:500;opacity:.7">${ns>=10000?'✓ on target':fmt(Math.abs(10000-ns))+' short'}</span></div>
-    </div>`;
+    <div class="stat" style="cursor:pointer" onclick="openModal('moneyOwedDetail')"><div class="stat-label">Money owed ↗</div><div class="stat-value pos">${fmt(moneyOwed)}</div></div>`;
   const b=document.getElementById('savings-badge');
   if(ns>=10000){b.textContent='On target';b.className='badge bg';}
-  else if(ns>=0){b.textContent=fmt(10000-ns)+' short';b.className='badge ba';}
-  else{b.textContent=fmt(Math.abs(ns))+' deficit';b.className='badge br';}
+  else{b.textContent=fmt(Math.abs(10000-ns))+' short';b.className='badge br';}
 }
 
 function renderBanners(){
@@ -703,7 +697,7 @@ function renderBudgetGrid(){
       bal=cur;spent=getCatSpent(cat.name);
       pct=0;yPct=Math.min(spent/cat.yearly*100,100);
       isOver=cur<0;isWarn=cur>=0&&cur<20;
-      note=isOver?'In debt':isWarn?'Low balance':'';
+      note=isOver?'In debt':'';
     }else{
       const budgeted=cat.fn*cycles;
       spent=getCatSpent(cat.name);
@@ -712,8 +706,8 @@ function renderBudgetGrid(){
       yPct=Math.min(spent/cat.yearly*100,100);
       isOver=spent>budgeted;isWarn=pct>80&&!isOver;
     }
-    const bc=isOver?'neg':isWarn?'warn':'pos';
-    const fc=isOver?'over':isWarn?'warn':'good';
+    const bc=isOver?'neg':'pos';
+    const fc=isOver?'over':'good';
     const el=document.createElement('div');
     el.className='bc';
     el.innerHTML=`<div class="bc-header"><span class="bc-name">${cat.name}</span><span class="bc-bal ${bc}">${(isOver||bal<0)?'-':''}${fmt(Math.abs(bal))}</span></div><div class="pbar"><div class="pfill ${fc}" style="width:${pct.toFixed(1)}%"></div></div><div class="bc-meta"><span>${cat.isSpending?'Current balance':'Spent '+fmt(spent)}</span><span>${note||Math.round(yPct)+'% of '+fmt(cat.yearly)}</span></div>`;
@@ -776,7 +770,7 @@ function renderStepBody(s,done,pending){
   if(s.action==='manual')return`<button class="btn btn-primary btn-sm" onclick="openModal(\'quickTx\')">+ Add manual transaction</button><button class="btn btn-sm" style="margin-left:8px" onclick="doneStep(3)">Done adding</button>`;
   if(s.action==='accept'){const p=S.transactions.filter(t=>t.status==='pending').length;return`${p>0?'<div class="banner banner-warn" style="margin-bottom:10px">'+p+' pending transactions</div>':''}<button class="btn btn-primary btn-sm" onclick="acceptAllPending()">✓ Accept all (${p})</button>`;}
   if(s.action==='confirm')return`<button class="btn btn-primary btn-sm" onclick="doneStep(${s.n})">${s.ct}</button>`;
-  if(s.action==='tithe')return`<div class="frow" style="margin-bottom:10px"><div class="field"><label>Benj gross income ($)</label><input type="number" id="tb" step="0.01" placeholder="0.00" oninput="calcTithe()"></div><div class="field"><label>Kasie gross income ($)</label><input type="number" id="tk" step="0.01" placeholder="0.00" oninput="calcTithe()"></div></div><div id="tithe-out" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div><button class="btn btn-primary btn-sm" onclick="saveTithe()">✓ Record tithing & done</button>`;
+  if(s.action==='tithe'){const carersDefault=S.carersDefault||162.60;return`<div class="frow" style="margin-bottom:8px"><div class="field"><label>Benj gross income ($)</label><input type="number" id="tb" step="0.01" placeholder="0.00" oninput="calcTithe()"></div><div class="field"><label>Kasie gross income ($)</label><input type="number" id="tk" step="0.01" placeholder="0.00" oninput="calcTithe()"></div></div><div class="field" style="margin-bottom:8px"><label>Carers Payment ($)</label><div style="display:flex;gap:8px;align-items:center"><input type="number" id="tc" step="0.01" value="${carersDefault.toFixed(2)}" oninput="calcTithe()" style="flex:1"><button class="btn btn-sm" onclick="saveCarersDefault()" style="white-space:nowrap;flex-shrink:0">Set as default</button></div><div class="field-hint">Default: ${fmt(carersDefault)} — edit above to change for this fortnight only, or click "Set as default" to update permanently</div></div><div id="tithe-out" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div><button class="btn btn-primary btn-sm" onclick="saveTithe()">✓ Record tithing & done</button>`;}
   if(s.action==='spending')return`<button class="btn btn-primary btn-sm" onclick="openSpendingModal()">💳 Enter debit card balances</button>`;
   if(s.action==='ndis')return`<div class="field"><label>NDIS amount owed this fortnight ($)</label><input type="number" id="ndis-in" step="0.01" placeholder="0.00"></div><button class="btn btn-primary btn-sm" onclick="saveNDIS()">✓ Update & done</button>`;
   if(s.action==='cash')return`<div class="field"><label>Cash added to savings ($)</label><input type="number" id="cash-in" step="0.01" placeholder="0.00"><div class="field-hint">Current cash savings: ${fmt(S.overall.cashSavings||0)}</div></div><button class="btn btn-primary btn-sm" onclick="addCash()">✓ Update & done</button>`;
@@ -791,13 +785,29 @@ function toggleStep(n){document.getElementById('sb'+n)?.classList.toggle('open')
 function doneStep(n){S.workflowData['s'+n]=true;saveS();renderWorkflow();}
 function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
 function resetWorkflow(){if(confirm('Start a new fortnight? This resets the workflow checklist only.')){S.workflowData={};saveS();}}
-function calcTithe(){const b=parseFloat(document.getElementById('tb')?.value)||0,k=parseFloat(document.getElementById('tk')?.value)||0,t=b+k,ti=t*.1;const el=document.getElementById('tithe-out');if(el&&t>0)el.innerHTML=`Total gross: <strong>${fmt(t)}</strong> → 10% tithe: <strong style="color:var(--green)">${fmt(ti)}</strong>`;}
+function calcTithe(){
+  const b=parseFloat(document.getElementById('tb')?.value)||0;
+  const k=parseFloat(document.getElementById('tk')?.value)||0;
+  const c=parseFloat(document.getElementById('tc')?.value)||0;
+  const t=b+k+c,ti=t*.1;
+  const el=document.getElementById('tithe-out');
+  if(el&&t>0)el.innerHTML=`Benj: <strong>${fmt(b)}</strong> + Kasie: <strong>${fmt(k)}</strong> + Carers: <strong>${fmt(c)}</strong> = <strong>${fmt(t)}</strong> → 10% tithe: <strong style="color:var(--green)">${fmt(ti)}</strong>`;
+}
+function saveCarersDefault(){
+  const val=parseFloat(document.getElementById('tc')?.value)||162.60;
+  S.carersDefault=val;
+  saveS();
+  alert('Carers Payment default updated to '+fmt(val));
+}
 function saveTithe(){
-  const b=parseFloat(document.getElementById('tb')?.value)||0,k=parseFloat(document.getElementById('tk')?.value)||0;
-  if(!b&&!k){alert('Please enter at least one income figure.');return;}
-  const t=b+k,ti=t*.1,today=new Date().toISOString().split('T')[0];
+  const b=parseFloat(document.getElementById('tb')?.value)||0;
+  const k=parseFloat(document.getElementById('tk')?.value)||0;
+  const c=parseFloat(document.getElementById('tc')?.value)||0;
+  if(!b&&!k&&!c){alert('Please enter at least one income figure.');return;}
+  const t=b+k+c,ti=t*.1,today=new Date().toISOString().split('T')[0];
   S.transactions.push({id:'tithe_'+Date.now(),date:today,description:'Tithing — '+today,amount:ti,category:'Tithing',method:'transfer',status:'accepted',source:'tithe'});
-  saveS();doneStep(6);alert(`Tithing recorded: ${fmt(ti)} (10% of ${fmt(t)})\n\nAll budget allocations updated.`);
+  saveS();doneStep(6);
+  alert('Tithing recorded: '+fmt(ti)+' (10% of '+fmt(t)+')\n\nAll budget allocations updated.');
 }
 function saveNDIS(){const a=parseFloat(document.getElementById('ndis-in')?.value)||0;S.overall.ndisOwed=(S.overall.ndisOwed||0)+a;saveS();doneStep(9);}
 function addCash(){const a=parseFloat(document.getElementById('cash-in')?.value)||0;S.overall.cashSavings=(S.overall.cashSavings||0)+a;saveS();doneStep(10);}
@@ -881,6 +891,8 @@ function deleteTx(id){if(!confirm('Delete this transaction?'))return;S.transacti
 
 function openCatDetail(catName){
   const cat=CATS.find(c=>c.name===catName);
+  // For Bills and Presents, show subcategory dashboard
+  if(cat?.subs){openSubcatDashboard(catName);return;}
   const cycles=getTithingCycles();
   const txs=S.transactions.filter(t=>t.category===catName&&t.status==='accepted').sort((a,b)=>b.date.localeCompare(a.date));
   const spent=getCatSpent(catName);
@@ -893,66 +905,295 @@ function openCatDetail(catName){
     const budgeted=cat?cat.fn*cycles:0,bal=budgeted-spent;
     headerStats=`<div class="stat"><div class="stat-label">Balance</div><div class="stat-value ${bal>=0?'pos':'neg'}">${fmtS(bal)}</div></div><div class="stat"><div class="stat-label">Spent</div><div class="stat-value">${fmt(spent)}</div></div><div class="stat"><div class="stat-label">Yearly budget</div><div class="stat-value">${fmt(cat?.yearly||0)}</div></div>`;
   }
-  let subcats='';
-  if(cat?.subs){const bySub={};txs.forEach(t=>{const k=t.subcat||'Other';bySub[k]=(bySub[k]||0)+t.amount;});subcats='<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">By sub-category</div>'+Object.entries(bySub).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)"><span>${k}</span><span style="font-weight:600">${fmt(v)}</span></div>`).join('');}
   document.getElementById('txd-title').textContent=catName;
-  document.getElementById('txd-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">${headerStats}</div>${subcats}<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">Transactions (${txs.length})</div><div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${t.date.slice(5)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}</div>`;
+  document.getElementById('txd-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">${headerStats}</div><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">Transactions (${txs.length})</div><div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${t.date.slice(5)}</span><span class="tx-desc">${t.description}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}</div>`;
   document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   openModal('txDetail');
 }
 
+function openSubcatDashboard(catName){
+  const cat=CATS.find(c=>c.name===catName);
+  const cycles=getTithingCycles();
+  const allTxs=S.transactions.filter(t=>t.category===catName&&t.status==='accepted');
+  const totalSpent=getCatSpent(catName);
+  const budgeted=cat.fn*cycles;
+  const bal=budgeted-totalSpent;
+
+  // Get yearly budgets per subcat for Bills
+  const subcatYearlyBudgets = catName==='Bills' ? {
+    'Health Insurance':3400,'Car Insurance':1550,'Car Registration':1850,'Car Repairs':2500,
+    'House Insurance':2100,'Phone & Internet':3600,'Pet Insurance':1000,'Electricity':1600,
+    'RACQ':230,'Teacher Rego':105,'Pest Control':440,'Credit Card':200,'Rates':2280,
+    'Water':2500,'Music':320,'iCloud':180,'Lawyer':1010,'Costco':65,
+    'Streaming':120,'Amazon':120,'Linkt':300,'Other':530
+  } : {};
+
+  const subcatRows = cat.subs.map(sub=>{
+    const subTxs=allTxs.filter(t=>(t.subcat||'Other')===sub);
+    const subSpent=subTxs.reduce((a,t)=>a+t.amount,0);
+    const subYearly=subcatYearlyBudgets[sub]||0;
+    const subPct=subYearly>0?Math.min(subSpent/subYearly*100,100):0;
+    if(subSpent===0&&subTxs.length===0)return'';
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;cursor:pointer" onclick="openSubcatDetail('${catName}','${sub.replace(/'/g,"\'")}')">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <span style="font-size:13px;font-weight:600">${sub}</span>
+        <span style="font-size:14px;font-weight:700;color:var(--text)">${fmt(subSpent)}</span>
+      </div>
+      ${subYearly>0?`<div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${subPct.toFixed(1)}%;background:var(--green);border-radius:2px"></div></div><div style="font-size:11px;color:var(--text2)">${Math.round(subPct)}% of ${fmt(subYearly)} yearly budget</div>`:''}
+      <div style="font-size:11px;color:var(--text2);margin-top:3px">${subTxs.length} transaction${subTxs.length!==1?'s':''}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('txd-title').textContent=catName+' — subcategories';
+  document.getElementById('txd-body').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+      <div class="stat"><div class="stat-label">Balance</div><div class="stat-value ${bal>=0?'pos':'neg'}">${fmtS(bal)}</div></div>
+      <div class="stat"><div class="stat-label">Total spent</div><div class="stat-value">${fmt(totalSpent)}</div></div>
+      <div class="stat"><div class="stat-label">Yearly budget</div><div class="stat-value">${fmt(cat.yearly)}</div></div>
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Sub-categories (tap to view transactions)</div>
+    ${subcatRows||'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}`;
+  document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+  openModal('txDetail');
+}
+
+function openSubcatDetail(catName, sub){
+  const txs=S.transactions.filter(t=>t.category===catName&&(t.subcat||'Other')===sub&&t.status==='accepted').sort((a,b)=>b.date.localeCompare(a.date));
+  const spent=txs.reduce((a,t)=>a+t.amount,0);
+  document.getElementById('txd-title').textContent=catName+' — '+sub;
+  document.getElementById('txd-body').innerHTML=`
+    <div style="margin-bottom:12px">
+      <div class="stat"><div class="stat-label">Total spent</div><div class="stat-value">${fmt(spent)}</div></div>
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Transactions (${txs.length})</div>
+    <div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${t.date.slice(5)}</span><span class="tx-desc">${t.description}</span><span class="tx-amt">${fmt(t.amount)}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions</div>'}</div>`;
+  document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="openSubcatDashboard('${catName}')">← Back</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+}
+
 // ─── CSV HANDLING ─────────────────────────────────────────────────────────────
+function parseMyCardDate(str){
+  // Convert "31 May 26" to "2026-05-31"
+  const months={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+  const parts=(str||'').trim().split(' ');
+  if(parts.length===3){
+    const day=parts[0].padStart(2,'0');
+    const mon=months[parts[1]]||'01';
+    const yr='20'+parts[2];
+    return `${yr}-${mon}-${day}`;
+  }
+  return str;
+}
+
 function handleCSV(e){
   const file=e.target.files[0];if(!file)return;
   const reader=new FileReader();
   reader.onload=ev=>{
     const lines=ev.target.result.split('\n').filter(l=>l.trim());
-    const parsed=[];
+    const csvTxs=[];
     for(let i=1;i<lines.length;i++){
-      const cols=lines[i].split(',').map(c=>c.replace(/"/g,'').trim());
-      if(cols.length<2)continue;
-      const date=cols[0],desc=cols[1]||'';
-      const amt=Math.abs(parseFloat((cols[cols.length-1]||'0').replace(/[^0-9.-]/g,''))||0);
+      const cols=[];let cur='',inQ=false;
+      for(const ch of lines[i]){if(ch==='"'){inQ=!inQ;}else if(ch===','&&!inQ){cols.push(cur.trim());cur='';}else cur+=ch;}
+      cols.push(cur.trim());
+      if(cols.length<5)continue;
+      const rawDate=cols[0]||'';
+      const date=parseMyCardDate(rawDate);
+      const amt=Math.abs(parseFloat((cols[1]||'0').replace(/[^0-9.-]/g,''))||0);
       if(!amt)continue;
-      const cat=autoAssign(desc);
+      const txDetails=cols[5]||'';
+      const mcCategory=cols[6]||'';
+      const merchantName=cols[7]||txDetails;
+      const description=merchantName||txDetails;
+      const cat=autoAssign(description,mcCategory,txDetails);
       const catObj=CATS.find(c=>c.name===cat);
-      const subcat=catObj?.subs?autoSubcat(desc,catObj.subs):'';
-      const match=S.transactions.find(t=>t.source==='manual'&&t.status==='pending'&&Math.abs(t.amount-amt)<0.01);
-      if(match){match.csvMatched=true;continue;}
-      parsed.push({id:'csv_'+Date.now()+'_'+i,date,description:desc,amount:amt,category:cat,subcat,method:'credit',status:'pending',source:'csv'});
+      const subcat=catObj?.subs?autoSubcat(description,catObj.subs,txDetails):'';
+      csvTxs.push({id:'csv_'+Date.now()+'_'+i,date,description,amount:amt,category:cat,subcat,method:'credit',status:'pending',source:'csv',rawDetails:txDetails});
     }
-    S.csvPending=parsed;openCSVReview(parsed);
+
+    // Get all unaccepted manual transactions from this fortnight
+    const manualPending=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending');
+    const matchedManualIds=new Set();
+    const merged=[];
+    const unmatchedCSV=[];
+
+    for(const csv of csvTxs){
+      const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<0.01);
+      if(manualMatch){
+        matchedManualIds.add(manualMatch.id);
+        merged.push({csv,manual:manualMatch,action:'merge'});
+      } else {
+        unmatchedCSV.push(csv);
+      }
+    }
+    // Manual transactions with no CSV match
+    const unmatchedManual=manualPending.filter(m=>!matchedManualIds.has(m.id));
+
+    S.csvPending={merged,unmatchedCSV,unmatchedManual,csvTxs};
+    openCSVReview(S.csvPending);
   };
   reader.readAsText(file);
 }
 
-function openCSVReview(txs){
-  document.getElementById('csv-review-body').innerHTML=`<div style="font-size:13px;color:var(--text2);margin-bottom:12px">${txs.length} transactions found. Review categories before accepting.</div>`+txs.map((t,i)=>`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:13px;font-weight:600">${t.description}</span><span style="font-size:14px;font-weight:700">${fmt(t.amount)}</span></div><div class="frow"><div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending[${i}].date=this.value"></div><div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending[${i}].category=this.value;updateCSVSubcat(${i},this.value)">${CATS.map(c=>`<option value="${c.name}"${c.name===t.category?' selected':''}>${c.name}</option>`).join('')}</select></div></div><div id="csv-sub-${i}" style="margin-top:8px">${renderCSVSubcat(i,t.category,t.subcat)}</div></div>`).join('');
+function openCSVReview(data){
+  const{merged,unmatchedCSV,unmatchedManual}=data;
+  const total=merged.length+unmatchedCSV.length+unmatchedManual.length;
+  let html=`<div style="font-size:13px;color:var(--text2);margin-bottom:14px">${total} transactions to review — ${merged.length} matched to manual entries, ${unmatchedCSV.length} new from CSV, ${unmatchedManual.length} manual with no CSV match.</div>`;
+
+  // Section 1: Merged (manual + CSV match)
+  if(merged.length){
+    html+=`<div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">✓ Matched — manual entry + credit card (${merged.length})</div>`;
+    merged.forEach((m,i)=>{
+      html+=`<div style="border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--gl)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--gd)">${m.csv.description}</div>
+            <div style="font-size:11px;color:var(--green)">Manual entry: "${m.manual.description}" · ${m.manual.category}</div>
+          </div>
+          <span style="font-size:15px;font-weight:700;color:var(--gd)">${fmt(m.csv.amount)}</span>
+        </div>
+        <div class="frow">
+          <div class="field" style="margin:0"><label>Date</label><input type="date" value="${m.csv.date}" onchange="S.csvPending.merged[${i}].csv.date=this.value"></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].csv.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.map(c=>`<option value="${c.name}"${c.name===m.csv.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option></select></div>
+        </div>
+        <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)}</div>
+        <div style="font-size:11px;color:var(--green);margin-top:6px">Will merge: manual entry will be removed and replaced with this credit card transaction</div>
+      </div>`;
+    });
+  }
+
+  // Section 2: Unmatched CSV transactions
+  if(unmatchedCSV.length){
+    html+=`<div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">New credit card transactions (${unmatchedCSV.length})</div>`;
+    unmatchedCSV.forEach((t,i)=>{
+      html+=`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:13px;font-weight:600">${t.description}</span>
+          <span style="font-size:14px;font-weight:700">${fmt(t.amount)}</span>
+        </div>
+        <div class="frow">
+          <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value)">${CATS.map(c=>`<option value="${c.name}"${c.name===t.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option></select></div>
+        </div>
+        <div id="csv-sub-c${i}" style="margin-top:8px">${renderCSVSubcatNamed('c'+i,t.category,t.subcat)}</div>
+      </div>`;
+    });
+  }
+
+  // Section 3: Manual transactions with no CSV match
+  if(unmatchedManual.length){
+    html+=`<div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">⚠ Manual entries — no credit card match found (${unmatchedManual.length})</div>`;
+    unmatchedManual.forEach((t,i)=>{
+      html+=`<div style="border:1px solid #E8C060;border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--al)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <div>
+            <div style="font-size:13px;font-weight:700">${t.description}</div>
+            <div style="font-size:11px;color:var(--amber)">Manually entered · ${t.category}${t.subcat?' · '+t.subcat:''} · ${t.date}</div>
+          </div>
+          <span style="font-size:15px;font-weight:700">${fmt(t.amount)}</span>
+        </div>
+        <div style="font-size:12px;color:#7A5A10;margin-bottom:8px">This transaction has no matching credit card entry. Was it paid by cash/debit, or is it still to appear on your statement?</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='keep'">Keep as-is</button>
+          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='remove'">Remove</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  document.getElementById('csv-review-body').innerHTML=html;
   openModal('csvReview');
 }
-function renderCSVSubcat(i,catName,selected){const cat=CATS.find(c=>c.name===catName);if(!cat?.subs)return'';return`<div class="field" style="margin:0"><label>Sub-category</label><select onchange="S.csvPending[${i}].subcat=this.value">${cat.subs.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('')}</select></div>`;}
-function updateCSVSubcat(i,catName){const el=document.getElementById('csv-sub-'+i);if(el)el.innerHTML=renderCSVSubcat(i,catName,'');}
-function acceptCSVReview(){S.transactions.push(...S.csvPending);S.csvPending=[];saveS();closeModal('csvReview');doneStep(1);}
 
-function autoAssign(desc){
-  const d=desc.toLowerCase();
-  if(/coles|woolworth|aldi|iga|harris farm/.test(d))return'Food';
-  if(/shell|bp |caltex|7-eleven|ampol|united petrol/.test(d))return'Petrol';
-  if(/medicare|chemist|pharmacy|doctor|dental|pathology/.test(d))return'Medical';
-  if(/school fee|education|uniform/.test(d))return'School';
-  if(/netflix|spotify|disney|amazon prime|icloud|streaming/.test(d))return'Bills';
-  if(/electricity|agl|energex|origin|ergon/.test(d))return'Bills';
-  if(/bunnings|mitre 10|hardware/.test(d))return'Maintenance';
-  if(/kmart|target|big w|cotton on|myer/.test(d))return'Clothing';
-  if(/restaurant|cafe|mcdonald|hungry jack|kfc|subway|pizza/.test(d))return'Entertainment';
-  if(/linkt|toll/.test(d))return'Petrol';
-  if(/bupa|medibank|hbf|hcf/.test(d))return'Bills';
+function renderCSVSubcatNamed(key,catName,selected){
+  const cat=CATS.find(c=>c.name===catName);
+  if(!cat?.subs)return'';
+  return`<div class="field" style="margin:0"><label>Sub-category</label><select onchange="updateSubcatValue('${key}',this.value)">${cat.subs.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('')}</select></div>`;
+}
+function updateMergedSubcat(key,catName){
+  const el=document.getElementById('csv-sub-'+key);
+  if(el)el.innerHTML=renderCSVSubcatNamed(key,catName,'');
+}
+function updateSubcatValue(key,val){
+  const prefix=key[0];const i=parseInt(key.slice(1));
+  if(prefix==='m')S.csvPending.merged[i].csv.subcat=val;
+  else if(prefix==='c')S.csvPending.unmatchedCSV[i].subcat=val;
+}
+function renderCSVSubcat(i,catName,selected){const cat=CATS.find(c=>c.name===catName);if(!cat?.subs)return'';return`<div class="field" style="margin:0"><label>Sub-category</label><select>${cat.subs.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('')}</select></div>`;}
+function updateCSVSubcat(i,catName){const el=document.getElementById('csv-sub-'+i);if(el)el.innerHTML=renderCSVSubcat(i,catName,'');}
+
+function acceptCSVReview(){
+  const{merged,unmatchedCSV,unmatchedManual}=S.csvPending;
+  // Process merged: remove manual, add CSV version
+  merged.forEach(m=>{
+    S.transactions=S.transactions.filter(t=>t.id!==m.manual.id);
+    S.transactions.push({...m.csv,status:'pending'});
+  });
+  // Add unmatched CSV as pending
+  unmatchedCSV.forEach(t=>S.transactions.push({...t,status:'pending'}));
+  // Handle unmatched manual: keep unless explicitly removed
+  unmatchedManual.forEach(t=>{
+    if(t.keepAction==='remove')S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
+    // else keep as-is (already in S.transactions)
+  });
+  S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
+  saveS();closeModal('csvReview');doneStep(1);
+}
+
+function autoAssign(desc, mcCat, rawDetails){
+  const d=(desc||'').toLowerCase();
+  const m=(mcCat||'').toLowerCase();
+  const r=(rawDetails||'').toLowerCase();
+  const all=d+' '+m+' '+r;
+
+  // Food / Groceries
+  if(/coles|woolworth|woolies|aldi|iga|harris farm|costco|drakes|spar/.test(all)||m.includes('grocer'))return'Food';
+  // Petrol
+  if(/shell|bp |caltex|7-eleven|ampol|united petrol|puma energy/.test(all))return'Petrol';
+  // Linkt/tolls
+  if(/linkt|e-toll|toll/.test(all))return'Bills';
+  // Medical
+  if(/medicare|chemist|pharmacy|doctor|dental|pathology|hospital|ortho|physio|chiro|optical|eyewear/.test(all)||m.includes('medical')||m.includes('health care'))return'Medical';
+  // School
+  if(/school fee|education|uniform|tuckshop|canteen/.test(all))return'School';
+  // Entertainment / dining
+  if(m.includes('restaurant')||m.includes('takeaway')||m.includes('cafe')||m.includes('dining')||/mcdonald|hungry jack|kfc|subway|pizza|nandos|guzman|domino|red rooster/.test(all))return'Entertainment';
+  // Maintenance / hardware
+  if(/bunnings|mitre 10|hardware|plumb/.test(all)||m.includes('hardware'))return'Maintenance';
+  // Clothing
+  if(/kmart|target|big w|cotton on|myer|david jones|uniqlo|h&m|city beach|rivers/.test(all)||m.includes('clothing')||m.includes('apparel'))return'Clothing';
+  // Child
+  if(/toy|lego|kids|children|baby|mothercare/.test(all))return'Child';
+  // House
+  if(/ikea|spotlight|bed bath|homewares|homemaker/.test(all)||m.includes('homeware'))return'House';
+  // Insurance / Bills
+  if(/bupa|medibank|hbf|hcf|nrma|aami|allianz|suncorp/.test(all))return'Bills';
+  if(/netflix|spotify|kayo|binge|stan|disney|apple\.com|icloud|amazon prime|hubbl/.test(all)||m.includes('subscription'))return'Bills';
+  if(/electricity|agl|energex|origin|ergon|aurora/.test(all))return'Bills';
+  if(/vodafone|optus|telstra|tpg|aussie broadband/.test(all)||m.includes('phone')||m.includes('internet'))return'Bills';
+  if(/racq|nrma|insurance/.test(all)||m.includes('insurance'))return'Bills';
+  if(/rates|water|council/.test(all))return'Bills';
+  if(/barber|hairdress|beauty|salon|personal care/.test(all)||m.includes('personal care'))return'Clothing';
   return'Bills';
 }
-function autoSubcat(desc,subs){
-  const d=desc.toLowerCase();
-  const map={netflix:'Streaming',spotify:'Music','apple music':'Music',amazon:'Amazon',icloud:'iCloud',costco:'Costco',electricity:'Electricity',agl:'Electricity',bupa:'Health Insurance',medibank:'Health Insurance',racq:'RACQ',linkt:'Linkt',vodaphone:'Phone & Internet',optus:'Phone & Internet',telstra:'Phone & Internet'};
-  for(const[k,v]of Object.entries(map))if(d.includes(k)&&subs.includes(v))return v;
+
+function autoSubcat(desc,subs,rawDetails){
+  const d=(desc||'').toLowerCase();
+  const r=(rawDetails||'').toLowerCase();
+  const all=d+' '+r;
+  const map={
+    'netflix':'Streaming','kayo':'Streaming','binge':'Streaming','stan':'Streaming','hubbl':'Streaming','disney':'Streaming',
+    'spotify':'Music','apple music':'Music',
+    'amazon':'Amazon',
+    'icloud':'iCloud','apple.com':'iCloud',
+    'costco':'Costco',
+    'electricity':'Electricity','agl':'Electricity','energex':'Electricity','origin':'Electricity',
+    'bupa':'Health Insurance','medibank':'Health Insurance','hbf':'Health Insurance','nib':'Health Insurance',
+    'racq':'RACQ',
+    'linkt':'Linkt',
+    'vodafone':'Phone & Internet','optus':'Phone & Internet','telstra':'Phone & Internet','tpg':'Phone & Internet','aussie broadband':'Phone & Internet',
+    'rates':'Rates','water':'Water',
+    'lawyer':'Lawyer'
+  };
+  for(const[k,v]of Object.entries(map))if(all.includes(k)&&subs.includes(v))return v;
   return subs[subs.length-1];
 }
 
@@ -960,21 +1201,36 @@ function autoSubcat(desc,subs){
 function openModal(id){
   if(id==='editOverall'){document.getElementById('eo-sav').value=(S.overall.actualSavings||0).toFixed(2);document.getElementById('eo-ndis').value=(S.overall.ndisOwed||0).toFixed(2);document.getElementById('eo-cash').value=(S.overall.cashSavings||0).toFixed(2);document.getElementById('eo-mort').value=(S.overall.mortgageAhead||0).toFixed(2);}
   if(id==='quickTx'){document.getElementById('qt-date').value=new Date().toISOString().split('T')[0];populateQTCats();}
-  if(id==='moneyOwedDetail')renderOwedList();
+  if(id==='moneyOwedDetail'){renderOwedList();const od=document.getElementById('ow-date');if(od)od.value=new Date().toISOString().split('T')[0];}
   document.getElementById('modal-'+id).classList.add('open');
 }
 function closeModal(id){document.getElementById('modal-'+id).classList.remove('open');}
 function saveOverall(){S.overall.actualSavings=parseFloat(document.getElementById('eo-sav').value)||0;S.overall.ndisOwed=parseFloat(document.getElementById('eo-ndis').value)||0;S.overall.cashSavings=parseFloat(document.getElementById('eo-cash').value)||0;S.overall.mortgageAhead=parseFloat(document.getElementById('eo-mort').value)||0;saveS();closeModal('editOverall');}
 
-function populateQTCats(){const sel=document.getElementById('qt-cat');sel.innerHTML=CATS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')+'<option value="Other">Other</option>';updateQTSubcat();}
-function updateQTSubcat(){const cat=CATS.find(c=>c.name===document.getElementById('qt-cat')?.value);const wrap=document.getElementById('qt-subcat-wrap');const sel=document.getElementById('qt-subcat');if(cat?.subs){wrap.style.display='block';sel.innerHTML=cat.subs.map(s=>`<option value="${s}">${s}</option>`).join('');}else wrap.style.display='none';}
-function toggleSplit(){const on=document.getElementById('qt-split-chk').checked;document.getElementById('qt-split-area').style.display=on?'block':'none';if(on&&!document.getElementById('split-rows').children.length)addSplitRow();}
+function populateQTCats(){const sel=document.getElementById('qt-cat');sel.innerHTML=CATS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')+'<option value="Other">Other</option><option value="Split">⇄ Split transaction</option>';sel.onchange=updateQTSubcat;updateQTSubcat();}
+function updateQTSubcat(){
+  const val=document.getElementById('qt-cat')?.value;
+  const cat=CATS.find(c=>c.name===val);
+  const wrap=document.getElementById('qt-subcat-wrap');
+  const sel=document.getElementById('qt-subcat');
+  const splitArea=document.getElementById('qt-split-area');
+  if(val==='Split'){
+    wrap.style.display='none';
+    splitArea.style.display='block';
+    if(!document.getElementById('split-rows').children.length)addSplitRow();
+  } else {
+    splitArea.style.display='none';
+    if(cat?.subs){wrap.style.display='block';sel.innerHTML=cat.subs.map(s=>`<option value="${s}">${s}</option>`).join('');}
+    else wrap.style.display='none';
+  }
+}
+function toggleSplit(){const on=document.getElementById('qt-split-chk')?.checked;document.getElementById('qt-split-area').style.display=on?'block':'none';if(on&&!document.getElementById('split-rows').children.length)addSplitRow();}
 function addSplitRow(){const div=document.createElement('div');div.className='split-row';div.innerHTML=`<select>${CATS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')}</select><input type="number" placeholder="Amount" step="0.01" min="0"><button class="btn btn-sm" onclick="this.parentNode.remove()" style="color:var(--red);border-color:var(--red);padding:6px 10px">✕</button>`;document.getElementById('split-rows').appendChild(div);}
 
 function saveQuickTx(){
   const date=document.getElementById('qt-date').value,amount=parseFloat(document.getElementById('qt-amount').value),desc=document.getElementById('qt-desc').value.trim(),method=document.getElementById('qt-method').value,notes=document.getElementById('qt-notes').value.trim();
   if(!date||!amount||!desc){alert('Please fill in date, amount, and description.');return;}
-  const isSplit=document.getElementById('qt-split-chk').checked;
+  const isSplit=document.getElementById('qt-cat').value==='Split';
   if(isSplit){
     document.getElementById('split-rows').querySelectorAll('.split-row').forEach(row=>{
       const cat=row.querySelector('select').value,amt=parseFloat(row.querySelector('input').value)||0;
@@ -988,12 +1244,71 @@ function saveQuickTx(){
   saveS();closeModal('quickTx');
 }
 
+function getNegativeBudgets(){
+  const cycles=getTithingCycles();
+  const neg=[];
+  for(const cat of CATS){
+    if(cat.noGrid)continue;
+    if(cat.isSpending){
+      const sb=S.spendingBalances||{};
+      const cur=cat.person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
+      if(cur<0)neg.push({name:cat.name,amount:Math.abs(cur)});
+    } else {
+      const budgeted=cat.fn*cycles;
+      const spent=getCatSpent(cat.name);
+      const bal=budgeted-spent;
+      if(bal<0)neg.push({name:cat.name,amount:Math.abs(bal)});
+    }
+  }
+  return neg;
+}
+
 function renderOwedList(){
   const el=document.getElementById('owed-list');
-  if(!S.moneyOwedItems?.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);padding:8px 0">No entries yet.</div>';return;}
-  el.innerHTML='<div class="tx-list" style="margin-bottom:12px">'+S.moneyOwedItems.map(o=>`<div class="tx accepted" style="cursor:default"><span class="tx-desc">${o.description}</span><span class="tx-amt pos">${fmt(o.amount)}</span><button class="btn btn-sm" style="color:var(--red);border-color:var(--red);flex-shrink:0" onclick="removeOwed('${o.id}')">✕</button></div>`).join('')+'</div><div style="font-size:14px;font-weight:600">Total: '+fmt(S.moneyOwedItems.reduce((a,o)=>a+o.amount,0))+'</div>';
+  const negBudgets=getNegativeBudgets();
+  const manualItems=S.moneyOwedItems||[];
+  const manualTotal=manualItems.reduce((a,o)=>a+o.amount,0);
+  const negTotal=negBudgets.reduce((a,b)=>a+b.amount,0);
+  const grandTotal=manualTotal+negTotal;
+
+  let html='';
+
+  if(manualItems.length){
+    html+=`<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">People who owe you</div>`;
+    html+='<div class="tx-list" style="margin-bottom:14px">'+manualItems.map(o=>`
+      <div class="tx accepted" style="cursor:default;flex-wrap:wrap;gap:6px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500">${o.description}</div>
+          <div style="font-size:11px;color:var(--text2)">${o.date||'—'}</div>
+        </div>
+        <span style="font-size:14px;font-weight:700;color:var(--green)">${fmt(o.amount)}</span>
+        <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="markOwedPaid('${o.id}')">✓ Paid</button>
+        <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="removeOwed('${o.id}')">✕</button>
+      </div>`).join('')+'</div>';
+  }
+
+  if(negBudgets.length){
+    html+=`<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Overspent budgets</div>`;
+    html+='<div class="tx-list" style="margin-bottom:14px">'+negBudgets.map(b=>`
+      <div class="tx flagged" style="cursor:default">
+        <span class="tx-desc" style="font-size:13px;font-weight:500">${b.name} owes</span>
+        <span style="font-size:14px;font-weight:700;color:var(--red)">− ${fmt(b.amount)}</span>
+      </div>`).join('')+'</div>';
+  }
+
+  if(!manualItems.length&&!negBudgets.length){
+    html='<div style="font-size:13px;color:var(--text2);padding:8px 0">Nothing owed — you\'re all square! ✓</div>';
+  }
+
+  html+=`<div style="font-size:14px;font-weight:600;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between"><span>Grand total owed to you</span><span style="color:${grandTotal>0?'var(--green)':'var(--text)'}">+${fmt(manualTotal)} <span style="color:var(--red)">− ${fmt(negTotal)}</span></span></div>`;
+
+  el.innerHTML=html;
 }
-function addOwedEntry(){const desc=document.getElementById('ow-desc').value.trim(),amt=parseFloat(document.getElementById('ow-amt').value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.moneyOwedItems=S.moneyOwedItems||[];S.moneyOwedItems.push({id:'ow_'+Date.now(),description:desc,amount:amt});S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);document.getElementById('ow-desc').value='';document.getElementById('ow-amt').value='';saveS();renderOwedList();}
+function markOwedPaid(id){
+  if(!confirm('Mark this as paid and remove it?'))return;
+  removeOwed(id);
+}
+function addOwedEntry(){const desc=document.getElementById('ow-desc').value.trim(),amt=parseFloat(document.getElementById('ow-amt').value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.moneyOwedItems=S.moneyOwedItems||[];const owDate=document.getElementById('ow-date')?.value||new Date().toISOString().split('T')[0];S.moneyOwedItems.push({id:'ow_'+Date.now(),description:desc,amount:amt,date:owDate});S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);document.getElementById('ow-desc').value='';document.getElementById('ow-amt').value='';saveS();renderOwedList();}
 function removeOwed(id){S.moneyOwedItems=S.moneyOwedItems.filter(o=>o.id!==id);S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);saveS();renderOwedList();}
 
 function showTab(tab){
