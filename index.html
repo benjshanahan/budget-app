@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shanahan Budget 2026–27</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green:#1D9E75;--gl:#E1F5EE;--gd:#085041;
+  --amber:#BA7517;--al:#FAEEDA;
+  --red:#E24B4A;--rl:#FCEBEB;
+  --blue:#185FA5;--bl:#E6F1FB;
+  --bg:#F5F5F0;--surface:#fff;--surface2:#F8F8F5;
+  --border:#E5E5E0;--border2:#D0D0C8;
+  --text:#1A1A18;--text2:#6B6B65;--text3:#9B9B95;
+  --radius:12px;--radius-sm:8px;
+  --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,0.1),0 2px 4px rgba(0,0,0,0.06);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.5;min-height:100vh}
+
+/* Auth Screen */
+#auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem}
+.auth-card{background:var(--surface);border-radius:var(--radius);padding:2.5rem;max-width:420px;width:100%;text-align:center;box-shadow:var(--shadow-md)}
+.auth-logo{font-size:48px;margin-bottom:1rem}
+.auth-title{font-size:24px;font-weight:600;margin-bottom:.5rem;color:var(--text)}
+.auth-sub{font-size:14px;color:var(--text2);margin-bottom:2rem;line-height:1.6}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px 20px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:15px;font-weight:500;cursor:pointer;transition:background .15s,box-shadow .15s}
+.btn-google:hover{background:var(--surface2);box-shadow:var(--shadow)}
+.btn-google svg{width:20px;height:20px;flex-shrink:0}
+
+/* App Layout */
+#app-screen{display:none;min-height:100vh;flex-direction:column}
+.top-nav{background:var(--surface);border-bottom:1px solid var(--border);padding:.875rem 1.25rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.nav-title{font-size:16px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px}
+.nav-sub{font-size:12px;color:var(--text2);margin-top:1px}
+.nav-actions{display:flex;gap:8px;align-items:center}
+.main{padding:1rem;max-width:720px;margin:0 auto;width:100%;flex:1}
+
+/* Buttons */
+.btn{padding:8px 14px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s;font-family:inherit}
+.btn:hover{background:var(--surface2)}
+.btn-primary{background:var(--green);color:#fff;border-color:var(--gd)}
+.btn-primary:hover{background:var(--gd)}
+.btn-sm{padding:6px 11px;font-size:12px}
+.btn-icon{padding:7px;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text2);display:inline-flex;align-items:center;transition:all .15s}
+.btn-icon:hover{background:var(--surface2);color:var(--text)}
+
+/* Tab bar */
+.tab-bar{display:flex;background:var(--surface);border-radius:var(--radius);padding:4px;margin-bottom:1.25rem;gap:4px;box-shadow:var(--shadow)}
+.tab{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;border-radius:var(--radius-sm);transition:all .15s}
+.tab.active{background:var(--green);color:#fff}
+.screen{display:none}.screen.active{display:block}
+
+/* Cards */
+.card{background:var(--surface);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem;box-shadow:var(--shadow)}
+.card-title{font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:1rem}
+
+/* Stat grid */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.stat{background:var(--surface2);border-radius:var(--radius-sm);padding:12px;border:1px solid var(--border)}
+.stat-label{font-size:11px;color:var(--text2);margin-bottom:3px;font-weight:500}
+.stat-value{font-size:20px;font-weight:600;color:var(--text)}
+.pos{color:var(--green)}.neg{color:var(--red)}.warn{color:var(--amber)}
+
+/* Budget grid */
+.budget-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:1rem}
+.bc{background:var(--surface);border-radius:var(--radius);padding:14px;cursor:pointer;border:1px solid var(--border);transition:all .15s;box-shadow:var(--shadow)}
+.bc:hover{border-color:var(--green);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.bc-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.bc-name{font-size:13px;font-weight:600;color:var(--text)}
+.bc-bal{font-size:15px;font-weight:700}
+.pbar{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-bottom:6px}
+.pfill{height:100%;border-radius:2px;transition:width .3s}
+.pfill.good{background:var(--green)}.pfill.warn{background:var(--amber)}.pfill.over{background:var(--red)}
+.bc-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--text2)}
+
+/* Banners */
+.banner{border-radius:var(--radius-sm);padding:10px 14px;font-size:13px;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.banner-warn{background:var(--al);border:1px solid #E8C060;color:#7A5A10}
+.banner-err{background:var(--rl);border:1px solid #F0A0A0;color:#A02020}
+.banner-info{background:var(--bl);border:1px solid #A0C0E8;color:#103060}
+
+/* Transaction list */
+.tx-list{display:flex;flex-direction:column;gap:6px}
+.tx{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 13px;display:flex;align-items:center;gap:9px;cursor:pointer;transition:all .15s}
+.tx:hover{border-color:var(--border2);box-shadow:var(--shadow)}
+.tx.accepted{border-left:3px solid var(--green)}
+.tx.pending{border-left:3px solid var(--amber)}
+.tx.flagged{border-left:3px solid var(--red)}
+.tx-date{font-size:11px;color:var(--text2);min-width:52px;font-weight:500}
+.tx-desc{flex:1;font-size:13px;color:var(--text);min-width:0}
+.tx-desc small{display:block;font-size:11px;color:var(--text2);margin-top:1px}
+.tx-cat{font-size:11px;color:var(--text2);background:var(--surface2);padding:2px 8px;border-radius:20px;white-space:nowrap;border:1px solid var(--border)}
+.tx-amt{font-size:13px;font-weight:600;min-width:65px;text-align:right}
+
+/* Filter row */
+.filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.filter-row select{font-size:12px;padding:6px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit}
+
+/* Workflow steps */
+.step{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:8px;background:var(--surface);box-shadow:var(--shadow)}
+.step-hdr{padding:13px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .15s}
+.step-hdr:hover{background:var(--surface2)}
+.step-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.sn-p{background:var(--surface2);color:var(--text2);border:1px solid var(--border2)}
+.sn-a{background:var(--green);color:#fff}
+.sn-d{background:var(--gl);color:var(--gd)}
+.step-title{font-size:14px;font-weight:600;color:var(--text);flex:1}
+.step-body{padding:16px;border-top:1px solid var(--border);background:var(--surface2);display:none}
+.step-body.open{display:block}
+.step-desc{font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6}
+
+/* Badges */
+.badge{display:inline-flex;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.bg{background:var(--gl);color:var(--gd)}.ba{background:var(--al);color:var(--amber)}.br{background:var(--rl);color:var(--red)}.bb{background:var(--bl);color:var(--blue)}
+.bgray{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
+
+/* Modals */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto;backdrop-filter:blur(2px)}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius);width:100%;max-width:540px;padding:1.75rem;position:relative;margin:auto;box-shadow:var(--shadow-md)}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:1.25rem;padding-right:2.5rem;color:var(--text)}
+.mclose{position:absolute;top:1.25rem;right:1.25rem;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text2);font-size:18px;line-height:1;padding:4px 8px;transition:all .15s}
+.mclose:hover{background:var(--border);color:var(--text)}
+.field{margin-bottom:1rem}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.field input,.field select,.field textarea{width:100%;padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;transition:border .15s}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--green)}
+.field textarea{min-height:60px;resize:vertical}
+.field-hint{font-size:11px;color:var(--text3);margin-top:4px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border)}
+
+/* Transfer boxes */
+.transfer-box{background:var(--gl);border:1px solid #5DBB99;border-radius:var(--radius-sm);padding:14px 16px;margin:10px 0}
+.transfer-box .t-label{font-size:12px;color:var(--gd);margin-bottom:4px;font-weight:600}
+.transfer-box .t-amount{font-size:22px;font-weight:700;color:var(--gd)}
+.transfer-box .t-sub{font-size:11px;color:var(--green);margin-top:3px}
+.debt-box{background:var(--rl);border:1px solid #F0A0A0;border-radius:var(--radius-sm);padding:14px 16px;margin:10px 0}
+.debt-box .t-label{font-size:12px;color:var(--red);margin-bottom:4px;font-weight:600}
+.debt-box .t-amount{font-size:22px;font-weight:700;color:var(--red)}
+.debt-box .t-sub{font-size:11px;color:#C03030;margin-top:3px}
+
+/* Calc rows */
+.calc-row{display:flex;align-items:center;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)}
+.calc-row:last-child{border:none;padding-top:8px;font-weight:600;font-size:14px}
+
+/* Upload zone */
+.upload-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:2rem;text-align:center;cursor:pointer;transition:all .15s}
+.upload-zone:hover{border-color:var(--green);background:var(--gl)}
+.upload-icon{font-size:36px;margin-bottom:8px;opacity:.4}
+input[type=file]{display:none}
+
+/* Split rows */
+.split-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.split-row select,.split-row input{padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px;font-family:inherit}
+.split-row select{flex:2}.split-row input{flex:1}
+
+/* Sync indicator */
+.sync-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:4px}
+.sync-dot.syncing{background:var(--amber);animation:pulse 1s infinite}
+.sync-dot.error{background:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Loading */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999}
+.loading-logo{font-size:56px;margin-bottom:1rem;animation:bounce 1s ease-in-out infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.loading-text{font-size:15px;color:var(--text2)}
+
+/* Responsive */
+@media(max-width:480px){
+  .budget-grid{grid-template-columns:1fr 1fr}
+  .stat-grid{grid-template-columns:1fr 1fr}
+  .frow{grid-template-columns:1fr}
+  .main{padding:.75rem}
+}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="loading-logo">💰</div>
+  <div class="loading-text">Loading budget...</div>
+</div>
+
+<!-- Auth Screen -->
+<div id="auth-screen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">💰</div>
+    <h1 class="auth-title">Shanahan Budget</h1>
+    <p class="auth-sub">Sign in with your Google account to access the family budget. Your data is securely stored in Google Sheets.</p>
+    <button class="btn-google" onclick="signIn()">
+      <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Sign in with Google
+    </button>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app-screen">
+  <nav class="top-nav">
+    <div>
+      <div class="nav-title">💰 Shanahan Budget</div>
+      <div class="nav-sub">2026–27 · <span id="nav-cycles">—</span> tithing cycles · Next: <span id="nav-next">—</span></div>
+    </div>
+    <div class="nav-actions">
+      <span id="sync-status"><span class="sync-dot" id="sync-dot"></span><span id="sync-text" style="font-size:11px;color:var(--text2)">Synced</span></span>
+      <button class="btn btn-sm" onclick="openModal('quickTx')">+ Transaction</button>
+      <button class="btn btn-sm btn-primary" onclick="showTab('workflow-tab')">Do the money</button>
+      <button class="btn-icon" onclick="signOut()" title="Sign out">↩</button>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="tab-bar">
+      <div class="tab active" onclick="showTab('dashboard')">Dashboard</div>
+      <div class="tab" onclick="showTab('transactions')">Transactions</div>
+      <div class="tab" onclick="showTab('workflow-tab')">Fortnightly</div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="tab-dashboard" class="screen active">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+          <div class="card-title" style="margin:0">Overall savings</div>
+          <span class="badge" id="savings-badge">—</span>
+        </div>
+        <div class="stat-grid" id="overall-stats"></div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="openModal('editOverall')">✏️ Update figures</button>
+          <button class="btn btn-sm" onclick="openModal('moneyOwedDetail')">📋 Money owed</button>
+        </div>
+      </div>
+      <div id="flag-banner" style="display:none"></div>
+      <div id="pending-banner" style="display:none"></div>
+      <div class="card-title">Budget categories</div>
+      <div class="budget-grid" id="budget-grid"></div>
+    </div>
+
+    <!-- Transactions -->
+    <div id="tab-transactions" class="screen">
+      <div class="filter-row">
+        <select id="f-cat" onchange="renderTxList()"><option value="">All categories</option></select>
+        <select id="f-status" onchange="renderTxList()"><option value="">All status</option><option value="accepted">Accepted</option><option value="pending">Pending</option><option value="flagged">Flagged</option></select>
+        <select id="f-method" onchange="renderTxList()"><option value="">All methods</option><option value="credit">Credit card</option><option value="cash">Cash</option><option value="transfer">Transfer</option></select>
+      </div>
+      <div id="tx-count" style="font-size:12px;color:var(--text2);margin-bottom:8px"></div>
+      <div class="tx-list" id="tx-list-main"></div>
+    </div>
+
+    <!-- Workflow -->
+    <div id="tab-workflow-tab" class="screen">
+      <div id="workflow-area"></div>
+    </div>
+  </main>
+</div>
+
+<!-- Quick Transaction Modal -->
+<div id="modal-quickTx" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('quickTx')">✕</button>
+    <div class="modal-title">Add transaction</div>
+    <div class="frow">
+      <div class="field"><label>Date</label><input type="date" id="qt-date"></div>
+      <div class="field"><label>Amount ($)</label><input type="number" id="qt-amount" placeholder="0.00" step="0.01" min="0"></div>
+    </div>
+    <div class="field"><label>Description</label><input type="text" id="qt-desc" placeholder="What was this for?"></div>
+    <div class="field"><label>Category</label><select id="qt-cat" onchange="updateQTSubcat()"></select></div>
+    <div id="qt-subcat-wrap" class="field" style="display:none"><label>Sub-category</label><select id="qt-subcat"></select></div>
+    <div class="field"><label>Payment method</label>
+      <select id="qt-method">
+        <option value="credit">Credit card</option>
+        <option value="cash">Cash (deducts from cash savings)</option>
+        <option value="debit">Debit / bank transfer</option>
+      </select>
+    </div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500"><input type="checkbox" id="qt-split-chk" onchange="toggleSplit()"> Split across multiple categories</label></div>
+    <div id="qt-split-area" style="display:none">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Split amounts</div>
+      <div id="split-rows"></div>
+      <button class="btn btn-sm" onclick="addSplitRow()" style="margin-top:6px">+ Add split</button>
+    </div>
+    <div class="field"><label>Notes (optional)</label><textarea id="qt-notes" placeholder="Any notes..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('quickTx')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveQuickTx()">✓ Save for review</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Overall Modal -->
+<div id="modal-editOverall" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('editOverall')">✕</button>
+    <div class="modal-title">Update overall figures</div>
+    <div class="frow">
+      <div class="field"><label>Actual savings ($)</label><input type="number" id="eo-sav" step="0.01"><div class="field-hint">What you actually have in savings right now</div></div>
+      <div class="field"><label>NDIS owed ($)</label><input type="number" id="eo-ndis" step="0.01"><div class="field-hint">Expected within 2 business days</div></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Cash savings ($)</label><input type="number" id="eo-cash" step="0.01"></div>
+      <div class="field"><label>Mortgage ahead ($)</label><input type="number" id="eo-mort" step="0.01"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('editOverall')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveOverall()">✓ Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Money Owed Modal -->
+<div id="modal-moneyOwedDetail" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('moneyOwedDetail')">✕</button>
+    <div class="modal-title">Money owed to you</div>
+    <div id="owed-list"></div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Add entry</div>
+      <div class="frow">
+        <div class="field"><label>Description</label><input type="text" id="ow-desc" placeholder="Who owes and why"></div>
+        <div class="field"><label>Amount ($)</label><input type="number" id="ow-amt" step="0.01" min="0" placeholder="0.00"></div>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="addOwedEntry()">+ Add</button>
+    </div>
+    <div class="modal-actions"><button class="btn" onclick="closeModal('moneyOwedDetail')">Close</button></div>
+  </div>
+</div>
+
+<!-- Transaction Detail Modal -->
+<div id="modal-txDetail" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('txDetail')">✕</button>
+    <div class="modal-title" id="txd-title">Transaction</div>
+    <div id="txd-body"></div>
+    <div class="modal-actions" id="txd-actions"></div>
+  </div>
+</div>
+
+<!-- CSV Review Modal -->
+<div id="modal-csvReview" class="modal-overlay">
+  <div class="modal" style="max-width:620px">
+    <button class="mclose" onclick="closeModal('csvReview')">✕</button>
+    <div class="modal-title">Review credit card transactions</div>
+    <div id="csv-review-body"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('csvReview')">Cancel</button>
+      <button class="btn btn-primary" onclick="acceptCSVReview()">✓ Accept all & add to pending</button>
+    </div>
+  </div>
+</div>
+
+<!-- Spending Balances Modal -->
+<div id="modal-spending" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('spending')">✕</button>
+    <div class="modal-title">Benj & Kasie spending balances</div>
+    <div id="spending-body"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('spending')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSpending()">✓ Save & continue</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const CLIENT_ID = '189032459083-0clbsplisfn0b1o1tj2h4dlisutbpm13.apps.googleusercontent.com';
+const SPREADSHEET_ID = '114vo9a8wrVAsDTU6IJASsADSI6Gtv8Dlj2vSuaDwwPg';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+
+// ─── BUDGET DATA ──────────────────────────────────────────────────────────────
+const CATS = [
+  {name:'Bills',fn:500,yearly:26000,subs:['Health Insurance','Car Insurance','Car Registration','Car Repairs','House Insurance','Phone & Internet','Pet Insurance','Electricity','RACQ','Teacher Rego','Pest Control','Credit Card','Rates','Water','Music','iCloud','Lawyer','Costco','Streaming','Amazon','Linkt','Other']},
+  {name:'Food',fn:220,yearly:10920},
+  {name:'School',fn:202.5,yearly:10530},
+  {name:'Petrol',fn:115,yearly:5980},
+  {name:'Presents',fn:57.5,yearly:2990,subs:["Kasie's Family","Benj's Family",'Kasie','Benj','Zeke','Izzy',"Father's Day","Mother's Day","Kasie's Friends",'Children',"Benj's Work",'GCC Teachers','Christmas','Thankfulness Day','Cards & Wrapping Paper','Other']},
+  {name:'Maintenance',fn:50,yearly:2600},
+  {name:'House',fn:50,yearly:2600},
+  {name:'Entertainment',fn:45,yearly:2340},
+  {name:'Child',fn:40,yearly:2080},
+  {name:'Clothing',fn:37.5,yearly:1950},
+  {name:'Medical',fn:22.5,yearly:1170},
+  {name:'Spending - Benj',fn:70,yearly:1820,isSpending:true,person:'Benj'},
+  {name:'Spending - Kasie',fn:70,yearly:1820,isSpending:true,person:'Kasie'},
+  {name:'Tithing',fn:300,yearly:7800,noGrid:true},
+  {name:'Mortgage',fn:530,yearly:13780,noGrid:true},
+];
+
+const MONEY_DAYS = [];
+let _d = new Date('2026-04-22');
+while(_d <= new Date('2027-04-21')){MONEY_DAYS.push(new Date(_d));_d=new Date(_d.getTime()+14*24*60*60*1000);}
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let S = {
+  transactions: [],
+  overall: {actualSavings:4713.11,ndisOwed:393.55,cashSavings:2275,mortgageAhead:9289.45,moneyOwed:44.95},
+  moneyOwedItems: [{id:'ow_init',description:"Rixons owe for Jen's birthday",amount:44.95}],
+  spendingBalances: {benj:{current:-17.91},kasie:{current:-5.66}},
+  workflowData: {},
+  csvPending: []
+};
+let tokenClient, accessToken, gapiInited = false, gisInited = false;
+let syncTimeout = null;
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+const fmt = n => '$'+(Math.abs(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+const fmtS = n => (n<0?'-':'')+fmt(n);
+const getNextMoneyDay = () => MONEY_DAYS.find(d=>d>new Date())||MONEY_DAYS[MONEY_DAYS.length-1];
+const getTithingCycles = () => S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').length;
+const getCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name).reduce((a,t)=>a+(t.amount||0),0);
+const getCatBudgeted = name => {
+  const cat=CATS.find(c=>c.name===name);
+  if(!cat||cat.noGrid||cat.isSpending)return 0;
+  return cat.fn*getTithingCycles();
+};
+const getFNSpending = person => {
+  const catName='Spending - '+person;
+  const dates=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').map(t=>t.date).sort();
+  const last=dates[dates.length-1]||'2026-04-22';
+  return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>last).reduce((a,t)=>a+(t.amount||0),0);
+};
+const calcSpendingBal = (person,debit) => debit - getFNSpending(person) + 70;
+const getNetSavings = () => {
+  const {actualSavings,ndisOwed,cashSavings,mortgageAhead,moneyOwed}=S.overall;
+  const cycles=getTithingCycles();
+  let pos=0;
+  for(const cat of CATS){
+    if(cat.noGrid||cat.isSpending)continue;
+    const budgeted=cat.fn*cycles;
+    const spent=getCatSpent(cat.name);
+    const bal=budgeted-spent;
+    if(bal>0&&spent<=cat.yearly)pos+=bal;
+  }
+  return(actualSavings||0)+(ndisOwed||0)+(cashSavings||0)+(mortgageAhead||0)+(moneyOwed||0)-pos;
+};
+
+// ─── GOOGLE AUTH ──────────────────────────────────────────────────────────────
+function gapiLoaded(){
+  gapi.load('client',async()=>{
+    await gapi.client.init({discoveryDocs:['https://sheets.googleapis.com/$discovery/rest?version=v4']});
+    gapiInited=true;maybeShowApp();
+  });
+}
+function gisLoaded(){
+  tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:CLIENT_ID,scope:SCOPES,
+    callback:async(resp)=>{
+      if(resp.error)return;
+      accessToken=resp.access_token;
+      document.getElementById('auth-screen').style.display='none';
+      document.getElementById('app-screen').style.display='flex';
+      await loadFromSheets();
+      render();
+    }
+  });
+  gisInited=true;maybeShowApp();
+}
+function maybeShowApp(){
+  if(!gapiInited||!gisInited)return;
+  document.getElementById('loading').style.display='none';
+  // Check if we have a cached token
+  const cached=sessionStorage.getItem('shbn_token');
+  if(cached){
+    accessToken=cached;
+    gapi.client.setToken({access_token:accessToken});
+    document.getElementById('app-screen').style.display='flex';
+    loadFromSheets().then(render);
+  } else {
+    document.getElementById('auth-screen').style.display='flex';
+  }
+}
+function signIn(){
+  tokenClient.requestAccessToken({prompt:'consent'});
+}
+function signOut(){
+  google.accounts.oauth2.revoke(accessToken,()=>{});
+  accessToken=null;
+  sessionStorage.removeItem('shbn_token');
+  document.getElementById('app-screen').style.display='none';
+  document.getElementById('auth-screen').style.display='flex';
+}
+
+// ─── GOOGLE SHEETS SYNC ───────────────────────────────────────────────────────
+function setSyncStatus(status){
+  const dot=document.getElementById('sync-dot');
+  const text=document.getElementById('sync-text');
+  if(!dot||!text)return;
+  dot.className='sync-dot'+(status==='syncing'?' syncing':status==='error'?' error':'');
+  text.textContent=status==='syncing'?'Saving...':status==='error'?'Sync error':'Synced';
+}
+
+async function loadFromSheets(){
+  try{
+    setSyncStatus('syncing');
+    gapi.client.setToken({access_token:accessToken});
+    sessionStorage.setItem('shbn_token',accessToken);
+
+    // Try to read existing data
+    const resp = await gapi.client.sheets.spreadsheets.values.batchGet({
+      spreadsheetId: SPREADSHEET_ID,
+      ranges: ['Transactions!A:J','Config!A:B','MoneyOwed!A:C','Spending!A:C','Workflow!A:B']
+    });
+
+    const ranges = resp.result.valueRanges;
+
+    // Parse Transactions
+    const txRows = ranges[0].values||[];
+    if(txRows.length>1){
+      S.transactions = txRows.slice(1).map(r=>({
+        id:r[0]||'',date:r[1]||'',description:r[2]||'',
+        amount:parseFloat(r[3])||0,category:r[4]||'',
+        subcat:r[5]||'',method:r[6]||'',
+        status:r[7]||'accepted',source:r[8]||'',
+        flag:r[9]||'',notes:r[10]||''
+      })).filter(t=>t.id);
+    } else {
+      // First load — write imported data
+      await writeImportedData();
+    }
+
+    // Parse Config
+    const cfgRows = ranges[1].values||[];
+    const cfg={};
+    cfgRows.forEach(r=>{if(r[0])cfg[r[0]]=r[1];});
+    if(cfg.actualSavings!==undefined){
+      S.overall={
+        actualSavings:parseFloat(cfg.actualSavings)||0,
+        ndisOwed:parseFloat(cfg.ndisOwed)||0,
+        cashSavings:parseFloat(cfg.cashSavings)||0,
+        mortgageAhead:parseFloat(cfg.mortgageAhead)||0,
+        moneyOwed:parseFloat(cfg.moneyOwed)||0
+      };
+    }
+
+    // Parse MoneyOwed
+    const owedRows = ranges[2].values||[];
+    if(owedRows.length>1){
+      S.moneyOwedItems=owedRows.slice(1).map(r=>({id:r[0]||'',description:r[1]||'',amount:parseFloat(r[2])||0})).filter(o=>o.id);
+    }
+
+    // Parse Spending balances
+    const spendRows = ranges[3].values||[];
+    const sp={};
+    spendRows.forEach(r=>{if(r[0])sp[r[0]]=parseFloat(r[1])||0;});
+    if(sp.benjCurrent!==undefined){S.spendingBalances={benj:{current:sp.benjCurrent},kasie:{current:sp.kasieCurrents||sp.kasieCurrent}};}
+
+    // Parse Workflow
+    const wfRows = ranges[4].values||[];
+    S.workflowData={};
+    wfRows.forEach(r=>{if(r[0]&&r[1]==='true')S.workflowData[r[0]]=true;});
+
+    setSyncStatus('synced');
+  } catch(e){
+    console.error('Load error:',e);
+    setSyncStatus('error');
+    // Fall back to local defaults
+  }
+}
+
+async function saveToSheets(){
+  if(!accessToken)return;
+  setSyncStatus('syncing');
+  try{
+    gapi.client.setToken({access_token:accessToken});
+    const data = [];
+
+    // Transactions sheet
+    const txRows = [['id','date','description','amount','category','subcat','method','status','source','flag','notes']];
+    S.transactions.forEach(t=>txRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.source||'',t.flag||'',t.notes||'']));
+    data.push({range:'Transactions!A1',values:txRows});
+
+    // Config sheet
+    const cfgRows = Object.entries(S.overall).map(([k,v])=>[k,v]);
+    data.push({range:'Config!A1',values:cfgRows});
+
+    // MoneyOwed sheet
+    const owRows = [['id','description','amount']];
+    (S.moneyOwedItems||[]).forEach(o=>owRows.push([o.id,o.description,o.amount]));
+    data.push({range:'MoneyOwed!A1',values:owRows});
+
+    // Spending sheet
+    data.push({range:'Spending!A1',values:[
+      ['benjCurrent',S.spendingBalances?.benj?.current||0],
+      ['kasieCurrent',S.spendingBalances?.kasie?.current||0]
+    ]});
+
+    // Workflow sheet
+    const wfRows2 = Object.entries(S.workflowData).map(([k,v])=>[k,String(v)]);
+    data.push({range:'Workflow!A1',values:wfRows2.length?wfRows2:[['','']]);
+
+    await gapi.client.sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId:SPREADSHEET_ID,
+      resource:{valueInputOption:'RAW',data}
+    });
+    setSyncStatus('synced');
+  } catch(e){
+    console.error('Save error:',e);
+    setSyncStatus('error');
+  }
+}
+
+async function writeImportedData(){
+  // Write all imported transactions on first load
+  S.transactions = IMPORT_TXS.map(t=>({...t}));
+  S.overall = {...IMPORT_OVERALL};
+  S.moneyOwedItems = [{id:'ow_init',description:"Rixons owe for Jen's birthday",amount:44.95}];
+  await saveToSheets();
+}
+
+function scheduleSave(){
+  if(syncTimeout)clearTimeout(syncTimeout);
+  syncTimeout=setTimeout(()=>saveToSheets(),1500);
+}
+
+function saveS(){
+  scheduleSave();
+  render();
+}
+
+// ─── IMPORT DATA ──────────────────────────────────────────────────────────────
+const IMPORT_OVERALL={actualSavings:4713.11,ndisOwed:393.55,cashSavings:2275.0,mortgageAhead:9289.45,moneyOwed:44.95};
+const IMPORT_TXS=[{id:"import_bills_0",date:"2026-04-21",description:"Electricity",amount:126.94,category:"Bills",subcat:"Electricity",method:"credit",status:"accepted",source:"import"},{id:"import_bills_1",date:"2026-04-22",description:"Hospital parking",amount:12.0,category:"Bills",subcat:"Other",method:"credit",status:"accepted",source:"import"},{id:"import_bills_2",date:"2026-04-23",description:"Vodaphone",amount:48.37,category:"Bills",subcat:"Phone & Internet",method:"credit",status:"accepted",source:"import"},{id:"import_bills_3",date:"2026-04-27",description:"Minno Kids",amount:15.46,category:"Bills",subcat:"Streaming",method:"credit",status:"accepted",source:"import"},{id:"import_bills_4",date:"2026-04-27",description:"Apple Music",amount:12.99,category:"Bills",subcat:"Music",method:"credit",status:"accepted",source:"import"},{id:"import_bills_5",date:"2026-04-28",description:"House Insurance",amount:172.84,category:"Bills",subcat:"House Insurance",method:"credit",status:"accepted",source:"import"},{id:"import_bills_6",date:"2001-05-01",description:"Apple Music",amount:12.99,category:"Bills",subcat:"Music",method:"credit",status:"flagged",source:"import",flag:"Date looks wrong (2001) — please correct"},{id:"import_bills_7",date:"2026-05-02",description:"Linkt",amount:20.19,category:"Bills",subcat:"Linkt",method:"credit",status:"accepted",source:"import"},{id:"import_bills_8",date:"2026-05-05",description:"Linkt",amount:20.19,category:"Bills",subcat:"Linkt",method:"credit",status:"accepted",source:"import"},{id:"import_bills_9",date:"2026-05-05",description:"Amazon Prime",amount:9.99,category:"Bills",subcat:"Amazon",method:"credit",status:"accepted",source:"import"},{id:"import_bills_10",date:"2026-05-05",description:"Rates",amount:547.22,category:"Bills",subcat:"Rates",method:"credit",status:"accepted",source:"import"},{id:"import_bills_11",date:"2026-05-07",description:"AGL NBN",amount:96.9,category:"Bills",subcat:"Phone & Internet",method:"credit",status:"accepted",source:"import"},{id:"import_bills_12",date:"2026-05-12",description:"Apple iCloud",amount:14.99,category:"Bills",subcat:"iCloud",method:"credit",status:"accepted",source:"import"},{id:"import_bills_13",date:"2026-05-12",description:"Optus",amount:96.21,category:"Bills",subcat:"Phone & Internet",method:"credit",status:"accepted",source:"import"},{id:"import_bills_14",date:"2026-05-13",description:"Bupa",amount:292.95,category:"Bills",subcat:"Health Insurance",method:"credit",status:"accepted",source:"import"},{id:"import_bills_15",date:"2026-05-19",description:"Car insurance",amount:126.4,category:"Bills",subcat:"Car Insurance",method:"credit",status:"accepted",source:"import"},{id:"import_food_16",date:"2026-04-22",description:"Money for birds",amount:-50.0,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_17",date:"2026-04-25",description:"Groceries",amount:12.6,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_18",date:"2026-04-27",description:"Groceries",amount:277.14,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_19",date:"2026-05-04",description:"Groceries",amount:16.26,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_20",date:"2026-05-05",description:"Groceries",amount:149.86,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_21",date:"2026-05-09",description:"Groceries",amount:199.22,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_22",date:"2026-05-12",description:"Groceries",amount:9.99,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_23",date:"2026-05-18",description:"Groceries",amount:228.37,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_24",date:"2026-05-18",description:"Groceries",amount:3.95,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_school_25",date:"2026-05-04",description:"School Fees",amount:378.38,category:"School",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_school_26",date:"2026-05-18",description:"School Fees",amount:378.38,category:"School",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_petrol_27",date:"2026-05-14",description:"Petrol",amount:89.16,category:"Petrol",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_petrol_28",date:"2026-05-16",description:"Petrol",amount:260.0,category:"Petrol",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_maint_29",date:"2026-04-24",description:"Carried over",amount:-3763.25,category:"Maintenance",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_maint_30",date:"2026-04-30",description:"Toilet seat",amount:39.0,category:"Maintenance",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_maint_31",date:"2001-05-01",description:"Fosi bluetooth amplifier",amount:103.98,category:"Maintenance",subcat:"",method:"credit",status:"flagged",source:"import",flag:"Date looks wrong (2001) — please correct"},{id:"import_maint_32",date:"2026-05-03",description:"Banana plugs for amplifier",amount:11.89,category:"Maintenance",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_maint_33",date:"2026-05-16",description:"Sink drain cleaner",amount:43.65,category:"Maintenance",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_34",date:"2026-04-27",description:"Laundry and dishwashing tablets, and other items",amount:26.0,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_35",date:"2026-04-27",description:"Coffee",amount:17.99,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_36",date:"2026-04-30",description:"Drawer slide",amount:9.11,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_37",date:"2026-05-05",description:"Cleaning product",amount:25.5,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_38",date:"2026-05-05",description:"Soap & razors",amount:15.2,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_39",date:"2026-05-07",description:"Blue tac & white board markers",amount:11.38,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_40",date:"2026-05-09",description:"Matches & cleaning products",amount:10.0,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_41",date:"2026-05-12",description:"Coffee",amount:17.99,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_42",date:"2026-05-16",description:"Tap turner for kids",amount:4.94,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_43",date:"2026-05-18",description:"Dog food and house items",amount:26.45,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_44",date:"2026-05-18",description:"Umbrella",amount:11.99,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_presents_45",date:"2026-04-27",description:"Mother's Day - Kasie",amount:80.0,category:"Presents",subcat:"Mother's Day",method:"credit",status:"accepted",source:"import"},{id:"import_presents_46",date:"2026-05-05",description:"Mother's Day - Kasie",amount:10.0,category:"Presents",subcat:"Mother's Day",method:"credit",status:"accepted",source:"import"},{id:"import_presents_47",date:"2026-05-07",description:"Mother's Day - GG",amount:13.96,category:"Presents",subcat:"Mother's Day",method:"credit",status:"accepted",source:"import"},{id:"import_presents_48",date:"2026-05-07",description:"Jen's 30th",amount:44.45,category:"Presents",subcat:"Kasie's Family",method:"credit",status:"accepted",source:"import"},{id:"import_presents_49",date:"2026-05-08",description:"Cards and wrapping paper",amount:12.99,category:"Presents",subcat:"Cards & Wrapping Paper",method:"credit",status:"accepted",source:"import"},{id:"import_presents_50",date:"2026-05-09",description:"Mother's Day - Kasie",amount:45.3,category:"Presents",subcat:"Mother's Day",method:"credit",status:"accepted",source:"import"},{id:"import_presents_51",date:"2026-05-19",description:"Mother's Day - Robyn",amount:100.0,category:"Presents",subcat:"Mother's Day",method:"credit",status:"accepted",source:"import"},{id:"import_ent_52",date:"2026-05-01",description:"Food for lunch with Kathryn, Jacob, & Joseph",amount:32.84,category:"Entertainment",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_ent_53",date:"2026-05-02",description:"RSPCA cafe",amount:23.5,category:"Entertainment",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_ent_54",date:"2026-05-05",description:"Mothers Day food",amount:20.1,category:"Entertainment",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_ent_55",date:"2026-05-09",description:"Mother's Day fish and chips",amount:41.63,category:"Entertainment",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_child_56",date:"2026-05-02",description:"Lego bricks",amount:8.7,category:"Child",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_child_57",date:"2026-05-04",description:"Miscellaneous items for kids",amount:13.0,category:"Child",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_child_58",date:"2026-05-05",description:"Toothpaste for Izzy",amount:2.8,category:"Child",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_child_59",date:"2026-05-14",description:"School festival",amount:17.0,category:"Child",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_60",date:"2026-04-22",description:"Archies for Benj",amount:47.95,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_61",date:"2026-05-07",description:"Skincare for Kasie",amount:16.0,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_62",date:"2026-05-10",description:"Deodorant for Benj",amount:5.84,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_63",date:"2026-05-12",description:"Men's briefs",amount:9.99,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_64",date:"2026-05-12",description:"Dresses for Kasie's work",amount:16.0,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_65",date:"2026-05-15",description:"Kasie's work shoes and clothes",amount:10.0,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_66",date:"2026-05-15",description:"Work clothes for Kasie",amount:23.0,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_67",date:"2026-05-16",description:"Skin care for Kasie",amount:23.96,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_68",date:"2026-05-18",description:"Hair care for Kasie",amount:7.5,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_medical_69",date:"2026-04-27",description:"Panadol & Neurofen",amount:4.0,category:"Medical",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_medical_70",date:"2026-05-10",description:"Various supplements and medication",amount:63.84,category:"Medical",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_medical_71",date:"2026-05-16",description:"Ovulation tests",amount:59.0,category:"Medical",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_other_72",date:"2026-04-22",description:"Naturopath Appointment",amount:182.75,category:"Other",subcat:"",method:"other",status:"accepted",source:"import"},{id:"import_other_73",date:"2026-04-23",description:"Supplements for Zeke",amount:190.6,category:"Other",subcat:"",method:"other",status:"accepted",source:"import"},{id:"import_other_74",date:"2026-05-04",description:"Supplements for Zeke",amount:70.04,category:"Other",subcat:"",method:"other",status:"accepted",source:"import"},{id:"import_other_75",date:"2026-05-12",description:"Obstetrician appointment for Kasie",amount:174.75,category:"Other",subcat:"",method:"other",status:"accepted",source:"import"},{id:"import_other_76",date:"2026-05-12",description:"Blood test for Kasie",amount:95.0,category:"Other",subcat:"",method:"other",status:"accepted",source:"import"},{id:"import_other_77",date:"2026-05-18",description:"Obstetrician appointment for Kasie",amount:42.55,category:"Other",subcat:"",method:"other",status:"accepted",source:"import"},{id:"import_tithe_78",date:"2026-04-21",description:"Tithing",amount:573.4,category:"Tithing",subcat:"",method:"transfer",status:"accepted",source:"import"},{id:"import_tithe_79",date:"2026-05-05",description:"Tithing",amount:720.87,category:"Tithing",subcat:"",method:"transfer",status:"accepted",source:"import"},{id:"import_tithe_80",date:"2026-05-19",description:"Tithing",amount:696.32,category:"Tithing",subcat:"",method:"transfer",status:"accepted",source:"import"}];
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function render(){
+  renderHeader();renderOverall();renderBudgetGrid();renderBanners();
+  const active=document.querySelector('.tab.active')?.textContent.trim();
+  if(active==='Transactions')renderTxList();
+  if(active==='Fortnightly')renderWorkflow();
+}
+
+function renderHeader(){
+  const next=getNextMoneyDay();
+  document.getElementById('nav-next').textContent=next.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'});
+  document.getElementById('nav-cycles').textContent=getTithingCycles();
+}
+
+function renderOverall(){
+  const ns=getNetSavings();
+  const{actualSavings,ndisOwed,cashSavings,mortgageAhead,moneyOwed}=S.overall;
+  document.getElementById('overall-stats').innerHTML=`
+    <div class="stat"><div class="stat-label">Target</div><div class="stat-value">$10,000</div></div>
+    <div class="stat"><div class="stat-label">Actual savings</div><div class="stat-value">${fmt(actualSavings)}</div></div>
+    <div class="stat"><div class="stat-label">NDIS owed</div><div class="stat-value pos">${fmt(ndisOwed)}</div></div>
+    <div class="stat"><div class="stat-label">Cash savings</div><div class="stat-value">${fmt(cashSavings)}</div></div>
+    <div class="stat"><div class="stat-label">Mortgage ahead</div><div class="stat-value">${fmt(mortgageAhead)}</div></div>
+    <div class="stat"><div class="stat-label">Money owed</div><div class="stat-value pos">${fmt(moneyOwed)}</div></div>
+    <div class="stat" style="grid-column:span 2">
+      <div class="stat-label">Net savings position</div>
+      <div class="stat-value ${ns>=10000?'pos':ns>=0?'warn':'neg'}">${fmtS(ns)} <span style="font-size:12px;font-weight:500;opacity:.7">${ns>=10000?'✓ on target':fmt(Math.abs(10000-ns))+' short'}</span></div>
+    </div>`;
+  const b=document.getElementById('savings-badge');
+  if(ns>=10000){b.textContent='On target';b.className='badge bg';}
+  else if(ns>=0){b.textContent=fmt(10000-ns)+' short';b.className='badge ba';}
+  else{b.textContent=fmt(Math.abs(ns))+' deficit';b.className='badge br';}
+}
+
+function renderBanners(){
+  const flagged=S.transactions.filter(t=>t.status==='flagged');
+  const pending=S.transactions.filter(t=>t.status==='pending');
+  const fb=document.getElementById('flag-banner');
+  const pb=document.getElementById('pending-banner');
+  fb.style.display=flagged.length?'block':'none';
+  if(flagged.length)fb.innerHTML=`<div class="banner banner-err">⚠️ ${flagged.length} transaction${flagged.length>1?'s need':'needs'} attention (date errors) <button class="btn btn-sm" style="margin-left:auto;color:var(--red);border-color:var(--red)" onclick="showTab('transactions')">View</button></div>`;
+  pb.style.display=pending.length?'block':'none';
+  if(pending.length)pb.innerHTML=`<div class="banner banner-warn">🕐 ${pending.length} pending transaction${pending.length>1?'s':'} ready to review <button class="btn btn-sm" style="margin-left:auto" onclick="showTab('workflow-tab')">Review</button></div>`;
+}
+
+function renderBudgetGrid(){
+  const cycles=getTithingCycles();
+  const grid=document.getElementById('budget-grid');
+  grid.innerHTML='';
+  for(const cat of CATS){
+    if(cat.noGrid)continue;
+    let bal,spent,pct,yPct,isOver,isWarn,note='';
+    if(cat.isSpending){
+      const sb=S.spendingBalances||{benj:{current:0},kasie:{current:0}};
+      const cur=cat.person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
+      bal=cur;spent=getCatSpent(cat.name);
+      pct=0;yPct=Math.min(spent/cat.yearly*100,100);
+      isOver=cur<0;isWarn=cur>=0&&cur<20;
+      note=isOver?'In debt':isWarn?'Low balance':'';
+    }else{
+      const budgeted=cat.fn*cycles;
+      spent=getCatSpent(cat.name);
+      bal=budgeted-spent;
+      pct=budgeted>0?Math.min(spent/budgeted*100,100):0;
+      yPct=Math.min(spent/cat.yearly*100,100);
+      isOver=spent>budgeted;isWarn=pct>80&&!isOver;
+    }
+    const bc=isOver?'neg':isWarn?'warn':'pos';
+    const fc=isOver?'over':isWarn?'warn':'good';
+    const el=document.createElement('div');
+    el.className='bc';
+    el.innerHTML=`<div class="bc-header"><span class="bc-name">${cat.name}</span><span class="bc-bal ${bc}">${(isOver||bal<0)?'-':''}${fmt(Math.abs(bal))}</span></div><div class="pbar"><div class="pfill ${fc}" style="width:${pct.toFixed(1)}%"></div></div><div class="bc-meta"><span>${cat.isSpending?'Current balance':'Spent '+fmt(spent)}</span><span>${note||Math.round(yPct)+'% of '+fmt(cat.yearly)}</span></div>`;
+    el.onclick=()=>openCatDetail(cat.name);
+    grid.appendChild(el);
+  }
+}
+
+function renderTxList(){
+  const cf=document.getElementById('f-cat').value;
+  const sf=document.getElementById('f-status').value;
+  const mf=document.getElementById('f-method').value;
+  let txs=[...S.transactions].sort((a,b)=>b.date.localeCompare(a.date));
+  if(cf)txs=txs.filter(t=>t.category===cf);
+  if(sf)txs=txs.filter(t=>t.status===sf);
+  if(mf)txs=txs.filter(t=>t.method===mf);
+  document.getElementById('tx-count').textContent=txs.length+' transaction'+(txs.length!==1?'s':'');
+  const list=document.getElementById('tx-list-main');
+  if(!txs.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">No transactions</div>';return;}
+  list.innerHTML=txs.map(t=>`<div class="tx ${t.status}" onclick="openTxDetail('${t.id}')"><span class="tx-date">${t.date.slice(5)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}${t.flag?'<small style="color:var(--red)">⚠ '+t.flag+'</small>':''}</span><span class="tx-cat">${t.category}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join('');
+  const sel=document.getElementById('f-cat');
+  if(sel.options.length<=1)[...new Set(S.transactions.map(t=>t.category))].sort().forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+}
+
+function renderWorkflow(){
+  const steps=[
+    {n:1,title:'Upload credit card statement',desc:'Upload your MyCard CSV statement for this fortnight.',action:'upload'},
+    {n:2,title:'Review & assign transactions',desc:'Check auto-assigned categories and sub-categories. Edit as needed.',action:'review'},
+    {n:3,title:'Add manual transactions',desc:'Add any cash or non-credit-card expenses for this fortnight.',action:'manual'},
+    {n:4,title:'Accept all transactions',desc:'Post all pending transactions to your budgets.',action:'accept'},
+    {n:5,title:'Pay credit card',desc:'Pay your MyCard balance now.',action:'confirm',ct:'I have paid the credit card ✓'},
+    {n:6,title:'Record tithing',desc:'Enter gross income — 10% calculated and recorded. Triggers all budget allocations.',action:'tithe'},
+    {n:7,title:'Benj & Kasie spending balances',desc:'Enter current debit card balances to calculate positions and transfer amounts.',action:'spending'},
+    {n:8,title:'Review & pay bills',desc:'Check emails, mail, and apps for any bills due this fortnight.',action:'confirm',ct:'I have reviewed and paid all bills ✓'},
+    {n:9,title:'Process NDIS',desc:'Pay invoices, submit claims, update your NDIS spreadsheet, and save invoices.',action:'ndis'},
+    {n:10,title:'Update cash savings',desc:'Enter any cash added to savings this fortnight.',action:'cash'},
+    {n:11,title:'Record other transactions',desc:'Expenses not covered by any budget category.',action:'other'},
+    {n:12,title:'Update money owed',desc:'Update amounts owed to you by family or others.',action:'moneyowed'},
+    {n:13,title:'Update mortgage position',desc:'Enter how much you are currently ahead on the mortgage.',action:'mortgage'},
+  ];
+  const wd=S.workflowData||{};
+  const pending=S.transactions.filter(t=>t.status==='pending').length;
+  document.getElementById('workflow-area').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Fortnightly workflow · ${getTithingCycles()} cycles</div>
+      <button class="btn btn-sm" onclick="resetWorkflow()">↺ New fortnight</button>
+    </div>
+    ${steps.map(s=>{
+      const done=!!wd['s'+s.n];
+      const active=!done&&(s.n===1||!!wd['s'+(s.n-1)]);
+      const nc=done?'sn-d':active?'sn-a':'sn-p';
+      return`<div class="step"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${done?'✓':s.n}</div><div class="step-title">${s.title}</div><span>${done?'<span class="badge bg">Done</span>':active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div><div class="step-body${active||done?' open':''}" id="sb${s.n}"><div class="step-desc">${s.desc}</div>${renderStepBody(s,done,pending)}</div></div>`;
+    }).join('')}`;
+}
+
+function renderStepBody(s,done,pending){
+  if(done)return`<button class="btn btn-sm" onclick="undoStep(${s.n})">↩ Mark undone</button>`;
+  if(s.action==='upload')return`<div class="upload-zone" onclick="document.getElementById('csv-up').click()"><div class="upload-icon">📄</div><div style="font-size:13px;color:var(--text2)">Click to upload MyCard CSV</div></div><input type="file" id="csv-up" accept=".csv" onchange="handleCSV(event)"><button class="btn btn-sm" style="margin-top:10px" onclick="doneStep(1)">Skip — no statement this fortnight</button>`;
+  if(s.action==='review')return`${pending>0?'<div class="banner banner-warn" style="margin-bottom:10px">👁 '+pending+' transactions to review</div>':''}<button class="btn btn-primary btn-sm" onclick="showTab(\'transactions\');doneStep(2)">👁 Review transactions</button>`;
+  if(s.action==='manual')return`<button class="btn btn-primary btn-sm" onclick="openModal(\'quickTx\')">+ Add manual transaction</button><button class="btn btn-sm" style="margin-left:8px" onclick="doneStep(3)">Done adding</button>`;
+  if(s.action==='accept'){const p=S.transactions.filter(t=>t.status==='pending').length;return`${p>0?'<div class="banner banner-warn" style="margin-bottom:10px">'+p+' pending transactions</div>':''}<button class="btn btn-primary btn-sm" onclick="acceptAllPending()">✓ Accept all (${p})</button>`;}
+  if(s.action==='confirm')return`<button class="btn btn-primary btn-sm" onclick="doneStep(${s.n})">${s.ct}</button>`;
+  if(s.action==='tithe')return`<div class="frow" style="margin-bottom:10px"><div class="field"><label>Benj gross income ($)</label><input type="number" id="tb" step="0.01" placeholder="0.00" oninput="calcTithe()"></div><div class="field"><label>Kasie gross income ($)</label><input type="number" id="tk" step="0.01" placeholder="0.00" oninput="calcTithe()"></div></div><div id="tithe-out" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div><button class="btn btn-primary btn-sm" onclick="saveTithe()">✓ Record tithing & done</button>`;
+  if(s.action==='spending')return`<button class="btn btn-primary btn-sm" onclick="openSpendingModal()">💳 Enter debit card balances</button>`;
+  if(s.action==='ndis')return`<div class="field"><label>NDIS amount owed this fortnight ($)</label><input type="number" id="ndis-in" step="0.01" placeholder="0.00"></div><button class="btn btn-primary btn-sm" onclick="saveNDIS()">✓ Update & done</button>`;
+  if(s.action==='cash')return`<div class="field"><label>Cash added to savings ($)</label><input type="number" id="cash-in" step="0.01" placeholder="0.00"><div class="field-hint">Current cash savings: ${fmt(S.overall.cashSavings||0)}</div></div><button class="btn btn-primary btn-sm" onclick="addCash()">✓ Update & done</button>`;
+  if(s.action==='other')return`<div class="frow"><div class="field"><label>Description</label><input type="text" id="oth-desc" placeholder="What was it?"></div><div class="field"><label>Amount ($)</label><input type="number" id="oth-amt" step="0.01" placeholder="0.00"></div></div><div style="display:flex;gap:8px"><button class="btn btn-sm" onclick="addOther()">+ Add another</button><button class="btn btn-primary btn-sm" onclick="doneStep(11)">Done</button></div>`;
+  if(s.action==='moneyowed')return`<div class="field"><label>Total money owed to you ($)</label><input type="number" id="ow-total-in" step="0.01" value="${(S.overall.moneyOwed||0).toFixed(2)}"><div class="field-hint">Or manage individual entries via the dashboard</div></div><button class="btn btn-primary btn-sm" onclick="saveMoneyOwed()">✓ Update & done</button>`;
+  if(s.action==='mortgage')return`<div class="field"><label>Amount ahead on mortgage ($)</label><input type="number" id="mort-in" step="0.01" value="${(S.overall.mortgageAhead||0).toFixed(2)}"></div><button class="btn btn-primary btn-sm" onclick="saveMortgage()">✓ Update & finish 🎉</button>`;
+  return'';
+}
+
+// ─── WORKFLOW ACTIONS ─────────────────────────────────────────────────────────
+function toggleStep(n){document.getElementById('sb'+n)?.classList.toggle('open');}
+function doneStep(n){S.workflowData['s'+n]=true;saveS();renderWorkflow();}
+function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
+function resetWorkflow(){if(confirm('Start a new fortnight? This resets the workflow checklist only.')){S.workflowData={};saveS();}}
+function calcTithe(){const b=parseFloat(document.getElementById('tb')?.value)||0,k=parseFloat(document.getElementById('tk')?.value)||0,t=b+k,ti=t*.1;const el=document.getElementById('tithe-out');if(el&&t>0)el.innerHTML=`Total gross: <strong>${fmt(t)}</strong> → 10% tithe: <strong style="color:var(--green)">${fmt(ti)}</strong>`;}
+function saveTithe(){
+  const b=parseFloat(document.getElementById('tb')?.value)||0,k=parseFloat(document.getElementById('tk')?.value)||0;
+  if(!b&&!k){alert('Please enter at least one income figure.');return;}
+  const t=b+k,ti=t*.1,today=new Date().toISOString().split('T')[0];
+  S.transactions.push({id:'tithe_'+Date.now(),date:today,description:'Tithing — '+today,amount:ti,category:'Tithing',method:'transfer',status:'accepted',source:'tithe'});
+  saveS();doneStep(6);alert(`Tithing recorded: ${fmt(ti)} (10% of ${fmt(t)})\n\nAll budget allocations updated.`);
+}
+function saveNDIS(){const a=parseFloat(document.getElementById('ndis-in')?.value)||0;S.overall.ndisOwed=(S.overall.ndisOwed||0)+a;saveS();doneStep(9);}
+function addCash(){const a=parseFloat(document.getElementById('cash-in')?.value)||0;S.overall.cashSavings=(S.overall.cashSavings||0)+a;saveS();doneStep(10);}
+function addOther(){const desc=document.getElementById('oth-desc')?.value.trim(),amt=parseFloat(document.getElementById('oth-amt')?.value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.transactions.push({id:'oth_'+Date.now(),date:new Date().toISOString().split('T')[0],description:desc,amount:amt,category:'Other',method:'other',status:'accepted',source:'manual'});if(document.getElementById('oth-desc'))document.getElementById('oth-desc').value='';if(document.getElementById('oth-amt'))document.getElementById('oth-amt').value='';saveS();alert('Added!');}
+function saveMoneyOwed(){const a=parseFloat(document.getElementById('ow-total-in')?.value)||0;S.overall.moneyOwed=a;saveS();doneStep(12);}
+function saveMortgage(){const a=parseFloat(document.getElementById('mort-in')?.value)||0;S.overall.mortgageAhead=a;saveS();doneStep(13);alert('Fortnight complete! Great work 🎉');}
+function acceptAllPending(){let n=0;S.transactions.filter(t=>t.status==='pending').forEach(t=>{t.status='accepted';n++;});saveS();doneStep(4);alert(n+' transactions accepted.');}
+
+function openSpendingModal(){
+  const fnB=getFNSpending('Benj'),fnK=getFNSpending('Kasie');
+  document.getElementById('spending-body').innerHTML=`
+    <div style="margin-bottom:1.25rem">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Benj</div>
+      <div class="field"><label>Current debit card balance ($)</label><input type="number" id="benj-debit" step="0.01" placeholder="0.00" oninput="calcSpending('Benj')"></div>
+      <div style="margin-bottom:8px">
+        <div class="calc-row"><span>F/N credit card spending (Benj category)</span><strong>− ${fmt(fnB)}</strong></div>
+        <div class="calc-row"><span>Fortnightly allowance</span><strong>+ $70.00</strong></div>
+        <div class="calc-row"><span>Benj's current balance</span><strong id="benj-result" style="font-size:16px">—</strong></div>
+      </div>
+      <div id="benj-transfer"></div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:1.25rem">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Kasie</div>
+      <div class="field"><label>Current debit card balance ($)</label><input type="number" id="kasie-debit" step="0.01" placeholder="0.00" oninput="calcSpending('Kasie')"></div>
+      <div style="margin-bottom:8px">
+        <div class="calc-row"><span>F/N credit card spending (Kasie category)</span><strong>− ${fmt(fnK)}</strong></div>
+        <div class="calc-row"><span>Fortnightly allowance</span><strong>+ $70.00</strong></div>
+        <div class="calc-row"><span>Kasie's current balance</span><strong id="kasie-result" style="font-size:16px">—</strong></div>
+      </div>
+      <div id="kasie-transfer"></div>
+    </div>`;
+  openModal('spending');
+}
+
+function calcSpending(person){
+  const debit=parseFloat(document.getElementById(person.toLowerCase()+'-debit')?.value)||0;
+  const current=calcSpendingBal(person,debit);
+  const resultEl=document.getElementById(person.toLowerCase()+'-result');
+  const transferEl=document.getElementById(person.toLowerCase()+'-transfer');
+  if(resultEl){resultEl.textContent=(current<0?'-':'')+fmt(Math.abs(current));resultEl.style.color=current<0?'var(--red)':current<20?'var(--amber)':'var(--green)';}
+  if(transferEl){
+    if(current>=20)transferEl.innerHTML=`<div class="transfer-box"><div class="t-label">↗ Transfer to ${person}'s debit account</div><div class="t-amount">${fmt(current)}</div><div class="t-sub">Full balance to debit card</div></div>`;
+    else transferEl.innerHTML=`<div class="debt-box"><div class="t-label">⚠ Balance below $20 — transfer minimum</div><div class="t-amount">Transfer $20.00</div><div class="t-sub">Current will show as ${fmtS(current-20)} after transfer</div></div>`;
+  }
+}
+
+function saveSpending(){
+  const bD=parseFloat(document.getElementById('benj-debit')?.value)||0;
+  const kD=parseFloat(document.getElementById('kasie-debit')?.value)||0;
+  S.spendingBalances={benj:{current:calcSpendingBal('Benj',bD),debit:bD},kasie:{current:calcSpendingBal('Kasie',kD),debit:kD}};
+  saveS();closeModal('spending');doneStep(7);
+}
+
+// ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
+function openTxDetail(id){
+  const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
+  document.getElementById('txd-title').textContent=tx.description;
+  document.getElementById('txd-body').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem">
+      <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(tx.amount)}</div></div>
+      <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:16px">${tx.date}</div></div>
+      <div class="stat"><div class="stat-label">Category</div><div class="stat-value" style="font-size:13px">${tx.category}${tx.subcat?' · '+tx.subcat:''}</div></div>
+      <div class="stat"><div class="stat-label">Method</div><div class="stat-value" style="font-size:13px">${tx.method}</div></div>
+    </div>
+    ${tx.flag?'<div class="banner banner-err" style="margin-bottom:10px">⚠ '+tx.flag+'</div>':''}
+    ${tx.notes?'<div style="font-size:13px;color:var(--text2);margin-bottom:8px">Notes: '+tx.notes+'</div>':''}
+    ${tx.status==='flagged'||tx.status==='pending'?'<div class="field" style="margin-top:12px"><label>Correct date</label><input type="date" id="fix-date" value="'+new Date().toISOString().split(\'T\')[0]+'"></div>':''}`;
+  const actions=document.getElementById('txd-actions');
+  let btns=`<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteTx('${id}')">🗑 Delete</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+  if(tx.status==='flagged'||tx.status==='pending')btns+=`<button class="btn btn-primary btn-sm" onclick="fixAndAccept('${id}')">✓ Fix & accept</button>`;
+  actions.innerHTML=btns;
+  openModal('txDetail');
+}
+
+function fixAndAccept(id){
+  const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
+  const di=document.getElementById('fix-date');if(di)tx.date=di.value;
+  tx.status='accepted';delete tx.flag;saveS();closeModal('txDetail');
+}
+function deleteTx(id){if(!confirm('Delete this transaction?'))return;S.transactions=S.transactions.filter(t=>t.id!==id);saveS();closeModal('txDetail');}
+
+function openCatDetail(catName){
+  const cat=CATS.find(c=>c.name===catName);
+  const cycles=getTithingCycles();
+  const txs=S.transactions.filter(t=>t.category===catName&&t.status==='accepted').sort((a,b)=>b.date.localeCompare(a.date));
+  const spent=getCatSpent(catName);
+  let headerStats='';
+  if(cat?.isSpending){
+    const sb=S.spendingBalances||{};
+    const cur=cat.person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
+    headerStats=`<div class="stat"><div class="stat-label">Current balance</div><div class="stat-value ${cur>=0?'pos':'neg'}">${fmtS(cur)}</div></div><div class="stat"><div class="stat-label">F/N spending</div><div class="stat-value">${fmt(getFNSpending(cat.person))}</div></div><div class="stat"><div class="stat-label">Yearly spent</div><div class="stat-value">${fmt(spent)}</div></div>`;
+  }else{
+    const budgeted=cat?cat.fn*cycles:0,bal=budgeted-spent;
+    headerStats=`<div class="stat"><div class="stat-label">Balance</div><div class="stat-value ${bal>=0?'pos':'neg'}">${fmtS(bal)}</div></div><div class="stat"><div class="stat-label">Spent</div><div class="stat-value">${fmt(spent)}</div></div><div class="stat"><div class="stat-label">Yearly budget</div><div class="stat-value">${fmt(cat?.yearly||0)}</div></div>`;
+  }
+  let subcats='';
+  if(cat?.subs){const bySub={};txs.forEach(t=>{const k=t.subcat||'Other';bySub[k]=(bySub[k]||0)+t.amount;});subcats='<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">By sub-category</div>'+Object.entries(bySub).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)"><span>${k}</span><span style="font-weight:600">${fmt(v)}</span></div>`).join('');}
+  document.getElementById('txd-title').textContent=catName;
+  document.getElementById('txd-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">${headerStats}</div>${subcats}<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">Transactions (${txs.length})</div><div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${t.date.slice(5)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}</div>`;
+  document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+  openModal('txDetail');
+}
+
+// ─── CSV HANDLING ─────────────────────────────────────────────────────────────
+function handleCSV(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const lines=ev.target.result.split('\n').filter(l=>l.trim());
+    const parsed=[];
+    for(let i=1;i<lines.length;i++){
+      const cols=lines[i].split(',').map(c=>c.replace(/"/g,'').trim());
+      if(cols.length<2)continue;
+      const date=cols[0],desc=cols[1]||'';
+      const amt=Math.abs(parseFloat((cols[cols.length-1]||'0').replace(/[^0-9.-]/g,''))||0);
+      if(!amt)continue;
+      const cat=autoAssign(desc);
+      const catObj=CATS.find(c=>c.name===cat);
+      const subcat=catObj?.subs?autoSubcat(desc,catObj.subs):'';
+      const match=S.transactions.find(t=>t.source==='manual'&&t.status==='pending'&&Math.abs(t.amount-amt)<0.01);
+      if(match){match.csvMatched=true;continue;}
+      parsed.push({id:'csv_'+Date.now()+'_'+i,date,description:desc,amount:amt,category:cat,subcat,method:'credit',status:'pending',source:'csv'});
+    }
+    S.csvPending=parsed;openCSVReview(parsed);
+  };
+  reader.readAsText(file);
+}
+
+function openCSVReview(txs){
+  document.getElementById('csv-review-body').innerHTML=`<div style="font-size:13px;color:var(--text2);margin-bottom:12px">${txs.length} transactions found. Review categories before accepting.</div>`+txs.map((t,i)=>`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:13px;font-weight:600">${t.description}</span><span style="font-size:14px;font-weight:700">${fmt(t.amount)}</span></div><div class="frow"><div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending[${i}].date=this.value"></div><div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending[${i}].category=this.value;updateCSVSubcat(${i},this.value)">${CATS.map(c=>`<option value="${c.name}"${c.name===t.category?' selected':''}>${c.name}</option>`).join('')}</select></div></div><div id="csv-sub-${i}" style="margin-top:8px">${renderCSVSubcat(i,t.category,t.subcat)}</div></div>`).join('');
+  openModal('csvReview');
+}
+function renderCSVSubcat(i,catName,selected){const cat=CATS.find(c=>c.name===catName);if(!cat?.subs)return'';return`<div class="field" style="margin:0"><label>Sub-category</label><select onchange="S.csvPending[${i}].subcat=this.value">${cat.subs.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('')}</select></div>`;}
+function updateCSVSubcat(i,catName){const el=document.getElementById('csv-sub-'+i);if(el)el.innerHTML=renderCSVSubcat(i,catName,'');}
+function acceptCSVReview(){S.transactions.push(...S.csvPending);S.csvPending=[];saveS();closeModal('csvReview');doneStep(1);}
+
+function autoAssign(desc){
+  const d=desc.toLowerCase();
+  if(/coles|woolworth|aldi|iga|harris farm/.test(d))return'Food';
+  if(/shell|bp |caltex|7-eleven|ampol|united petrol/.test(d))return'Petrol';
+  if(/medicare|chemist|pharmacy|doctor|dental|pathology/.test(d))return'Medical';
+  if(/school fee|education|uniform/.test(d))return'School';
+  if(/netflix|spotify|disney|amazon prime|icloud|streaming/.test(d))return'Bills';
+  if(/electricity|agl|energex|origin|ergon/.test(d))return'Bills';
+  if(/bunnings|mitre 10|hardware/.test(d))return'Maintenance';
+  if(/kmart|target|big w|cotton on|myer/.test(d))return'Clothing';
+  if(/restaurant|cafe|mcdonald|hungry jack|kfc|subway|pizza/.test(d))return'Entertainment';
+  if(/linkt|toll/.test(d))return'Petrol';
+  if(/bupa|medibank|hbf|hcf/.test(d))return'Bills';
+  return'Bills';
+}
+function autoSubcat(desc,subs){
+  const d=desc.toLowerCase();
+  const map={netflix:'Streaming',spotify:'Music','apple music':'Music',amazon:'Amazon',icloud:'iCloud',costco:'Costco',electricity:'Electricity',agl:'Electricity',bupa:'Health Insurance',medibank:'Health Insurance',racq:'RACQ',linkt:'Linkt',vodaphone:'Phone & Internet',optus:'Phone & Internet',telstra:'Phone & Internet'};
+  for(const[k,v]of Object.entries(map))if(d.includes(k)&&subs.includes(v))return v;
+  return subs[subs.length-1];
+}
+
+// ─── MODALS ───────────────────────────────────────────────────────────────────
+function openModal(id){
+  if(id==='editOverall'){document.getElementById('eo-sav').value=(S.overall.actualSavings||0).toFixed(2);document.getElementById('eo-ndis').value=(S.overall.ndisOwed||0).toFixed(2);document.getElementById('eo-cash').value=(S.overall.cashSavings||0).toFixed(2);document.getElementById('eo-mort').value=(S.overall.mortgageAhead||0).toFixed(2);}
+  if(id==='quickTx'){document.getElementById('qt-date').value=new Date().toISOString().split('T')[0];populateQTCats();}
+  if(id==='moneyOwedDetail')renderOwedList();
+  document.getElementById('modal-'+id).classList.add('open');
+}
+function closeModal(id){document.getElementById('modal-'+id).classList.remove('open');}
+function saveOverall(){S.overall.actualSavings=parseFloat(document.getElementById('eo-sav').value)||0;S.overall.ndisOwed=parseFloat(document.getElementById('eo-ndis').value)||0;S.overall.cashSavings=parseFloat(document.getElementById('eo-cash').value)||0;S.overall.mortgageAhead=parseFloat(document.getElementById('eo-mort').value)||0;saveS();closeModal('editOverall');}
+
+function populateQTCats(){const sel=document.getElementById('qt-cat');sel.innerHTML=CATS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')+'<option value="Other">Other</option>';updateQTSubcat();}
+function updateQTSubcat(){const cat=CATS.find(c=>c.name===document.getElementById('qt-cat')?.value);const wrap=document.getElementById('qt-subcat-wrap');const sel=document.getElementById('qt-subcat');if(cat?.subs){wrap.style.display='block';sel.innerHTML=cat.subs.map(s=>`<option value="${s}">${s}</option>`).join('');}else wrap.style.display='none';}
+function toggleSplit(){const on=document.getElementById('qt-split-chk').checked;document.getElementById('qt-split-area').style.display=on?'block':'none';if(on&&!document.getElementById('split-rows').children.length)addSplitRow();}
+function addSplitRow(){const div=document.createElement('div');div.className='split-row';div.innerHTML=`<select>${CATS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')}</select><input type="number" placeholder="Amount" step="0.01" min="0"><button class="btn btn-sm" onclick="this.parentNode.remove()" style="color:var(--red);border-color:var(--red);padding:6px 10px">✕</button>`;document.getElementById('split-rows').appendChild(div);}
+
+function saveQuickTx(){
+  const date=document.getElementById('qt-date').value,amount=parseFloat(document.getElementById('qt-amount').value),desc=document.getElementById('qt-desc').value.trim(),method=document.getElementById('qt-method').value,notes=document.getElementById('qt-notes').value.trim();
+  if(!date||!amount||!desc){alert('Please fill in date, amount, and description.');return;}
+  const isSplit=document.getElementById('qt-split-chk').checked;
+  if(isSplit){
+    document.getElementById('split-rows').querySelectorAll('.split-row').forEach(row=>{
+      const cat=row.querySelector('select').value,amt=parseFloat(row.querySelector('input').value)||0;
+      if(amt)S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date,description:desc,amount:amt,category:cat,subcat:'',method,notes,status:'pending',source:'manual'});
+    });
+  }else{
+    const cat=document.getElementById('qt-cat').value,catObj=CATS.find(c=>c.name===cat),subcat=catObj?.subs?document.getElementById('qt-subcat').value:'';
+    if(method==='cash')S.overall.cashSavings=(S.overall.cashSavings||0)-amount;
+    S.transactions.push({id:'tx_'+Date.now(),date,description:desc,amount,category:cat,subcat,method,notes,status:'pending',source:'manual'});
+  }
+  saveS();closeModal('quickTx');
+}
+
+function renderOwedList(){
+  const el=document.getElementById('owed-list');
+  if(!S.moneyOwedItems?.length){el.innerHTML='<div style="font-size:13px;color:var(--text2);padding:8px 0">No entries yet.</div>';return;}
+  el.innerHTML='<div class="tx-list" style="margin-bottom:12px">'+S.moneyOwedItems.map(o=>`<div class="tx accepted" style="cursor:default"><span class="tx-desc">${o.description}</span><span class="tx-amt pos">${fmt(o.amount)}</span><button class="btn btn-sm" style="color:var(--red);border-color:var(--red);flex-shrink:0" onclick="removeOwed('${o.id}')">✕</button></div>`).join('')+'</div><div style="font-size:14px;font-weight:600">Total: '+fmt(S.moneyOwedItems.reduce((a,o)=>a+o.amount,0))+'</div>';
+}
+function addOwedEntry(){const desc=document.getElementById('ow-desc').value.trim(),amt=parseFloat(document.getElementById('ow-amt').value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.moneyOwedItems=S.moneyOwedItems||[];S.moneyOwedItems.push({id:'ow_'+Date.now(),description:desc,amount:amt});S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);document.getElementById('ow-desc').value='';document.getElementById('ow-amt').value='';saveS();renderOwedList();}
+function removeOwed(id){S.moneyOwedItems=S.moneyOwedItems.filter(o=>o.id!==id);S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);saveS();renderOwedList();}
+
+function showTab(tab){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  const map={'dashboard':0,'transactions':1,'workflow-tab':2};
+  document.querySelectorAll('.tab')[map[tab]]?.classList.add('active');
+  if(tab==='transactions')renderTxList();
+  if(tab==='workflow-tab')renderWorkflow();
+}
+</script>
+
+<!-- Google APIs -->
+<script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+<script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+</body>
+</html>
