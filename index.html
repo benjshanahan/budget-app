@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shanahan Budget 2026–27</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Budget">
+<meta name="theme-color" content="#1D9E75">
+<link rel="apple-touch-icon" href="icon.png">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -247,6 +254,7 @@ input[type=file]{display:none}
         <select id="f-cat" onchange="renderTxList()"><option value="">All categories</option></select>
         <select id="f-status" onchange="renderTxList()"><option value="">All status</option><option value="accepted">Accepted</option><option value="pending">Pending</option><option value="flagged">Flagged</option></select>
         <select id="f-method" onchange="renderTxList()"><option value="">All methods</option><option value="credit">Credit card</option><option value="cash">Cash</option><option value="transfer">Transfer</option></select>
+        <button class="btn btn-sm" onclick="exportCSV()" style="margin-left:auto">⬇ Export CSV</button>
       </div>
       <div id="tx-count" style="font-size:12px;color:var(--text2);margin-bottom:8px"></div>
       <div class="tx-list" id="tx-list-main"></div>
@@ -865,6 +873,7 @@ function saveSpending(){
 function openTxDetail(id){
   const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
   document.getElementById('txd-title').textContent=tx.description;
+  const txCat=CATS.find(c=>c.name===tx.category);
   document.getElementById('txd-body').innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem">
       <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(tx.amount)}</div></div>
@@ -873,18 +882,54 @@ function openTxDetail(id){
       <div class="stat"><div class="stat-label">Method</div><div class="stat-value" style="font-size:13px">${tx.method}</div></div>
     </div>
     ${tx.flag?'<div class="banner banner-err" style="margin-bottom:10px">⚠ '+tx.flag+'</div>':''}
-    ${tx.notes?'<div style="font-size:13px;color:var(--text2);margin-bottom:8px">Notes: '+tx.notes+'</div>':''}
-    `+(tx.status==='flagged'||tx.status==='pending'?'<div class="field" style="margin-top:12px"><label>Correct date</label><input type="date" id="fix-date" value="'+new Date().toISOString().split('T')[0]+'"></div>':'');
+    <div class="field"><label>Description / summary</label><input type="text" id="edit-desc" value="${tx.description}" style="width:100%"></div>
+    <div class="frow">
+      <div class="field"><label>Category</label><select id="edit-cat" onchange="updateEditSubcat()">${CATS.map(c=>`<option value="${c.name}"${c.name===tx.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other"${tx.category==='Other'?' selected':''}>Other</option></select></div>
+      <div class="field"><label>Date</label><input type="date" id="fix-date" value="${tx.date}"></div>
+    </div>
+    <div id="edit-subcat-wrap" class="field" style="${txCat?.subs?'':'display:none'}"><label>Sub-category</label><select id="edit-subcat">${txCat?.subs?txCat.subs.map(s=>`<option value="${s}"${s===tx.subcat?' selected':''}>${s}</option>`).join(''):''}</select></div>
+    ${tx.notes?'<div class="field"><label>Notes</label><input type="text" id="edit-notes" value="'+tx.notes+'" style="width:100%"></div>':''}
+    `;
   const actions=document.getElementById('txd-actions');
   let btns=`<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteTx('${id}')">🗑 Delete</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
-  if(tx.status==='flagged'||tx.status==='pending')btns+=`<button class="btn btn-primary btn-sm" onclick="fixAndAccept('${id}')">✓ Fix & accept</button>`;
+  if(tx.status==='flagged'||tx.status==='pending'){
+    btns+=`<button class="btn btn-sm" onclick="saveEdits('${id}')">💾 Save edits</button><button class="btn btn-primary btn-sm" onclick="fixAndAccept('${id}')">✓ Accept</button>`;
+  } else {
+    btns+=`<button class="btn btn-sm" onclick="saveEdits('${id}')">💾 Save edits</button>`;
+  }
   actions.innerHTML=btns;
   openModal('txDetail');
 }
 
+function saveEdits(id){
+  const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
+  const di=document.getElementById('fix-date');if(di)tx.date=di.value;
+  const dd=document.getElementById('edit-desc');if(dd)tx.description=dd.value;
+  const dc=document.getElementById('edit-cat');if(dc)tx.category=dc.value;
+  const ds=document.getElementById('edit-subcat');if(ds&&document.getElementById('edit-subcat-wrap')?.style.display!=='none')tx.subcat=ds.value;
+  const dn=document.getElementById('edit-notes');if(dn)tx.notes=dn.value;
+  delete tx.flag;
+  saveS();closeModal('txDetail');
+}
+function updateEditSubcat(){
+  const catName=document.getElementById('edit-cat')?.value;
+  const cat=CATS.find(c=>c.name===catName);
+  const wrap=document.getElementById('edit-subcat-wrap');
+  const sel=document.getElementById('edit-subcat');
+  if(cat?.subs){
+    wrap.style.display='block';
+    sel.innerHTML=cat.subs.map(s=>`<option value="${s}">${s}</option>`).join('');
+  } else {
+    wrap.style.display='none';
+  }
+}
 function fixAndAccept(id){
   const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
   const di=document.getElementById('fix-date');if(di)tx.date=di.value;
+  const dd=document.getElementById('edit-desc');if(dd)tx.description=dd.value;
+  const dc=document.getElementById('edit-cat');if(dc)tx.category=dc.value;
+  const ds=document.getElementById('edit-subcat');if(ds&&document.getElementById('edit-subcat-wrap')?.style.display!=='none')tx.subcat=ds.value;
+  const dn=document.getElementById('edit-notes');if(dn)tx.notes=dn.value;
   tx.status='accepted';delete tx.flag;saveS();closeModal('txDetail');
 }
 function deleteTx(id){if(!confirm('Delete this transaction?'))return;S.transactions=S.transactions.filter(t=>t.id!==id);saveS();closeModal('txDetail');}
@@ -933,8 +978,7 @@ function openSubcatDashboard(catName){
     const subSpent=subTxs.reduce((a,t)=>a+t.amount,0);
     const subYearly=subcatYearlyBudgets[sub]||0;
     const subPct=subYearly>0?Math.min(subSpent/subYearly*100,100):0;
-    if(subSpent===0&&subTxs.length===0)return'';
-    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;cursor:pointer" onclick="openSubcatDetail('${catName}','${sub.replace(/'/g,"\'")}')">
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;cursor:pointer;opacity:${subSpent===0?'0.5':'1'}" onclick="openSubcatDetail('${catName}','${sub.replace(/'/g,"\'")}')">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
         <span style="font-size:13px;font-weight:600">${sub}</span>
         <span style="font-size:14px;font-weight:700;color:var(--text)">${fmt(subSpent)}</span>
@@ -1055,7 +1099,8 @@ function openCSVReview(data){
           <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].csv.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.map(c=>`<option value="${c.name}"${c.name===m.csv.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option></select></div>
         </div>
         <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)}</div>
-        <div style="font-size:11px;color:var(--green);margin-top:6px">Will merge: manual entry will be removed and replaced with this credit card transaction</div>
+        <div class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value" style="width:100%"></div>
+        <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: manual entry will be removed and replaced with this credit card transaction</div>
       </div>`;
     });
   }
@@ -1071,9 +1116,15 @@ function openCSVReview(data){
         </div>
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value)">${CATS.map(c=>`<option value="${c.name}"${c.name===t.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option></select></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched')">${CATS.map(c=>`<option value="${c.name}"${c.name===t.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option><option value="Split">⇄ Split transaction</option></select></div>
         </div>
         <div id="csv-sub-c${i}" style="margin-top:8px">${renderCSVSubcatNamed('c'+i,t.category,t.subcat)}</div>
+        <div id="csv-split-c${i}" style="display:none;margin-top:8px">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Split amounts</div>
+          <div id="csv-split-rows-c${i}"></div>
+          <button class="btn btn-sm" onclick="addCSVSplitRow('c${i}')" style="margin-top:4px">+ Add split</button>
+        </div>
+        <div class="field" style="margin-top:8px;margin-bottom:0"><label>Summary / description</label><input type="text" value="${t.description}" onchange="S.csvPending.unmatchedCSV[${i}].description=this.value" style="width:100%"></div>
       </div>`;
     });
   }
@@ -1117,22 +1168,72 @@ function updateSubcatValue(key,val){
   if(prefix==='m')S.csvPending.merged[i].csv.subcat=val;
   else if(prefix==='c')S.csvPending.unmatchedCSV[i].subcat=val;
 }
+function toggleCSVSplit(key,catName,idx,section){
+  const splitArea=document.getElementById('csv-split-'+key);
+  const subcatArea=document.getElementById('csv-sub-'+key);
+  if(catName==='Split'){
+    if(splitArea)splitArea.style.display='block';
+    if(subcatArea)subcatArea.style.display='none';
+    if(splitArea&&!splitArea.querySelector('.csv-split-row'))addCSVSplitRow(key);
+  } else {
+    if(splitArea)splitArea.style.display='none';
+    if(subcatArea)subcatArea.style.display='block';
+  }
+}
+function addCSVSplitRow(key){
+  const container=document.getElementById('csv-split-rows-'+key);
+  if(!container)return;
+  const div=document.createElement('div');
+  div.className='csv-split-row split-row';
+  div.style.marginBottom='6px';
+  div.innerHTML=`<select style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">${CATS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')}<option value="Other">Other</option></select><input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove()" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button>`;
+  container.appendChild(div);
+}
+function getCSVSplitRows(key){
+  const rows=document.querySelectorAll('#csv-split-rows-'+key+' .csv-split-row');
+  const splits=[];
+  rows.forEach(row=>{
+    const selects=row.querySelectorAll('select');
+    const inputs=row.querySelectorAll('input');
+    const cat=selects[0]?.value||'';
+    const desc=inputs[0]?.value||'';
+    const amt=parseFloat(inputs[1]?.value)||0;
+    if(cat&&amt)splits.push({category:cat,description:desc,amount:amt});
+  });
+  return splits;
+}
 function renderCSVSubcat(i,catName,selected){const cat=CATS.find(c=>c.name===catName);if(!cat?.subs)return'';return`<div class="field" style="margin:0"><label>Sub-category</label><select>${cat.subs.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('')}</select></div>`;}
 function updateCSVSubcat(i,catName){const el=document.getElementById('csv-sub-'+i);if(el)el.innerHTML=renderCSVSubcat(i,catName,'');}
 
 function acceptCSVReview(){
   const{merged,unmatchedCSV,unmatchedManual}=S.csvPending;
   // Process merged: remove manual, add CSV version
-  merged.forEach(m=>{
+  merged.forEach((m,i)=>{
     S.transactions=S.transactions.filter(t=>t.id!==m.manual.id);
-    S.transactions.push({...m.csv,status:'pending'});
+    // Check for split
+    const splitKey='m'+i;
+    const splitArea=document.getElementById('csv-split-'+splitKey);
+    if(splitArea&&splitArea.style.display!=='none'){
+      const splits=getCSVSplitRows(splitKey);
+      splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:m.csv.date,description:sp.description||m.csv.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
+    } else {
+      S.transactions.push({...m.csv,status:'pending'});
+    }
   });
-  // Add unmatched CSV as pending
-  unmatchedCSV.forEach(t=>S.transactions.push({...t,status:'pending'}));
-  // Handle unmatched manual: keep unless explicitly removed
+  // Add unmatched CSV as pending (handle splits)
+  unmatchedCSV.forEach((t,i)=>{
+    const splitKey='c'+i;
+    const splitArea=document.getElementById('csv-split-'+splitKey);
+    if(splitArea&&splitArea.style.display!=='none'){
+      const splits=getCSVSplitRows(splitKey);
+      splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
+    } else {
+      S.transactions.push({...t,status:'pending'});
+    }
+  });
+  // Handle unmatched manual
   unmatchedManual.forEach(t=>{
     if(t.keepAction==='remove')S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
-    // else keep as-is (already in S.transactions)
   });
   S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
   saveS();closeModal('csvReview');doneStep(1);
@@ -1311,6 +1412,26 @@ function markOwedPaid(id){
 function addOwedEntry(){const desc=document.getElementById('ow-desc').value.trim(),amt=parseFloat(document.getElementById('ow-amt').value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.moneyOwedItems=S.moneyOwedItems||[];const owDate=document.getElementById('ow-date')?.value||new Date().toISOString().split('T')[0];S.moneyOwedItems.push({id:'ow_'+Date.now(),description:desc,amount:amt,date:owDate});S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);document.getElementById('ow-desc').value='';document.getElementById('ow-amt').value='';saveS();renderOwedList();}
 function removeOwed(id){S.moneyOwedItems=S.moneyOwedItems.filter(o=>o.id!==id);S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);saveS();renderOwedList();}
 
+function exportCSV(){
+  const cf=document.getElementById('f-cat').value;
+  const sf=document.getElementById('f-status').value;
+  const mf=document.getElementById('f-method').value;
+  let txs=[...S.transactions].sort((a,b)=>b.date.localeCompare(a.date));
+  if(cf)txs=txs.filter(t=>t.category===cf);
+  if(sf)txs=txs.filter(t=>t.status===sf);
+  if(mf)txs=txs.filter(t=>t.method===mf);
+  const rows=[['Date','Description','Amount','Category','Sub-category','Method','Status','Notes']];
+  txs.forEach(t=>rows.push([t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.notes||'']));
+  const csv=rows.map(r=>r.join(',')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  const filterDesc=[cf||'all-categories',sf||'all-status',mf||'all-methods'].filter(f=>!f.startsWith('all')).join('-')||'all';
+  a.download='budget-transactions-'+filterDesc+'-'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
 function showTab(tab){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
