@@ -210,15 +210,17 @@ input[type=file]{display:none}
 <!-- Main App -->
 <div id="app-screen">
   <nav class="top-nav">
-    <div>
-      <div class="nav-title">💰 Shanahan Budget</div>
-      <div class="nav-sub">2026–27 · <span id="nav-cycles">—</span> tithing cycles · Next: <span id="nav-next">—</span></div>
-    </div>
-    <div class="nav-actions">
-      <span id="sync-status"><span class="sync-dot" id="sync-dot"></span><span id="sync-text" style="font-size:11px;color:var(--text2)">Synced</span></span>
-      <button class="btn btn-sm" onclick="openModal('quickTx')">+ Transaction</button>
-      <button class="btn btn-sm btn-primary" onclick="showTab('workflow-tab')">Do the money</button>
-      <button class="btn-icon" onclick="signOut()" title="Sign out">↩</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:12px">
+      <div style="min-width:0">
+        <div class="nav-title">💰 Shanahan Budget</div>
+        <div class="nav-sub">22 Apr 2026 – 20 Apr 2027 · Next money day: <span id="nav-next">—</span></div>
+      </div>
+      <div class="nav-actions" style="flex-shrink:0">
+        <span id="sync-status"><span class="sync-dot" id="sync-dot"></span><span id="sync-text" style="font-size:11px;color:var(--text2)">Synced</span></span>
+        <button class="btn btn-sm btn-primary" onclick="openModal('quickTx')" style="background:var(--blue);border-color:#0F4A8A">+ Transaction</button>
+        <button class="btn btn-sm btn-primary" onclick="showTab('workflow-tab')">💳 Do the money</button>
+        <button class="btn-icon" onclick="signOut()" title="Sign out">↩</button>
+      </div>
     </div>
   </nav>
 
@@ -681,7 +683,6 @@ function render(){
 function renderHeader(){
   const next=getNextMoneyDay();
   document.getElementById('nav-next').textContent=next.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'});
-  document.getElementById('nav-cycles').textContent=getTithingCycles();
 }
 
 function renderOverall(){
@@ -1424,7 +1425,10 @@ function renderOwedList(){
   const manualItems=S.moneyOwedItems||[];
   const manualTotal=manualItems.reduce((a,o)=>a+o.amount,0);
   const negTotal=negBudgets.reduce((a,b)=>a+b.amount,0);
-  const grandTotal=manualTotal+negTotal;
+
+  // Get last money day date (most recent accepted tithing entry)
+  const tithingDates=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').map(t=>t.date).sort();
+  const lastMoneyDay=tithingDates[tithingDates.length-1]||'—';
 
   let html='';
 
@@ -1434,11 +1438,10 @@ function renderOwedList(){
       <div class="tx accepted" style="cursor:default;flex-wrap:wrap;gap:6px">
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500">${o.description}</div>
-          <div style="font-size:11px;color:var(--text2)">${o.date||'—'}</div>
+          <div style="font-size:11px;color:var(--text2)">Added: ${o.date||'—'}</div>
         </div>
         <span style="font-size:14px;font-weight:700;color:var(--green)">${fmt(o.amount)}</span>
         <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="markOwedPaid('${o.id}')">✓ Paid</button>
-        <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="removeOwed('${o.id}')">✕</button>
       </div>`).join('')+'</div>';
   }
 
@@ -1446,7 +1449,10 @@ function renderOwedList(){
     html+=`<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Overspent budgets</div>`;
     html+='<div class="tx-list" style="margin-bottom:14px">'+negBudgets.map(b=>`
       <div class="tx flagged" style="cursor:default">
-        <span class="tx-desc" style="font-size:13px;font-weight:500">${b.name} owes</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500">${b.name} owes</div>
+          <div style="font-size:11px;color:var(--text2)">Last money done: ${lastMoneyDay}</div>
+        </div>
         <span style="font-size:14px;font-weight:700;color:var(--red)">− ${fmt(b.amount)}</span>
       </div>`).join('')+'</div>';
   }
@@ -1455,7 +1461,11 @@ function renderOwedList(){
     html='<div style="font-size:13px;color:var(--text2);padding:8px 0">Nothing owed — you\'re all square! ✓</div>';
   }
 
-  html+=`<div style="font-size:14px;font-weight:600;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between"><span>Grand total owed to you</span><span style="color:${grandTotal>0?'var(--green)':'var(--text)'}">+${fmt(manualTotal)} <span style="color:var(--red)">− ${fmt(negTotal)}</span></span></div>`;
+  const netOwed=manualTotal-negTotal;
+  html+=`<div style="font-size:14px;font-weight:600;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+    <span>Grand total owed to you</span>
+    <span style="font-size:18px;color:${netOwed>=0?'var(--green)':'var(--red)'}">${netOwed<0?'-':''}${fmt(Math.abs(netOwed))}</span>
+  </div>`;
 
   el.innerHTML=html;
 }
