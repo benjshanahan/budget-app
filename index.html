@@ -591,7 +591,7 @@ async function saveToSheets(){
 
     // Workflow sheet
     const wfRows2 = Object.entries(S.workflowData).map(([k,v])=>[k,String(v)]);
-    data.push({range:'Workflow!A1',values:wfRows2.length?wfRows2:[['','']]);
+    data.push({range:'Workflow!A1',values:wfRows2.length?wfRows2:[['','']]});
 
     await gapi.client.sheets.spreadsheets.values.batchUpdate({
       spreadsheetId:SPREADSHEET_ID,
@@ -668,7 +668,7 @@ function renderBanners(){
   fb.style.display=flagged.length?'block':'none';
   if(flagged.length)fb.innerHTML=`<div class="banner banner-err">⚠️ ${flagged.length} transaction${flagged.length>1?'s need':'needs'} attention (date errors) <button class="btn btn-sm" style="margin-left:auto;color:var(--red);border-color:var(--red)" onclick="showTab('transactions')">View</button></div>`;
   pb.style.display=pending.length?'block':'none';
-  if(pending.length)pb.innerHTML=`<div class="banner banner-warn">🕐 ${pending.length} pending transaction${pending.length>1?'s':'} ready to review <button class="btn btn-sm" style="margin-left:auto" onclick="showTab('workflow-tab')">Review</button></div>`;
+  if(pending.length)pb.innerHTML='<div class="banner banner-warn">🕐 '+pending.length+' pending transaction'+(pending.length>1?'s':'')+' ready to review <button class="btn btn-sm" style="margin-left:auto" onclick="showTab(\'workflow-tab\')">Review</button></div>';
 }
 
 function renderBudgetGrid(){
@@ -845,7 +845,7 @@ function openTxDetail(id){
     </div>
     ${tx.flag?'<div class="banner banner-err" style="margin-bottom:10px">⚠ '+tx.flag+'</div>':''}
     ${tx.notes?'<div style="font-size:13px;color:var(--text2);margin-bottom:8px">Notes: '+tx.notes+'</div>':''}
-    ${tx.status==='flagged'||tx.status==='pending'?'<div class="field" style="margin-top:12px"><label>Correct date</label><input type="date" id="fix-date" value="'+new Date().toISOString().split(\'T\')[0]+'"></div>':''}`;
+    `+(tx.status==='flagged'||tx.status==='pending'?'<div class="field" style="margin-top:12px"><label>Correct date</label><input type="date" id="fix-date" value="'+new Date().toISOString().split('T')[0]+'"></div>':'');
   const actions=document.getElementById('txd-actions');
   let btns=`<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteTx('${id}')">🗑 Delete</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   if(tx.status==='flagged'||tx.status==='pending')btns+=`<button class="btn btn-primary btn-sm" onclick="fixAndAccept('${id}')">✓ Fix & accept</button>`;
