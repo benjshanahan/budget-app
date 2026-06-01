@@ -1,0 +1,1810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shanahan Budget 2026–27</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Budget">
+<meta name="theme-color" content="#1D9E75">
+<link rel="apple-touch-icon" href="icon.png">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green:#1D9E75;--gl:#E1F5EE;--gd:#085041;
+  --amber:#BA7517;--al:#FAEEDA;
+  --red:#E24B4A;--rl:#FCEBEB;
+  --blue:#185FA5;--bl:#E6F1FB;
+  --bg:#F5F5F0;--surface:#fff;--surface2:#F8F8F5;
+  --border:#E5E5E0;--border2:#D0D0C8;
+  --text:#1A1A18;--text2:#6B6B65;--text3:#9B9B95;
+  --radius:12px;--radius-sm:8px;
+  --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,0.1),0 2px 4px rgba(0,0,0,0.06);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.5;min-height:100vh}
+
+/* Auth Screen */
+#auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem}
+.auth-card{background:var(--surface);border-radius:var(--radius);padding:2.5rem;max-width:420px;width:100%;text-align:center;box-shadow:var(--shadow-md)}
+.auth-logo{font-size:48px;margin-bottom:1rem}
+.auth-title{font-size:24px;font-weight:600;margin-bottom:.5rem;color:var(--text)}
+.auth-sub{font-size:14px;color:var(--text2);margin-bottom:2rem;line-height:1.6}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px 20px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:15px;font-weight:500;cursor:pointer;transition:background .15s,box-shadow .15s}
+.btn-google:hover{background:var(--surface2);box-shadow:var(--shadow)}
+.btn-google svg{width:20px;height:20px;flex-shrink:0}
+
+/* App Layout */
+#app-screen{display:none;min-height:100vh;flex-direction:column}
+.top-nav{background:var(--surface);border-bottom:1px solid var(--border);padding:.875rem 1.25rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.nav-title{font-size:16px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px}
+.nav-sub{font-size:12px;color:var(--text2);margin-top:1px}
+.nav-actions{display:flex;gap:8px;align-items:center}
+.main{padding:1rem;max-width:720px;margin:0 auto;width:100%;flex:1}
+
+/* Buttons */
+.btn{padding:8px 14px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s;font-family:inherit}
+.btn:hover{background:var(--surface2)}
+.btn-primary{background:var(--green);color:#fff;border-color:var(--gd)}
+.btn-primary:hover{background:var(--gd)}
+.btn-sm{padding:6px 11px;font-size:12px}
+.btn-icon{padding:7px;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text2);display:inline-flex;align-items:center;transition:all .15s}
+.btn-icon:hover{background:var(--surface2);color:var(--text)}
+
+/* Tab bar */
+.tab-bar{display:flex;background:var(--surface);border-radius:var(--radius);padding:4px;margin-bottom:1.25rem;gap:4px;box-shadow:var(--shadow)}
+.tab{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;border-radius:var(--radius-sm);transition:all .15s}
+.tab.active{background:var(--green);color:#fff}
+.screen{display:none}.screen.active{display:block}
+
+/* Cards */
+.card{background:var(--surface);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem;box-shadow:var(--shadow)}
+.card-title{font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:1rem}
+
+/* Stat grid */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.stat{background:var(--surface2);border-radius:var(--radius-sm);padding:12px;border:1px solid var(--border)}
+.stat-label{font-size:11px;color:var(--text2);margin-bottom:3px;font-weight:500}
+.stat-value{font-size:20px;font-weight:600;color:var(--text)}
+.pos{color:var(--green)}.neg{color:var(--red)}.warn{color:var(--amber)}
+
+/* Budget grid */
+.budget-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:1rem}
+.bc{background:var(--surface);border-radius:var(--radius);padding:14px;cursor:pointer;border:1px solid var(--border);transition:all .15s;box-shadow:var(--shadow)}
+.bc:hover{border-color:var(--green);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.bc-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.bc-name{font-size:13px;font-weight:600;color:var(--text)}
+.bc-bal{font-size:15px;font-weight:700}
+.pbar{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-bottom:6px}
+.pfill{height:100%;border-radius:2px;transition:width .3s}
+.pfill.good{background:var(--green)}.pfill.warn{background:var(--amber)}.pfill.over{background:var(--red)}
+.bc-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--text2)}
+
+/* Banners */
+.banner{border-radius:var(--radius-sm);padding:10px 14px;font-size:13px;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.banner-warn{background:var(--al);border:1px solid #E8C060;color:#7A5A10}
+.banner-err{background:var(--rl);border:1px solid #F0A0A0;color:#A02020}
+.banner-info{background:var(--bl);border:1px solid #A0C0E8;color:#103060}
+
+/* Transaction list */
+.tx-list{display:flex;flex-direction:column;gap:6px}
+.tx{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 13px;display:flex;align-items:center;gap:9px;cursor:pointer;transition:all .15s}
+.tx:hover{border-color:var(--border2);box-shadow:var(--shadow)}
+.tx.accepted{border-left:3px solid var(--green)}
+.tx.pending{border-left:3px solid var(--amber);background:var(--al)}
+.tx.pending .tx-cat{background:var(--al);color:var(--amber);border-color:var(--amber)}
+.tx.flagged{border-left:3px solid var(--red)}
+.tx-date{font-size:11px;color:var(--text2);min-width:52px;font-weight:500}
+.tx-desc{flex:1;font-size:13px;color:var(--text);min-width:0}
+.tx-desc small{display:block;font-size:11px;color:var(--text2);margin-top:1px}
+.tx-cat{font-size:11px;color:var(--text2);background:var(--surface2);padding:2px 8px;border-radius:20px;white-space:nowrap;border:1px solid var(--border)}
+.tx-amt{font-size:13px;font-weight:600;min-width:65px;text-align:right}
+
+/* Filter row */
+.filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.filter-row select{font-size:12px;padding:6px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit}
+
+/* Workflow steps */
+.step{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:8px;background:var(--surface);box-shadow:var(--shadow)}
+.step-hdr{padding:13px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .15s}
+.step-hdr:hover{background:var(--surface2)}
+.step-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.sn-p{background:var(--surface2);color:var(--text2);border:1px solid var(--border2)}
+.sn-a{background:var(--green);color:#fff}
+.sn-d{background:var(--gl);color:var(--gd)}
+.step-title{font-size:14px;font-weight:600;color:var(--text);flex:1}
+.step-body{padding:16px;border-top:1px solid var(--border);background:var(--surface2);display:none}
+.step-body.open{display:block}
+.step-desc{font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6}
+
+/* Badges */
+.badge{display:inline-flex;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.bg{background:var(--gl);color:var(--gd)}.ba{background:var(--al);color:var(--amber)}.br{background:var(--rl);color:var(--red)}.bb{background:var(--bl);color:var(--blue)}
+.bgray{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
+
+/* Modals */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto;backdrop-filter:blur(2px)}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius);width:100%;max-width:540px;padding:1.75rem;position:relative;margin:auto;box-shadow:var(--shadow-md)}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:1.25rem;padding-right:2.5rem;color:var(--text)}
+.mclose{position:absolute;top:1.25rem;right:1.25rem;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text2);font-size:18px;line-height:1;padding:4px 8px;transition:all .15s}
+.mclose:hover{background:var(--border);color:var(--text)}
+.field{margin-bottom:1rem}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.field input,.field select,.field textarea{width:100%;padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;transition:border .15s}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--green)}
+.field textarea{min-height:60px;resize:vertical}
+.field-hint{font-size:11px;color:var(--text3);margin-top:4px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border)}
+
+/* Transfer boxes */
+.transfer-box{background:var(--gl);border:1px solid #5DBB99;border-radius:var(--radius-sm);padding:14px 16px;margin:10px 0}
+.transfer-box .t-label{font-size:12px;color:var(--gd);margin-bottom:4px;font-weight:600}
+.transfer-box .t-amount{font-size:22px;font-weight:700;color:var(--gd)}
+.transfer-box .t-sub{font-size:11px;color:var(--green);margin-top:3px}
+.debt-box{background:var(--rl);border:1px solid #F0A0A0;border-radius:var(--radius-sm);padding:14px 16px;margin:10px 0}
+.debt-box .t-label{font-size:12px;color:var(--red);margin-bottom:4px;font-weight:600}
+.debt-box .t-amount{font-size:22px;font-weight:700;color:var(--red)}
+.debt-box .t-sub{font-size:11px;color:#C03030;margin-top:3px}
+
+/* Calc rows */
+.calc-row{display:flex;align-items:center;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)}
+.calc-row:last-child{border:none;padding-top:8px;font-weight:600;font-size:14px}
+
+/* Upload zone */
+.upload-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:2rem;text-align:center;cursor:pointer;transition:all .15s}
+.upload-zone:hover{border-color:var(--green);background:var(--gl)}
+.upload-icon{font-size:36px;margin-bottom:8px;opacity:.4}
+input[type=file]{display:none}
+
+/* Split rows */
+.split-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.split-row select,.split-row input{padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px;font-family:inherit}
+.split-row select{flex:2}.split-row input{flex:1}
+
+/* Sync indicator */
+.sync-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:4px}
+.sync-dot.syncing{background:var(--amber);animation:pulse 1s infinite}
+.sync-dot.error{background:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Loading */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999}
+.loading-logo{font-size:56px;margin-bottom:1rem;animation:bounce 1s ease-in-out infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.loading-text{font-size:15px;color:var(--text2)}
+
+.private-blur{filter:blur(6px);user-select:none;pointer-events:none}
+.private-block{background:#333!important;color:#333!important;border-radius:4px;user-select:none;pointer-events:none}
+.private-block *{opacity:0!important}
+/* Responsive */
+@media(max-width:480px){
+  .budget-grid{grid-template-columns:1fr 1fr}
+  .stat-grid{grid-template-columns:1fr 1fr}
+  .frow{grid-template-columns:1fr}
+  .main{padding:.75rem}
+}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="loading-logo">💰</div>
+  <div class="loading-text">Loading budget...</div>
+</div>
+
+<!-- Auth Screen -->
+<div id="auth-screen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">💰</div>
+    <h1 class="auth-title">Shanahan Budget</h1>
+    <p class="auth-sub">Enter the family password to access the budget.</p>
+    <div style="margin-bottom:1rem">
+      <input type="password" id="password-input" placeholder="Enter password" 
+        style="width:100%;padding:12px;border-radius:var(--radius-sm);border:1px solid var(--border2);font-size:15px;font-family:inherit;text-align:center;letter-spacing:2px"
+        onkeydown="if(event.key==='Enter')checkPassword()">
+    </div>
+    <button class="btn-google" onclick="checkPassword()" style="background:var(--green);color:#fff;border-color:var(--gd);justify-content:center">
+      Enter Budget
+    </button>
+    <div id="password-error" style="color:var(--red);font-size:13px;margin-top:10px;display:none">Incorrect password. Try again.</div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app-screen">
+  <nav class="top-nav" style="padding:0">
+    <div style="background:#1A56A0;padding:1rem 1.25rem 0.875rem;text-align:center;width:100%">
+      <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-.01em">💰 Shanahan Budget</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.75);margin-top:3px">22 April 2026 – 20 April 2027</div>
+    </div>
+    <div style="padding:.75rem 1rem;display:flex;align-items:stretch;gap:8px;border-bottom:1px solid var(--border);background:var(--surface)">
+      <button class="btn btn-primary" onclick="openModal('quickTx')" style="flex:1;justify-content:center;background:#1A56A0;border-color:#0F4A8A;font-size:14px;padding:10px 8px;white-space:nowrap">+ Transaction</button>
+      <button class="btn btn-primary" onclick="showTab('workflow-tab')" id="do-money-btn" style="flex:1;justify-content:center;font-size:13px;padding:10px 8px;white-space:nowrap;flex-direction:column;gap:2px;line-height:1.2">
+        <span>Update Budget</span>
+        <span id="next-fn-label" style="font-size:10px;opacity:0.85">Next: —</span>
+      </button>
+      <span id="sync-status" style="display:flex;align-items:center;flex-shrink:0"><span class="sync-dot" id="sync-dot"></span></span>
+      <button id="private-btn" class="btn-icon" onclick="togglePrivate()" title="Toggle private mode" style="flex-shrink:0">👁</button>
+      <button class="btn-icon" onclick="signOut()" title="Sign out" style="flex-shrink:0">↩</button>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="tab-bar">
+      <div class="tab active" onclick="showTab('dashboard')">Dashboard</div>
+      <div class="tab" onclick="showTab('transactions')">Transactions</div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="tab-dashboard" class="screen active">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+          <div class="card-title" style="margin:0">Overall savings</div>
+        </div>
+        <div class="stat-grid" id="overall-stats"></div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="openModal('editOverall')">✏️ Update figures</button>
+          <button class="btn btn-sm" onclick="openModal('moneyOwedDetail')">📋 Money owed</button>
+        </div>
+      </div>
+      <div id="flag-banner" style="display:none"></div>
+      <div id="pending-banner" style="display:none"></div>
+      <div class="card-title">Budget categories</div>
+      <div class="budget-grid" id="budget-grid"></div>
+      <div style="text-align:center;padding:1rem 0 .5rem;font-size:12px;color:var(--text2)">Next money day: <strong id="nav-next">—</strong></div>
+    <div class="card" style="margin-top:8px;margin-bottom:0">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Budget year progress</div>
+      <div style="position:relative;height:32px;background:var(--surface2);border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border)">
+        <div id="year-progress-fill" style="height:100%;background:var(--green);border-radius:var(--radius-sm);transition:width .5s"></div>
+        <div id="year-progress-label" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.3)"></div>
+      </div>
+      <div id="year-progress-meta" style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-top:6px"></div>
+    </div>
+    </div>
+
+    <!-- Transactions -->
+    <div id="tab-transactions" class="screen">
+      <div class="filter-row">
+        <select id="f-cat" onchange="renderTxList()"><option value="">All categories</option></select>
+        <select id="f-status" onchange="renderTxList()"><option value="">All status</option><option value="accepted">Accepted</option><option value="pending">Pending</option><option value="flagged">Flagged</option></select>
+        <select id="f-method" onchange="renderTxList()"><option value="">All methods</option><option value="credit">Credit card</option><option value="cash">Cash</option><option value="transfer">Transfer</option></select>
+        <select id="f-period" onchange="renderTxList()">
+          <option value="">All time</option>
+          <option value="this-fn">This fortnight</option>
+          <option value="last-fn">Last fortnight</option>
+          <option value="this-month">This month</option>
+          <option value="last-month">Last month</option>
+          <option value="this-year">This budget year</option>
+          <option value="custom">Custom range</option>
+        </select>
+        <button class="btn btn-sm" onclick="openModal('recycleBin')" style="color:var(--red);border-color:var(--red)">🗑 Bin</button>
+      <button class="btn btn-sm" onclick="exportCSV()" style="margin-left:auto">⬇ Export CSV</button>
+      </div>
+      <div id="f-custom-range" style="display:none;gap:8px;margin-bottom:10px;flex-wrap:wrap" class="filter-row">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">From</div>
+        <input type="date" id="f-date-from" onchange="renderTxList()" style="font-size:12px;padding:5px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text)">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">To</div>
+        <input type="date" id="f-date-to" onchange="renderTxList()" style="font-size:12px;padding:5px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text)">
+      </div>
+      <div id="tx-summary" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div id="tx-count" style="font-size:12px;color:var(--text2)"></div>
+        <div id="tx-total" style="font-size:13px;font-weight:600;color:var(--text)"></div>
+      </div>
+      <div class="tx-list" id="tx-list-main"></div>
+    </div>
+
+    <!-- Workflow -->
+    <div id="tab-workflow-tab" class="screen">
+      <div id="workflow-area"></div>
+    </div>
+  </main>
+</div>
+
+<!-- Quick Transaction Modal -->
+<div id="modal-quickTx" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('quickTx')">✕</button>
+    <div class="modal-title">Add transaction</div>
+    <div class="frow">
+      <div class="field"><label>Date</label><input type="date" id="qt-date"></div>
+      <div class="field"><label>Amount ($)</label><input type="number" id="qt-amount" placeholder="0.00" step="0.01" min="0"></div>
+    </div>
+    <div id="qt-desc-wrap" class="field"><label>Description</label><input type="text" id="qt-desc" placeholder="What was this for?"></div>
+    <div class="field"><label>Category</label><select id="qt-cat" onchange="updateQTSubcat()"></select></div>
+    <div id="qt-subcat-wrap" class="field" style="display:none"><label>Sub-category</label><select id="qt-subcat"></select></div>
+    <div class="field"><label>Payment method</label>
+      <select id="qt-method">
+        <option value="credit">Credit card</option>
+        <option value="cash">Cash (deducts from cash savings)</option>
+        <option value="debit">Debit / bank transfer</option>
+      </select>
+    </div>
+    <div id="qt-split-area" style="display:none">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Split amounts</div>
+      <div id="split-rows"></div>
+      <button class="btn btn-sm" onclick="addSplitRow()" style="margin-top:6px">+ Add split</button>
+    </div>
+    <div class="field"><label>Notes (optional)</label><textarea id="qt-notes" placeholder="Any notes..."></textarea></div>
+    <div id="qt-special-wrap" class="field" style="display:none"><label>Who owes and why</label><input type="text" id="qt-owed-desc" placeholder="e.g. John owes for dinner"></div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('quickTx')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveQuickTx()">✓ Save for review</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Overall Modal -->
+<div id="modal-editOverall" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('editOverall')">✕</button>
+    <div class="modal-title">Update overall figures</div>
+    <div class="frow">
+      <div class="field"><label>Actual savings ($)</label><input type="number" id="eo-sav" step="0.01"><div class="field-hint">What you actually have in savings right now</div></div>
+      <div class="field"><label>NDIS owed ($)</label><input type="number" id="eo-ndis" step="0.01"><div class="field-hint">Expected within 2 business days</div></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Cash savings ($)</label><input type="number" id="eo-cash" step="0.01"></div>
+      <div class="field"><label>Mortgage ahead ($)</label><input type="number" id="eo-mort" step="0.01"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('editOverall')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveOverall()">✓ Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Money Owed Modal -->
+<div id="modal-moneyOwedDetail" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('moneyOwedDetail')">✕</button>
+    <div class="modal-title">Money owed to you</div>
+    <div id="owed-list"></div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Add entry</div>
+      <div class="frow">
+        <div class="field"><label>Description</label><input type="text" id="ow-desc" placeholder="Who owes and why"></div>
+        <div class="field"><label>Amount ($)</label><input type="number" id="ow-amt" step="0.01" min="0" placeholder="0.00"></div>
+      </div>
+      <div class="field"><label>Date</label><input type="date" id="ow-date"></div>
+      <button class="btn btn-sm btn-primary" onclick="addOwedEntry()">+ Add</button>
+    </div>
+    <div class="modal-actions"><button class="btn" onclick="closeModal('moneyOwedDetail')">Close</button></div>
+  </div>
+</div>
+
+<!-- Transaction Detail Modal -->
+<div id="modal-txDetail" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('txDetail')">✕</button>
+    <div class="modal-title" id="txd-title">Transaction</div>
+    <div id="txd-body"></div>
+    <div class="modal-actions" id="txd-actions"></div>
+  </div>
+</div>
+
+<!-- CSV Review Modal -->
+<div id="modal-csvReview" class="modal-overlay">
+  <div class="modal" style="max-width:620px">
+    <button class="mclose" onclick="closeModal('csvReview')">✕</button>
+    <div class="modal-title">Review credit card transactions</div>
+    <div id="csv-review-body"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('csvReview')">Cancel</button>
+      <button class="btn btn-primary" onclick="acceptCSVReview()">✓ Accept all & add to pending</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cycle History Modal -->
+<div id="modal-cycleHistory" class="modal-overlay">
+  <div class="modal" style="max-width:620px">
+    <button class="mclose" onclick="closeModal('cycleHistory')">✕</button>
+    <div class="modal-title">📅 Fortnight history</div>
+    <div id="cycle-history-list"></div>
+    <div class="modal-actions"><button class="btn" onclick="closeModal('cycleHistory')">Close</button></div>
+  </div>
+</div>
+
+<!-- Recycle Bin Modal -->
+<div id="modal-recycleBin" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('recycleBin')">✕</button>
+    <div class="modal-title">🗑 Deleted transactions</div>
+    <div id="recycle-bin-list"></div>
+    <div class="modal-actions"><button class="btn" onclick="closeModal('recycleBin')">Close</button></div>
+  </div>
+</div>
+
+<!-- Spending Balances Modal -->
+<div id="modal-spending" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('spending')">✕</button>
+    <div class="modal-title">Benj & Kasie spending balances</div>
+    <div id="spending-body"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('spending')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSpending()">✓ Save & continue</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const CLIENT_ID = '189032459083-0clbsplisfn0b1o1tj2h4dlisutbpm13.apps.googleusercontent.com';
+const SPREADSHEET_ID = '114vo9a8wrVAsDTU6IJASsADSI6Gtv8Dlj2vSuaDwwPg';
+const API_KEY = 'AIzaSyB8rrfxchEb5ObK8ejDv5IVVyHOFvCqJKE';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+
+// ─── BUDGET DATA ──────────────────────────────────────────────────────────────
+const CATS = [
+  {name:'Bills',fn:1000,yearly:26000,subs:['Health Insurance','Car Insurance','Car Registration','Car Repairs','House Insurance','Phone & Internet','Pet Insurance','Electricity','RACQ','Teacher Rego','Pest Control','Credit Card','Rates','Water','Music','iCloud','Lawyer','Costco','Streaming','Amazon','Linkt','Other']},
+  {name:'Food',fn:440,yearly:10920},
+  {name:'School',fn:405,yearly:10530},
+  {name:'Petrol',fn:230,yearly:5980},
+  {name:'Presents',fn:115,yearly:2990,subs:["Kasie's Family","Benj's Family",'Kasie','Benj','Zeke','Izzy',"Father's Day","Mother's Day","Kasie's Friends",'Children',"Benj's Work",'GCC Teachers','Christmas','Thankfulness Day','Cards & Wrapping Paper','Other']},
+  {name:'Maintenance',fn:100,yearly:2600},
+  {name:'House',fn:100,yearly:2600},
+  {name:'Entertainment',fn:90,yearly:2340},
+  {name:'Child',fn:80,yearly:2080},
+  {name:'Clothing',fn:75,yearly:1950},
+  {name:'Medical',fn:45,yearly:1170},
+  {name:'Spending - Benj',fn:140,yearly:1820,isSpending:true,person:'Benj'},
+  {name:'Spending - Kasie',fn:140,yearly:1820,isSpending:true,person:'Kasie'},
+  {name:'Tithing',fn:600,yearly:7800,noGrid:true},
+  {name:'Mortgage',fn:1060,yearly:13780,noGrid:true},
+  {name:'➕ Add to Cash Savings',fn:0,yearly:0,noGrid:true,specialAction:'cash-add'},
+  {name:'💰 Add to Money Owed',fn:0,yearly:0,noGrid:true,specialAction:'owed-add'},
+];
+
+const MONEY_DAYS = [];
+let _d = new Date('2026-04-22');
+while(_d <= new Date('2027-04-21')){MONEY_DAYS.push(new Date(_d));_d=new Date(_d.getTime()+14*24*60*60*1000);}
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let S = {
+  transactions: [],
+  overall: {actualSavings:4713.11,ndisOwed:393.55,cashSavings:2275,mortgageAhead:9289.45,moneyOwed:44.95},
+  moneyOwedItems: [{id:'ow_init',description:"Rixons owe for Jen's birthday",amount:44.95}],
+  spendingBalances: {benj:{current:-17.91},kasie:{current:-5.66}},
+  workflowData: {},
+  csvPending: []
+};
+let tokenClient, accessToken, gapiInited = false, gisInited = false;
+let syncTimeout = null;
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+const fmt = n => '$'+(Math.abs(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+const fmtDate = iso => { if(!iso||iso.length<10)return iso||'—'; const[y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
+const fmtS = n => (n<0?'-':'')+fmt(n);
+const getNextMoneyDay = () => MONEY_DAYS.find(d=>d>new Date())||MONEY_DAYS[MONEY_DAYS.length-1];
+const getTithingCycles = () => S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').length;
+const getCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name).reduce((a,t)=>a+(t.amount||0),0);
+const getCatBudgeted = name => {
+  const cat=CATS.find(c=>c.name===name);
+  if(!cat||cat.noGrid||cat.isSpending)return 0;
+  return cat.fn*getTithingCycles();
+};
+const getFNSpending = person => {
+  const catName='Spending - '+person;
+  const dates=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').map(t=>t.date).sort();
+  const last=dates[dates.length-1]||'2026-04-22';
+  return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>last).reduce((a,t)=>a+(t.amount||0),0);
+};
+const calcSpendingBal = (person,debit) => debit - getFNSpending(person) + 70;
+const getNetSavings = () => {
+  const {actualSavings,ndisOwed,cashSavings,mortgageAhead,moneyOwed}=S.overall;
+  const cycles=getTithingCycles();
+  let pos=0;
+  for(const cat of CATS){
+    if(cat.noGrid||cat.isSpending)continue;
+    const budgeted=cat.fn*cycles;
+    const spent=getCatSpent(cat.name);
+    const bal=budgeted-spent;
+    if(bal>0&&spent<=cat.yearly)pos+=bal;
+  }
+  return(actualSavings||0)+(ndisOwed||0)+(cashSavings||0)+(mortgageAhead||0)+(moneyOwed||0)-pos;
+};
+
+// ─── PASSWORD AUTH ────────────────────────────────────────────────────────────
+// Password is stored as a simple hash for basic protection
+// To change password: update PASS_HASH below using btoa('yourpassword')
+const PASS_HASH = btoa('shanahan2026'); // Default password: shanahan2026
+
+function checkPassword(){
+  const input=document.getElementById('password-input')?.value||'';
+  const errEl=document.getElementById('password-error');
+  if(btoa(input)===PASS_HASH){
+    sessionStorage.setItem('shbn_auth','1');
+    document.getElementById('auth-screen').style.display='none';
+    document.getElementById('app-screen').style.display='flex';
+    loadFromSheets().then(render);
+  } else {
+    if(errEl)errEl.style.display='block';
+    if(document.getElementById('password-input'))document.getElementById('password-input').value='';
+  }
+}
+function gapiLoaded(){
+  gapi.load('client',async()=>{
+    await gapi.client.init({
+      apiKey:API_KEY,
+      discoveryDocs:['https://sheets.googleapis.com/$discovery/rest?version=v4']
+    });
+    gapiInited=true;maybeShowApp();
+  });
+}
+function gisLoaded(){
+  tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:CLIENT_ID,
+    scope:SCOPES,
+    prompt:'none',
+    login_hint:'benjshanahan@gmail.com',
+    callback:async(resp)=>{
+      if(resp.error){
+        // If silent auth fails, try with prompt
+        tokenClient2=google.accounts.oauth2.initTokenClient({
+          client_id:CLIENT_ID,scope:SCOPES,
+          callback:async(r2)=>{
+            if(!r2.error){
+              accessToken=r2.access_token;
+              gapi.client.setToken({access_token:accessToken});
+            }
+          }
+        });
+        tokenClient2.requestAccessToken({prompt:'consent'});
+        return;
+      }
+      accessToken=resp.access_token;
+      gapi.client.setToken({access_token:accessToken});
+    }
+  });
+  gisInited=true;maybeShowApp();
+}
+function maybeShowApp(){
+  if(!gapiInited||!gisInited)return;
+  document.getElementById('loading').style.display='none';
+  const authed=sessionStorage.getItem('shbn_auth');
+  if(authed){
+    document.getElementById('app-screen').style.display='flex';
+    // Request OAuth token silently in background for Sheets access
+    if(tokenClient)tokenClient.requestAccessToken({prompt:''});
+    loadFromSheets().then(render);
+  } else {
+    document.getElementById('auth-screen').style.display='flex';
+  }
+}
+function signIn(){checkPassword();}
+function signOut(){
+  sessionStorage.removeItem('shbn_auth');
+  accessToken=null;
+  document.getElementById('app-screen').style.display='none';
+  document.getElementById('auth-screen').style.display='flex';
+  if(document.getElementById('password-input'))document.getElementById('password-input').value='';
+}
+
+// ─── NETLIFY FUNCTION SYNC ────────────────────────────────────────────────────
+const FUNCTION_URL = '/.netlify/functions/sheets';
+
+function setSyncStatus(status){
+  const dot=document.getElementById('sync-dot');
+  if(!dot)return;
+  dot.className='sync-dot'+(status==='syncing'?' syncing':status==='error'?' error':'');
+}
+
+async function callSheets(action,body={}){
+  const resp=await fetch(FUNCTION_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...body})});
+  if(!resp.ok)throw new Error('Function error: '+resp.status);
+  return resp.json();
+}
+
+async function loadFromSheets(){
+  try{
+    setSyncStatus('syncing');
+    await callSheets('ensureSheets');
+    const result=await callSheets('read');
+    const ranges=result.data;
+    const txRows=ranges[0].values||[];
+    if(txRows.length>1){
+      S.transactions=txRows.slice(1).map(r=>({
+        id:r[0]||'',date:r[1]||'',description:r[2]||'',
+        amount:parseFloat(String(r[3]).replace(/[^0-9.-]/g,''))||0,
+        category:r[4]||'',subcat:r[5]||'',method:r[6]||'',
+        status:r[7]||'accepted',source:r[8]||'',flag:r[9]||'',notes:r[10]||''
+      })).filter(t=>t.id);
+    } else {
+      await writeImportedData();
+      return;
+    }
+    const cfg={};
+    (ranges[1].values||[]).forEach(r=>{if(r[0])cfg[r[0]]=r[1];});
+    if(cfg.actualSavings!==undefined){
+      S.overall={
+        actualSavings:parseFloat(cfg.actualSavings)||0,
+        ndisOwed:parseFloat(cfg.ndisOwed)||0,
+        cashSavings:parseFloat(cfg.cashSavings)||0,
+        mortgageAhead:parseFloat(cfg.mortgageAhead)||0,
+        moneyOwed:parseFloat(cfg.moneyOwed)||0
+      };
+    }
+    const owedRows=ranges[2].values||[];
+    if(owedRows.length>1){
+      S.moneyOwedItems=owedRows.slice(1).map(r=>({id:r[0]||'',description:r[1]||'',amount:parseFloat(r[2])||0,date:r[3]||''})).filter(o=>o.id);
+    }
+    const sp={};
+    (ranges[3].values||[]).forEach(r=>{if(r[0])sp[r[0]]=parseFloat(r[1])||0;});
+    if(sp.benjCurrent!==undefined){
+      S.spendingBalances={benj:{current:sp.benjCurrent},kasie:{current:sp.kasieCurrent||0}};
+    }
+    S.workflowData={};
+    (ranges[4].values||[]).forEach(r=>{if(r[0]&&r[1]==='true')S.workflowData[r[0]]=true;});
+    const delRows=ranges[5]?.values||[];
+    if(delRows.length>1){
+      S.deletedTransactions=delRows.slice(1).map(r=>({
+        id:r[0]||'',date:r[1]||'',description:r[2]||'',amount:parseFloat(r[3])||0,
+        category:r[4]||'',subcat:r[5]||'',method:r[6]||'',
+        status:r[7]||'',source:r[8]||'',deletedAt:r[9]||''
+      })).filter(t=>t.id);
+    }
+    const cycleRows=ranges[6]?.values||[];
+    if(cycleRows.length>1){
+      S.completedCycles=cycleRows.slice(1).map(r=>({
+        id:r[0]||'',date:r[1]||'',tithe:parseFloat(r[2])||0,
+        gross:parseFloat(r[3])||0,transactionIds:(r[4]||'').split(',').filter(Boolean)
+      }));
+    }
+    setSyncStatus('synced');
+  } catch(e){
+    console.error('Load error:',e);
+    setSyncStatus('error');
+  }
+}
+
+async function saveToSheets(){
+  setSyncStatus('syncing');
+  try{
+    const data=[];
+    const txRows=[['id','date','description','amount','category','subcat','method','status','source','flag','notes']];
+    S.transactions.forEach(t=>txRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.source||'',t.flag||'',t.notes||'']));
+    data.push({range:'Transactions!A1',values:txRows});
+    data.push({range:'Config!A1',values:Object.entries(S.overall).map(([k,v])=>[k,v])});
+    const owRows=[['id','description','amount','date']];
+    (S.moneyOwedItems||[]).forEach(o=>owRows.push([o.id,o.description,o.amount,o.date||'']));
+    data.push({range:'MoneyOwed!A1',values:owRows});
+    data.push({range:'Spending!A1',values:[['benjCurrent',S.spendingBalances?.benj?.current||0],['kasieCurrent',S.spendingBalances?.kasie?.current||0]]});
+    const wfRows=Object.entries(S.workflowData).map(([k,v])=>[k,String(v)]);
+    data.push({range:'Workflow!A1',values:wfRows.length?wfRows:[['','']]});
+    const delRows=[['id','date','description','amount','category','subcat','method','status','source','deletedAt']];
+    (S.deletedTransactions||[]).forEach(t=>delRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status||'',t.source||'',t.deletedAt||'']));
+    data.push({range:'DeletedTx!A1',values:delRows});
+    const cycRows=[['id','date','tithe','gross','transactionIds']];
+    (S.completedCycles||[]).forEach(c=>cycRows.push([c.id,c.date,c.tithe||0,c.gross||0,(c.transactionIds||[]).join(',')]));
+    data.push({range:'Cycles!A1',values:cycRows});
+    await callSheets('write',{data});
+    setSyncStatus('synced');
+  } catch(e){
+    console.error('Save error:',e);
+    setSyncStatus('error');
+  }
+}
+
+async function writeImportedData(){
+  S.transactions=IMPORT_TXS.map(t=>({...t}));
+  S.overall={...IMPORT_OVERALL};
+  S.moneyOwedItems=[{id:'ow_init',description:"Rixons owe for Jen's birthday",amount:44.95,date:'2026-04-22'}];
+  await saveToSheets();
+}
+
+function scheduleSave(){
+  if(syncTimeout)clearTimeout(syncTimeout);
+  syncTimeout=setTimeout(()=>saveToSheets(),1500);
+}
+
+function saveS(){
+  scheduleSave();
+  render();
+}
+
+// ─── IMPORT DATA ──────────────────────────────────────────────────────────────
+const IMPORT_OVERALL={actualSavings:4713.11,ndisOwed:393.55,cashSavings:2275.0,mortgageAhead:9289.45,moneyOwed:44.95};
+const IMPORT_TXS=[{id:"import_bills_0",date:"2026-04-21",description:"Electricity",amount:126.94,category:"Bills",subcat:"Electricity",method:"credit",status:"accepted",source:"import"},{id:"import_bills_1",date:"2026-04-22",description:"Hospital parking",amount:12.0,category:"Bills",subcat:"Other",method:"credit",status:"accepted",source:"import"},{id:"import_bills_2",date:"2026-04-23",description:"Vodaphone",amount:48.37,category:"Bills",subcat:"Phone & Internet",method:"credit",status:"accepted",source:"import"},{id:"import_bills_3",date:"2026-04-27",description:"Minno Kids",amount:15.46,category:"Bills",subcat:"Streaming",method:"credit",status:"accepted",source:"import"},{id:"import_bills_4",date:"2026-04-27",description:"Apple Music",amount:12.99,category:"Bills",subcat:"Music",method:"credit",status:"accepted",source:"import"},{id:"import_bills_5",date:"2026-04-28",description:"House Insurance",amount:172.84,category:"Bills",subcat:"House Insurance",method:"credit",status:"accepted",source:"import"},{id:"import_bills_6",date:"2001-05-01",description:"Apple Music",amount:12.99,category:"Bills",subcat:"Music",method:"credit",status:"flagged",source:"import",flag:"Date looks wrong (2001) — please correct"},{id:"import_bills_7",date:"2026-05-02",description:"Linkt",amount:20.19,category:"Bills",subcat:"Linkt",method:"credit",status:"accepted",source:"import"},{id:"import_bills_8",date:"2026-05-05",description:"Linkt",amount:20.19,category:"Bills",subcat:"Linkt",method:"credit",status:"accepted",source:"import"},{id:"import_bills_9",date:"2026-05-05",description:"Amazon Prime",amount:9.99,category:"Bills",subcat:"Amazon",method:"credit",status:"accepted",source:"import"},{id:"import_bills_10",date:"2026-05-05",description:"Rates",amount:547.22,category:"Bills",subcat:"Rates",method:"credit",status:"accepted",source:"import"},{id:"import_bills_11",date:"2026-05-07",description:"AGL NBN",amount:96.9,category:"Bills",subcat:"Phone & Internet",method:"credit",status:"accepted",source:"import"},{id:"import_bills_12",date:"2026-05-12",description:"Apple iCloud",amount:14.99,category:"Bills",subcat:"iCloud",method:"credit",status:"accepted",source:"import"},{id:"import_bills_13",date:"2026-05-12",description:"Optus",amount:96.21,category:"Bills",subcat:"Phone & Internet",method:"credit",status:"accepted",source:"import"},{id:"import_bills_14",date:"2026-05-13",description:"Bupa",amount:292.95,category:"Bills",subcat:"Health Insurance",method:"credit",status:"accepted",source:"import"},{id:"import_bills_15",date:"2026-05-19",description:"Car insurance",amount:126.4,category:"Bills",subcat:"Car Insurance",method:"credit",status:"accepted",source:"import"},{id:"import_food_16",date:"2026-04-22",description:"Money for birds",amount:-50.0,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_17",date:"2026-04-25",description:"Groceries",amount:12.6,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_18",date:"2026-04-27",description:"Groceries",amount:277.14,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_19",date:"2026-05-04",description:"Groceries",amount:16.26,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_20",date:"2026-05-05",description:"Groceries",amount:149.86,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_21",date:"2026-05-09",description:"Groceries",amount:199.22,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_22",date:"2026-05-12",description:"Groceries",amount:9.99,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_23",date:"2026-05-18",description:"Groceries",amount:228.37,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_food_24",date:"2026-05-18",description:"Groceries",amount:3.95,category:"Food",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_school_25",date:"2026-05-04",description:"School Fees",amount:378.38,category:"School",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_school_26",date:"2026-05-18",description:"School Fees",amount:378.38,category:"School",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_petrol_27",date:"2026-05-14",description:"Petrol",amount:89.16,category:"Petrol",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_petrol_28",date:"2026-05-16",description:"Petrol",amount:260.0,category:"Petrol",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_maint_29",date:"2026-04-24",description:"Carried over",amount:-3763.25,category:"Maintenance",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_maint_30",date:"2026-04-30",description:"Toilet seat",amount:39.0,category:"Maintenance",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_maint_31",date:"2001-05-01",description:"Fosi bluetooth amplifier",amount:103.98,category:"Maintenance",subcat:"",method:"credit",status:"flagged",source:"import",flag:"Date looks wrong (2001) — please correct"},{id:"import_maint_32",date:"2026-05-03",description:"Banana plugs for amplifier",amount:11.89,category:"Maintenance",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_maint_33",date:"2026-05-16",description:"Sink drain cleaner",amount:43.65,category:"Maintenance",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_34",date:"2026-04-27",description:"Laundry and dishwashing tablets, and other items",amount:26.0,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_35",date:"2026-04-27",description:"Coffee",amount:17.99,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_36",date:"2026-04-30",description:"Drawer slide",amount:9.11,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_37",date:"2026-05-05",description:"Cleaning product",amount:25.5,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_38",date:"2026-05-05",description:"Soap & razors",amount:15.2,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_39",date:"2026-05-07",description:"Blue tac & white board markers",amount:11.38,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_40",date:"2026-05-09",description:"Matches & cleaning products",amount:10.0,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_41",date:"2026-05-12",description:"Coffee",amount:17.99,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_42",date:"2026-05-16",description:"Tap turner for kids",amount:4.94,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_43",date:"2026-05-18",description:"Dog food and house items",amount:26.45,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_house_44",date:"2026-05-18",description:"Umbrella",amount:11.99,category:"House",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_presents_45",date:"2026-04-27",description:"Mother's Day - Kasie",amount:80.0,category:"Presents",subcat:"Mother's Day",method:"credit",status:"accepted",source:"import"},{id:"import_presents_46",date:"2026-05-05",description:"Mother's Day - Kasie",amount:10.0,category:"Presents",subcat:"Mother's Day",method:"credit",status:"accepted",source:"import"},{id:"import_presents_47",date:"2026-05-07",description:"Mother's Day - GG",amount:13.96,category:"Presents",subcat:"Mother's Day",method:"credit",status:"accepted",source:"import"},{id:"import_presents_48",date:"2026-05-07",description:"Jen's 30th",amount:44.45,category:"Presents",subcat:"Kasie's Family",method:"credit",status:"accepted",source:"import"},{id:"import_presents_49",date:"2026-05-08",description:"Cards and wrapping paper",amount:12.99,category:"Presents",subcat:"Cards & Wrapping Paper",method:"credit",status:"accepted",source:"import"},{id:"import_presents_50",date:"2026-05-09",description:"Mother's Day - Kasie",amount:45.3,category:"Presents",subcat:"Mother's Day",method:"credit",status:"accepted",source:"import"},{id:"import_presents_51",date:"2026-05-19",description:"Mother's Day - Robyn",amount:100.0,category:"Presents",subcat:"Mother's Day",method:"credit",status:"accepted",source:"import"},{id:"import_ent_52",date:"2026-05-01",description:"Food for lunch with Kathryn, Jacob, & Joseph",amount:32.84,category:"Entertainment",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_ent_53",date:"2026-05-02",description:"RSPCA cafe",amount:23.5,category:"Entertainment",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_ent_54",date:"2026-05-05",description:"Mothers Day food",amount:20.1,category:"Entertainment",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_ent_55",date:"2026-05-09",description:"Mother's Day fish and chips",amount:41.63,category:"Entertainment",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_child_56",date:"2026-05-02",description:"Lego bricks",amount:8.7,category:"Child",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_child_57",date:"2026-05-04",description:"Miscellaneous items for kids",amount:13.0,category:"Child",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_child_58",date:"2026-05-05",description:"Toothpaste for Izzy",amount:2.8,category:"Child",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_child_59",date:"2026-05-14",description:"School festival",amount:17.0,category:"Child",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_60",date:"2026-04-22",description:"Archies for Benj",amount:47.95,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_61",date:"2026-05-07",description:"Skincare for Kasie",amount:16.0,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_62",date:"2026-05-10",description:"Deodorant for Benj",amount:5.84,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_63",date:"2026-05-12",description:"Men's briefs",amount:9.99,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_64",date:"2026-05-12",description:"Dresses for Kasie's work",amount:16.0,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_65",date:"2026-05-15",description:"Kasie's work shoes and clothes",amount:10.0,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_66",date:"2026-05-15",description:"Work clothes for Kasie",amount:23.0,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_67",date:"2026-05-16",description:"Skin care for Kasie",amount:23.96,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_clothing_68",date:"2026-05-18",description:"Hair care for Kasie",amount:7.5,category:"Clothing",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_medical_69",date:"2026-04-27",description:"Panadol & Neurofen",amount:4.0,category:"Medical",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_medical_70",date:"2026-05-10",description:"Various supplements and medication",amount:63.84,category:"Medical",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_medical_71",date:"2026-05-16",description:"Ovulation tests",amount:59.0,category:"Medical",subcat:"",method:"credit",status:"accepted",source:"import"},{id:"import_other_72",date:"2026-04-22",description:"Naturopath Appointment",amount:182.75,category:"Other",subcat:"",method:"other",status:"accepted",source:"import"},{id:"import_other_73",date:"2026-04-23",description:"Supplements for Zeke",amount:190.6,category:"Other",subcat:"",method:"other",status:"accepted",source:"import"},{id:"import_other_74",date:"2026-05-04",description:"Supplements for Zeke",amount:70.04,category:"Other",subcat:"",method:"other",status:"accepted",source:"import"},{id:"import_other_75",date:"2026-05-12",description:"Obstetrician appointment for Kasie",amount:174.75,category:"Other",subcat:"",method:"other",status:"accepted",source:"import"},{id:"import_other_76",date:"2026-05-12",description:"Blood test for Kasie",amount:95.0,category:"Other",subcat:"",method:"other",status:"accepted",source:"import"},{id:"import_other_77",date:"2026-05-18",description:"Obstetrician appointment for Kasie",amount:42.55,category:"Other",subcat:"",method:"other",status:"accepted",source:"import"},{id:"import_tithe_78",date:"2026-04-21",description:"Tithing",amount:573.4,category:"Tithing",subcat:"",method:"transfer",status:"accepted",source:"import"},{id:"import_tithe_79",date:"2026-05-05",description:"Tithing",amount:720.87,category:"Tithing",subcat:"",method:"transfer",status:"accepted",source:"import"},{id:"import_tithe_80",date:"2026-05-19",description:"Tithing",amount:696.32,category:"Tithing",subcat:"",method:"transfer",status:"accepted",source:"import"}];
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function render(){
+  renderHeader();renderOverall();renderBudgetGrid();renderBanners();renderYearProgress();
+  const active=document.querySelector('.tab.active')?.textContent.trim();
+  if(active==='Transactions')renderTxList();
+  if(active==='Fortnightly')renderWorkflow();
+}
+
+let privateMode=false;
+function togglePrivate(){
+  privateMode=!privateMode;
+  const btn=document.getElementById('private-btn');
+  if(btn){btn.textContent=privateMode?'🔒':'👁';btn.style.background=privateMode?'var(--red-light)':'';}
+  applyPrivateMode();
+}
+function applyPrivateMode(){
+  // Target stat
+  document.querySelectorAll('.private-sensitive').forEach(el=>{
+    el.classList.toggle('private-blur',privateMode);
+  });
+}
+function renderYearProgress(){
+  const cycles=getTithingCycles();
+  const totalFn=26; // 26 fortnights in the budget year
+  const pct=Math.min(cycles/totalFn*100,100);
+  const fill=document.getElementById('year-progress-fill');
+  const label=document.getElementById('year-progress-label');
+  const meta=document.getElementById('year-progress-meta');
+  if(fill)fill.style.width=pct.toFixed(1)+'%';
+  if(label)label.textContent=cycles+' of '+totalFn+' fortnights complete ('+Math.round(pct)+'%)';
+  if(meta)meta.innerHTML=`<span>22 Apr 2026</span><span>${cycles} f/n done · ${totalFn-cycles} remaining</span><span>20 Apr 2027</span>`;
+}
+function renderHeader(){
+  const next=getNextMoneyDay();
+  const nextStr=next.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'});
+  document.getElementById('nav-next').textContent=next.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  const fnLabel=document.getElementById('next-fn-label');
+  if(fnLabel)fnLabel.textContent='Due: '+nextStr;
+}
+
+function renderOverall(){
+  const{actualSavings,ndisOwed,cashSavings,mortgageAhead,moneyOwed}=S.overall;
+  document.getElementById('overall-stats').innerHTML=`
+    <div class="stat private-sensitive"><div class="stat-label">Target</div><div class="stat-value">$10,000</div></div>
+    <div class="stat private-sensitive" style="cursor:pointer" onclick="${privateMode?'':"openActualSavingsDetail()"}"><div class="stat-label">Actual savings ↗</div><div class="stat-value ${(actualSavings||0)>=10000?'pos':'neg'}">${fmt(actualSavings)}</div></div>
+    <div class="stat private-sensitive"><div class="stat-label">Mortgage ahead</div><div class="stat-value">${fmt(mortgageAhead)}</div></div>
+    <div class="stat" style="cursor:pointer" onclick="openModal('moneyOwedDetail')"><div class="stat-label">Money owed ↗</div><div class="stat-value pos">${fmt((moneyOwed||0)+getNegativeBudgets().reduce((a,b)=>a+b.amount,0))}</div></div>`;
+
+}
+
+function renderBanners(){
+  applyPrivateMode();
+  const flagged=S.transactions.filter(t=>t.status==='flagged');
+  const pending=S.transactions.filter(t=>t.status==='pending');
+  const fb=document.getElementById('flag-banner');
+  const pb=document.getElementById('pending-banner');
+  fb.style.display=flagged.length?'block':'none';
+  if(flagged.length)fb.innerHTML=`<div class="banner banner-err">⚠️ ${flagged.length} transaction${flagged.length>1?'s need':'needs'} attention (date errors) <button class="btn btn-sm" style="margin-left:auto;color:var(--red);border-color:var(--red)" onclick="showTab('transactions')">View</button></div>`;
+  pb.style.display=pending.length?'block':'none';
+  if(pending.length)pb.innerHTML='<div class="banner banner-warn">🕐 '+pending.length+' pending transaction'+(pending.length>1?'s':'')+' ready to review <button class="btn btn-sm" style="margin-left:auto" onclick="showTab(\'workflow-tab\')">Review</button></div>';
+}
+
+function renderBudgetGrid(){
+  const cycles=getTithingCycles();
+  const grid=document.getElementById('budget-grid');
+  grid.innerHTML='';
+  for(const cat of CATS){
+    if(cat.noGrid)continue;
+    let bal,spent,pct,yPct,isOver,isWarn,note='';
+    if(cat.isSpending){
+      const sb=S.spendingBalances||{benj:{current:0},kasie:{current:0}};
+      const cur=cat.person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
+      bal=cur;spent=getCatSpent(cat.name);
+      pct=0;yPct=Math.min(spent/cat.yearly*100,100);
+      isOver=cur<0;isWarn=cur>=0&&cur<20;
+      note=isOver?'In debt':'';
+    }else{
+      const budgeted=cat.fn*cycles;
+      spent=getCatSpent(cat.name);
+      bal=budgeted-spent;
+      pct=budgeted>0?Math.min(Math.max(spent/budgeted*100,0),100):0;
+      yPct=Math.min(Math.max(spent/cat.yearly*100,0),100);
+      isOver=spent>budgeted;isWarn=pct>80&&!isOver;
+    }
+    const bc=isOver?'neg':'pos';
+    const fc=isOver?'over':'good';
+    // Fortnight progress marker: cycles/26 fortnights in year
+    const fnMarkerPct=Math.min(cycles/26*100,100);
+    const el=document.createElement('div');
+    el.className='bc';
+    el.innerHTML=`<div class="bc-header"><span class="bc-name">${cat.name}</span><span class="bc-bal ${bc}">${(isOver||bal<0)?'-':''}${fmt(Math.abs(bal))}</span></div>
+      <div class="pbar" style="position:relative">
+        <div class="pfill ${fc}" style="width:${yPct.toFixed(1)}%"></div>
+        <div style="position:absolute;top:-2px;height:8px;width:2px;background:var(--text2);border-radius:1px;left:${fnMarkerPct.toFixed(1)}%;transform:translateX(-50%)"></div>
+      </div>
+      <div class="bc-meta"><span>${cat.isSpending?'Current balance':'Spent '+fmt(spent)}</span><span>${note||Math.round(yPct)+'% of '+fmt(cat.yearly)+' yearly'}</span></div>`;
+    el.onclick=()=>openCatDetail(cat.name);
+    grid.appendChild(el);
+  }
+}
+
+function getPeriodDates(period){
+  const now=new Date();
+  const today=now.toISOString().split('T')[0];
+  const budgetStart='2026-04-22';
+  // Find current fortnight
+  const fnIdx=MONEY_DAYS.findIndex(d=>d>now);
+  const fnStart=fnIdx>0?MONEY_DAYS[fnIdx-1]:MONEY_DAYS[0];
+  const fnEnd=fnIdx>=0?MONEY_DAYS[fnIdx]:new Date('2027-04-21');
+  const prevFnStart=fnIdx>1?MONEY_DAYS[fnIdx-2]:MONEY_DAYS[0];
+  // Month
+  const monthStart=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
+  const lastMonthStart=new Date(now.getFullYear(),now.getMonth()-1,1).toISOString().split('T')[0];
+  const lastMonthEnd=new Date(now.getFullYear(),now.getMonth(),0).toISOString().split('T')[0];
+  if(period==='this-fn')return{from:fnStart.toISOString().split('T')[0],to:today};
+  if(period==='last-fn')return{from:prevFnStart.toISOString().split('T')[0],to:fnStart.toISOString().split('T')[0]};
+  if(period==='this-month')return{from:monthStart,to:today};
+  if(period==='last-month')return{from:lastMonthStart,to:lastMonthEnd};
+  if(period==='this-year')return{from:budgetStart,to:today};
+  if(period==='custom'){
+    const from=document.getElementById('f-date-from')?.value||'';
+    const to=document.getElementById('f-date-to')?.value||today;
+    return{from,to};
+  }
+  return null;
+}
+
+function renderTxList(){
+  const cf=document.getElementById('f-cat').value;
+  const sf=document.getElementById('f-status').value;
+  const mf=document.getElementById('f-method').value;
+  const pf=document.getElementById('f-period')?.value||'';
+  // Show/hide custom range
+  const customRange=document.getElementById('f-custom-range');
+  if(customRange)customRange.style.display=pf==='custom'?'flex':'none';
+  let txs=[...S.transactions].sort((a,b)=>b.date.localeCompare(a.date));
+  if(cf)txs=txs.filter(t=>t.category===cf);
+  if(sf)txs=txs.filter(t=>t.status===sf);
+  if(mf)txs=txs.filter(t=>t.method===mf);
+  if(pf){
+    const dates=getPeriodDates(pf);
+    if(dates){
+      if(dates.from)txs=txs.filter(t=>t.date>=dates.from);
+      if(dates.to)txs=txs.filter(t=>t.date<=dates.to);
+    }
+  }
+  const total=txs.reduce((a,t)=>a+(t.amount||0),0);
+  document.getElementById('tx-count').textContent=txs.length+' transaction'+(txs.length!==1?'s':'');
+  const totalEl=document.getElementById('tx-total');
+  if(totalEl)totalEl.innerHTML=`Total: <span style="color:${total<0?'var(--green)':total>0?'var(--red)':'var(--text)'}">${total<0?'-':''}${fmt(Math.abs(total))}</span>`;
+  const list=document.getElementById('tx-list-main');
+  if(!txs.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">No transactions</div>';return;}
+  list.innerHTML=txs.map(t=>`<div class="tx ${t.status}" onclick="openTxDetail('${t.id}')"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}${t.flag?'<small style="color:var(--red)">⚠ '+t.flag+'</small>':''}${t.status==='pending'?'<small style="color:var(--amber);font-weight:600">⏳ Pending review</small>':''}</span><span class="tx-cat">${t.category}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join('');
+  const sel=document.getElementById('f-cat');
+  if(sel.options.length<=1)[...new Set(S.transactions.map(t=>t.category))].sort().forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+}
+
+function renderWorkflow(){
+  const steps=[
+    {n:1,title:'Upload credit card statement',desc:'Upload your MyCard CSV statement for this fortnight.',action:'upload'},
+    {n:2,title:'Review & assign transactions',desc:'Check auto-assigned categories and sub-categories. Edit as needed.',action:'review'},
+    {n:3,title:'Add manual transactions',desc:'Add any cash or non-credit-card expenses for this fortnight.',action:'manual'},
+    {n:4,title:'Accept all transactions',desc:'Post all pending transactions to your budgets.',action:'accept'},
+    {n:5,title:'Pay credit card',desc:'Pay your MyCard balance now.',action:'confirm',ct:'I have paid the credit card ✓'},
+    {n:6,title:'Tithe',desc:'Enter gross income — 10% calculated. Records tithing transaction only (budgets update at finalise step).',action:'tithe'},
+    {n:7,title:'Benj & Kasie spending balances',desc:'Enter current debit card balances to calculate positions and transfer amounts.',action:'spending'},
+    {n:8,title:'Review & pay bills',desc:'Check emails, mail, and apps for any bills due this fortnight.',action:'confirm',ct:'I have reviewed and paid all bills ✓'},
+    {n:9,title:'Process NDIS',desc:'Pay invoices, submit claims, update your NDIS spreadsheet, and save invoices.',action:'ndis'},
+    {n:10,title:'Update mortgage position',desc:'Enter how much you are currently ahead on the mortgage.',action:'mortgage'},
+  ];
+  const wd=S.workflowData||{};
+  const pending=S.transactions.filter(t=>t.status==='pending').length;
+  const allDone=steps.every(s=>!!wd['s'+s.n]);
+  document.getElementById('workflow-area').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Fortnightly workflow · ${getTithingCycles()} cycles</div>
+      <button class="btn btn-sm" onclick="openModal('cycleHistory')">📅 History</button>
+      <button class="btn btn-sm" onclick="resetWorkflow()">↺ New fortnight</button>
+    </div>
+    ${steps.map(s=>{
+      const done=!!wd['s'+s.n];
+      const active=!done&&(s.n===1||!!wd['s'+(s.n-1)]);
+      const nc=done?'sn-d':active?'sn-a':'sn-p';
+      return`<div class="step"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${done?'✓':s.n}</div><div class="step-title">${s.title}</div><span>${done?'<span class="badge bg">Done</span>':active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div><div class="step-body${active||done?' open':''}" id="sb${s.n}"><div class="step-desc">${s.desc}</div>${renderStepBody(s,done,pending)}</div></div>`;
+    }).join('')}
+    ${allDone?`<div style="margin-top:16px;padding:16px;background:var(--gl);border:1px solid #5DBB99;border-radius:var(--radius);text-align:center">
+      <div style="font-size:14px;font-weight:600;color:var(--gd);margin-bottom:8px">All steps complete!</div>
+      <div style="font-size:12px;color:var(--green);margin-bottom:12px">Press below to allocate this fortnight's amounts to all budgets.</div>
+      <button class="btn btn-primary" onclick="finaliseWorkflow()" style="font-size:15px;padding:12px 24px">✅ Finalise and Update Budgets</button>
+    </div>`:''}`;
+}
+
+function renderStepBody(s,done,pending){
+  if(done)return`<button class="btn btn-sm" onclick="undoStep(${s.n})">↩ Mark undone</button>`;
+  if(s.action==='upload')return`<div class="upload-zone" onclick="document.getElementById('csv-up').click()"><div class="upload-icon">📄</div><div style="font-size:13px;color:var(--text2)">Click to upload MyCard CSV</div></div><input type="file" id="csv-up" accept=".csv" onchange="handleCSV(event)"><button class="btn btn-sm" style="margin-top:10px" onclick="doneStep(1)">Skip — no statement this fortnight</button>`;
+  if(s.action==='review')return`${pending>0?'<div class="banner banner-warn" style="margin-bottom:10px">👁 '+pending+' transactions to review</div>':''}<button class="btn btn-primary btn-sm" onclick="showTab(\'transactions\');doneStep(2)">👁 Review transactions</button>`;
+  if(s.action==='manual')return`<button class="btn btn-primary btn-sm" onclick="openModal(\'quickTx\')">+ Add manual transaction</button><button class="btn btn-sm" style="margin-left:8px" onclick="doneStep(3)">Done adding</button>`;
+  if(s.action==='accept'){const p=S.transactions.filter(t=>t.status==='pending').length;return`${p>0?'<div class="banner banner-warn" style="margin-bottom:10px">'+p+' pending transactions</div>':''}<button class="btn btn-primary btn-sm" onclick="acceptAllPending()">✓ Accept all (${p})</button>`;}
+  if(s.action==='confirm')return`<button class="btn btn-primary btn-sm" onclick="doneStep(${s.n})">${s.ct}</button>`;
+  if(s.action==='tithe'){const carersDefault=S.carersDefault||162.60;return`<div class="frow" style="margin-bottom:8px"><div class="field"><label>Benj gross income ($)</label><input type="number" id="tb" step="0.01" placeholder="0.00" oninput="calcTithe()"></div><div class="field"><label>Kasie gross income ($)</label><input type="number" id="tk" step="0.01" placeholder="0.00" oninput="calcTithe()"></div></div><div class="field" style="margin-bottom:8px"><label>Carers Payment ($)</label><div style="display:flex;gap:8px;align-items:center"><input type="number" id="tc" step="0.01" value="${carersDefault.toFixed(2)}" oninput="calcTithe()" style="flex:1"><button class="btn btn-sm" onclick="saveCarersDefault()" style="white-space:nowrap;flex-shrink:0">Set as default</button></div><div class="field-hint">Default: ${fmt(carersDefault)}</div></div><div id="tithe-out" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="saveTithe()">✓ Record tithe & done</button><button class="btn btn-sm" id="transfer-zcm-btn" style="display:none;background:var(--blue);color:#fff;border-color:#0F4A8A" onclick="showZCMTransfer()">💸 Manually transfer tithe to ZCM</button></div>`;}
+  if(s.action==='spending')return`<button class="btn btn-primary btn-sm" onclick="openSpendingModal()">💳 Enter debit card balances</button>`;
+  if(s.action==='ndis')return`<div class="field"><label>NDIS amount owed this fortnight ($)</label><input type="number" id="ndis-in" step="0.01" placeholder="0.00"></div><button class="btn btn-primary btn-sm" onclick="saveNDIS()">✓ Update & done</button>`;
+  if(s.action==='cash')return`<div class="field"><label>Cash added to savings ($)</label><input type="number" id="cash-in" step="0.01" placeholder="0.00"><div class="field-hint">Current cash savings: ${fmt(S.overall.cashSavings||0)}</div></div><button class="btn btn-primary btn-sm" onclick="addCash()">✓ Update & done</button>`;
+
+  if(s.action==='mortgage')return`<div class="field"><label>Amount ahead on mortgage ($)</label><input type="number" id="mort-in" step="0.01" value="${(S.overall.mortgageAhead||0).toFixed(2)}"></div><button class="btn btn-primary btn-sm" onclick="saveMortgage()">✓ Update & done</button>`;
+  return'';
+}
+
+// ─── WORKFLOW ACTIONS ─────────────────────────────────────────────────────────
+function renderCycleHistory(){
+  const el=document.getElementById('cycle-history-list');
+  const cycles=S.completedCycles||[];
+  if(!cycles.length){el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--text2);font-size:13px">No completed fortnights yet</div>';return;}
+  const lastCycleId=cycles[cycles.length-1].id;
+  el.innerHTML=cycles.slice().reverse().map(c=>`
+    <div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <div style="font-size:14px;font-weight:600">Fortnight completed ${fmtDate(c.date)}</div>
+          <div style="font-size:12px;color:var(--text2)">Tithe: ${fmt(c.tithe||0)} · Gross: ${fmt(c.gross||0)}</div>
+        </div>
+        ${c.id===lastCycleId?`<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="confirmRevertCycle('${c.id}')">↩ Revert this fortnight</button>`:'<span class="badge bgray">Past</span>'}
+      </div>
+    </div>`).join('');
+}
+function confirmRevertCycle(id){
+  if(!confirm('Revert this fortnight?\n\nThis will:\n• Remove the fortnightly allocation\n• Delete all transactions entered during this workflow\n• Return manually entered transactions to pending\n\nThis cannot be undone.'))return;
+  revertCycle(id);
+}
+function revertCycle(id){
+  const cycles=S.completedCycles||[];
+  const cycle=cycles.find(c=>c.id===id);
+  if(!cycle)return;
+  // Remove the tithe transaction for this cycle
+  S.transactions=S.transactions.filter(t=>!(t.source==='tithe'&&t.date===cycle.date));
+  // For transactions entered this cycle: remove CSV/workflow ones, set manual back to pending
+  S.transactions.forEach(t=>{
+    if(cycle.transactionIds&&cycle.transactionIds.includes(t.id)){
+      if(t.source==='manual'){t.status='pending';}
+      else{t._revertDelete=true;}
+    }
+  });
+  S.transactions=S.transactions.filter(t=>!t._revertDelete);
+  // Remove the cycle record
+  S.completedCycles=cycles.filter(c=>c.id!==id);
+  saveS();
+  closeModal('cycleHistory');
+  alert('Fortnight reverted successfully.');
+}
+function finaliseWorkflow(){
+  if(!confirm('Finalise this fortnight? This will:\n• Accept the tithe transaction\n• Add one fortnightly allocation to all budgets\n\nThis cannot be undone (except by reverting the whole fortnight).'))return;
+  const today=S.workflowData.currentDate||new Date().toISOString().split('T')[0];
+  // Accept the pending tithe transaction
+  S.transactions.filter(t=>t.source==='tithe-pending').forEach(t=>{t.status='accepted';t.source='tithe';});
+  // Record this workflow as a completed fortnight
+  const cycleRecord={
+    id:'cycle_'+Date.now(),
+    date:today,
+    tithe:S.workflowData.currentTithe||0,
+    gross:S.workflowData.currentGross||0,
+    completedSteps:{...S.workflowData},
+    transactionIds:S.transactions.filter(t=>t.status==='accepted'&&new Date(t.date)>=new Date(today.substring(0,7))).map(t=>t.id)
+  };
+  S.completedCycles=S.completedCycles||[];
+  S.completedCycles.push(cycleRecord);
+  // Reset workflow
+  S.workflowData={};
+  saveS();
+  renderWorkflow();
+  showTab('dashboard');
+  alert('Fortnight finalised! All budget allocations updated. Great work 🎉');
+}
+function toggleStep(n){document.getElementById('sb'+n)?.classList.toggle('open');}
+function doneStep(n){S.workflowData['s'+n]=true;saveS();renderWorkflow();}
+function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
+function resetWorkflow(){if(confirm('Start a new fortnight? This resets the workflow checklist only.')){S.workflowData={};saveS();}}
+function calcTithe(){
+  const b=parseFloat(document.getElementById('tb')?.value)||0;
+  const k=parseFloat(document.getElementById('tk')?.value)||0;
+  const c=parseFloat(document.getElementById('tc')?.value)||0;
+  const t=b+k+c,ti=t*.1;
+  const el=document.getElementById('tithe-out');
+  if(el&&t>0)el.innerHTML=`Benj: <strong>${fmt(b)}</strong> + Kasie: <strong>${fmt(k)}</strong> + Carers: <strong>${fmt(c)}</strong> = <strong>${fmt(t)}</strong> → 10% tithe: <strong style="color:var(--green)">${fmt(ti)}</strong>`;
+}
+function saveCarersDefault(){
+  const val=parseFloat(document.getElementById('tc')?.value)||162.60;
+  S.carersDefault=val;
+  saveS();
+  alert('Carers Payment default updated to '+fmt(val));
+}
+function saveTithe(){
+  const b=parseFloat(document.getElementById('tb')?.value)||0;
+  const k=parseFloat(document.getElementById('tk')?.value)||0;
+  const c=parseFloat(document.getElementById('tc')?.value)||0;
+  if(!b&&!k&&!c){alert('Please enter at least one income figure.');return;}
+  const t=b+k+c,ti=parseFloat((t*.1).toFixed(2));
+  const today=new Date().toISOString().split('T')[0];
+  // Store tithe amount for ZCM transfer prompt and finalise step
+  S.workflowData.currentTithe=ti;
+  S.workflowData.currentGross=t;
+  S.workflowData.currentDate=today;
+  // Record as pending tithe transaction (not accepted until finalise)
+  S.transactions=S.transactions.filter(tx=>tx.source!=='tithe-pending');
+  S.transactions.push({id:'tithe_'+Date.now(),date:today,description:'Tithe — '+today,amount:ti,category:'Tithing',method:'transfer',status:'pending',source:'tithe-pending'});
+  saveS();doneStep(6);
+  // Show ZCM transfer button
+  const btn=document.getElementById('transfer-zcm-btn');
+  if(btn){btn.style.display='inline-flex';btn.textContent='💸 Manually transfer '+fmt(ti)+' to ZCM';}
+}
+function showZCMTransfer(){
+  const ti=S.workflowData.currentTithe||0;
+  alert('Please manually transfer '+fmt(ti)+' to ZCM. This is your tithe for this fortnight.');
+}
+function saveNDIS(){const a=parseFloat(document.getElementById('ndis-in')?.value)||0;S.overall.ndisOwed=(S.overall.ndisOwed||0)+a;saveS();doneStep(9);}
+function addCash(){const a=parseFloat(document.getElementById('cash-in')?.value)||0;S.overall.cashSavings=(S.overall.cashSavings||0)+a;saveS();doneStep(10);}
+function addOther(){const desc=document.getElementById('oth-desc')?.value.trim(),amt=parseFloat(document.getElementById('oth-amt')?.value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.transactions.push({id:'oth_'+Date.now(),date:new Date().toISOString().split('T')[0],description:desc,amount:amt,category:'Other',method:'other',status:'accepted',source:'manual'});if(document.getElementById('oth-desc'))document.getElementById('oth-desc').value='';if(document.getElementById('oth-amt'))document.getElementById('oth-amt').value='';saveS();alert('Added!');}
+function saveMoneyOwed(){const a=parseFloat(document.getElementById('ow-total-in')?.value)||0;S.overall.moneyOwed=a;saveS();doneStep(12);}
+function saveMortgage(){const a=parseFloat(document.getElementById('mort-in')?.value)||0;S.overall.mortgageAhead=a;saveS();doneStep(10);}
+function acceptAllPending(){let n=0;S.transactions.filter(t=>t.status==='pending').forEach(t=>{t.status='accepted';n++;});saveS();doneStep(4);alert(n+' transactions accepted.');}
+
+function openSpendingModal(){
+  const fnB=getFNSpending('Benj'),fnK=getFNSpending('Kasie');
+  document.getElementById('spending-body').innerHTML=`
+    <div style="margin-bottom:1.25rem">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Benj</div>
+      <div class="field"><label>Current debit card balance ($)</label><input type="number" id="benj-debit" step="0.01" placeholder="0.00" oninput="calcSpending('Benj')"></div>
+      <div style="margin-bottom:8px">
+        <div class="calc-row"><span>F/N credit card spending (Benj category)</span><strong>− ${fmt(fnB)}</strong></div>
+        <div class="calc-row"><span>Fortnightly allowance</span><strong>+ $70.00</strong></div>
+        <div class="calc-row"><span>Benj's current balance</span><strong id="benj-result" style="font-size:16px">—</strong></div>
+      </div>
+      <div id="benj-transfer"></div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:1.25rem">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Kasie</div>
+      <div class="field"><label>Current debit card balance ($)</label><input type="number" id="kasie-debit" step="0.01" placeholder="0.00" oninput="calcSpending('Kasie')"></div>
+      <div style="margin-bottom:8px">
+        <div class="calc-row"><span>F/N credit card spending (Kasie category)</span><strong>− ${fmt(fnK)}</strong></div>
+        <div class="calc-row"><span>Fortnightly allowance</span><strong>+ $70.00</strong></div>
+        <div class="calc-row"><span>Kasie's current balance</span><strong id="kasie-result" style="font-size:16px">—</strong></div>
+      </div>
+      <div id="kasie-transfer"></div>
+    </div>`;
+  openModal('spending');
+}
+
+function calcSpending(person){
+  const debit=parseFloat(document.getElementById(person.toLowerCase()+'-debit')?.value)||0;
+  const current=calcSpendingBal(person,debit);
+  const resultEl=document.getElementById(person.toLowerCase()+'-result');
+  const transferEl=document.getElementById(person.toLowerCase()+'-transfer');
+  if(resultEl){resultEl.textContent=(current<0?'-':'')+fmt(Math.abs(current));resultEl.style.color=current<0?'var(--red)':current<20?'var(--amber)':'var(--green)';}
+  if(transferEl){
+    if(current>=20)transferEl.innerHTML=`<div class="transfer-box"><div class="t-label">↗ Transfer to ${person}'s debit account</div><div class="t-amount">${fmt(current)}</div><div class="t-sub">Full balance to debit card</div></div>`;
+    else transferEl.innerHTML=`<div class="debt-box"><div class="t-label">⚠ Balance below $20 — transfer minimum</div><div class="t-amount">Transfer $20.00</div><div class="t-sub">Current will show as ${fmtS(current-20)} after transfer</div></div>`;
+  }
+}
+
+function saveSpending(){
+  const bD=parseFloat(document.getElementById('benj-debit')?.value)||0;
+  const kD=parseFloat(document.getElementById('kasie-debit')?.value)||0;
+  S.spendingBalances={benj:{current:calcSpendingBal('Benj',bD),debit:bD},kasie:{current:calcSpendingBal('Kasie',kD),debit:kD}};
+  saveS();closeModal('spending');doneStep(7);
+}
+
+// ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
+function openTxDetail(id){
+  const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
+  document.getElementById('txd-title').textContent=tx.description;
+  const txCat=CATS.find(c=>c.name===tx.category);
+  document.getElementById('txd-body').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem">
+      <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(tx.amount)}</div></div>
+      <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:16px">${tx.date}</div></div>
+      <div class="stat"><div class="stat-label">Category</div><div class="stat-value" style="font-size:13px">${tx.category}${tx.subcat?' · '+tx.subcat:''}</div></div>
+      <div class="stat"><div class="stat-label">Method</div><div class="stat-value" style="font-size:13px">${tx.method}</div></div>
+    </div>
+    ${tx.flag?'<div class="banner banner-err" style="margin-bottom:10px">⚠ '+tx.flag+'</div>':''}
+    <div class="field"><label>Description / summary</label><input type="text" id="edit-desc" value="${tx.description}" style="width:100%"></div>
+    <div class="frow">
+      <div class="field"><label>Category</label><select id="edit-cat" onchange="updateEditSubcat()">${CATS.map(c=>`<option value="${c.name}"${c.name===tx.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other"${tx.category==='Other'?' selected':''}>Other</option></select></div>
+      <div class="field"><label>Date</label><input type="date" id="fix-date" value="${tx.date}"></div>
+    </div>
+    <div id="edit-subcat-wrap" class="field" style="${txCat?.subs?'':'display:none'}"><label>Sub-category</label><select id="edit-subcat">${txCat?.subs?txCat.subs.map(s=>`<option value="${s}"${s===tx.subcat?' selected':''}>${s}</option>`).join(''):''}</select></div>
+    ${tx.notes?'<div class="field"><label>Notes</label><input type="text" id="edit-notes" value="'+tx.notes+'" style="width:100%"></div>':''}
+    `;
+  const actions=document.getElementById('txd-actions');
+  let btns=`<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteTx('${id}')">🗑 Delete</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+  if(tx.status==='flagged'||tx.status==='pending'){
+    btns+=`<button class="btn btn-sm" onclick="saveEdits('${id}')">💾 Save edits</button><button class="btn btn-primary btn-sm" onclick="fixAndAccept('${id}')">✓ Accept</button>`;
+  } else {
+    btns+=`<button class="btn btn-sm" onclick="saveEdits('${id}')">💾 Save edits</button>`;
+  }
+  actions.innerHTML=btns;
+  openModal('txDetail');
+}
+
+function renderRecycleBin(){
+  const el=document.getElementById('recycle-bin-list');
+  const deleted=S.deletedTransactions||[];
+  if(!deleted.length){el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--text2);font-size:13px">No deleted transactions</div>';return;}
+  el.innerHTML='<div class="tx-list">'+deleted.map(t=>`
+    <div class="tx flagged" style="cursor:default;flex-wrap:wrap;gap:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500">${t.description}</div>
+        <div style="font-size:11px;color:var(--text2)">${fmtDate(t.date)} · ${t.category} · Deleted ${fmtDate(t.deletedAt?.split('T')[0]||'')}</div>
+      </div>
+      <span style="font-size:13px;font-weight:700">${fmt(t.amount)}</span>
+      <button class="btn btn-sm btn-primary" onclick="restoreTx('${t.id}')">↩ Restore</button>
+    </div>`).join('')+'</div>';
+}
+function restoreTx(id){
+  const tx=(S.deletedTransactions||[]).find(t=>t.id===id);
+  if(!tx)return;
+  S.deletedTransactions=S.deletedTransactions.filter(t=>t.id!==id);
+  delete tx.deletedAt;
+  tx.status='pending';
+  S.transactions.push(tx);
+  saveS();renderRecycleBin();
+}
+function saveEdits(id){
+  const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
+  const di=document.getElementById('fix-date');if(di)tx.date=di.value;
+  const dd=document.getElementById('edit-desc');if(dd)tx.description=dd.value;
+  const dc=document.getElementById('edit-cat');if(dc)tx.category=dc.value;
+  const ds=document.getElementById('edit-subcat');if(ds&&document.getElementById('edit-subcat-wrap')?.style.display!=='none')tx.subcat=ds.value;
+  const dn=document.getElementById('edit-notes');if(dn)tx.notes=dn.value;
+  delete tx.flag;
+  saveS();closeModal('txDetail');
+}
+function updateEditSubcat(){
+  const catName=document.getElementById('edit-cat')?.value;
+  const cat=CATS.find(c=>c.name===catName);
+  const wrap=document.getElementById('edit-subcat-wrap');
+  const sel=document.getElementById('edit-subcat');
+  if(cat?.subs){
+    wrap.style.display='block';
+    sel.innerHTML=cat.subs.map(s=>`<option value="${s}">${s}</option>`).join('');
+  } else {
+    wrap.style.display='none';
+  }
+}
+function fixAndAccept(id){
+  const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
+  const di=document.getElementById('fix-date');if(di)tx.date=di.value;
+  const dd=document.getElementById('edit-desc');if(dd)tx.description=dd.value;
+  const dc=document.getElementById('edit-cat');if(dc)tx.category=dc.value;
+  const ds=document.getElementById('edit-subcat');if(ds&&document.getElementById('edit-subcat-wrap')?.style.display!=='none')tx.subcat=ds.value;
+  const dn=document.getElementById('edit-notes');if(dn)tx.notes=dn.value;
+  tx.status='accepted';delete tx.flag;saveS();closeModal('txDetail');
+}
+function deleteTx(id){
+  if(!confirm('Delete this transaction? It will be moved to the recycle bin and can be restored.'))return;
+  const tx=S.transactions.find(t=>t.id===id);
+  if(!tx)return;
+  S.deletedTransactions=S.deletedTransactions||[];
+  S.deletedTransactions.push({...tx,deletedAt:new Date().toISOString()});
+  S.transactions=S.transactions.filter(t=>t.id!==id);
+  saveS();closeModal('txDetail');
+}
+
+function openCatDetail(catName){
+  const cat=CATS.find(c=>c.name===catName);
+  // For Bills and Presents, show subcategory dashboard
+  if(cat?.subs){openSubcatDashboard(catName);return;}
+  const cycles=getTithingCycles();
+  const txs=S.transactions.filter(t=>t.category===catName&&t.status==='accepted').sort((a,b)=>b.date.localeCompare(a.date));
+  const spent=getCatSpent(catName);
+  let headerStats='';
+  if(cat?.isSpending){
+    const sb=S.spendingBalances||{};
+    const cur=cat.person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
+    headerStats=`<div class="stat"><div class="stat-label">Current balance</div><div class="stat-value ${cur>=0?'pos':'neg'}">${fmtS(cur)}</div></div><div class="stat"><div class="stat-label">F/N spending</div><div class="stat-value">${fmt(getFNSpending(cat.person))}</div></div><div class="stat"><div class="stat-label">Yearly spent</div><div class="stat-value">${fmt(spent)}</div></div>`;
+  }else{
+    const budgeted=cat?cat.fn*cycles:0,bal=budgeted-spent;
+    headerStats=`<div class="stat"><div class="stat-label">Balance</div><div class="stat-value ${bal>=0?'pos':'neg'}">${fmtS(bal)}</div></div><div class="stat"><div class="stat-label">Spent</div><div class="stat-value">${fmt(spent)}</div></div><div class="stat"><div class="stat-label">Yearly budget</div><div class="stat-value">${fmt(cat?.yearly||0)}</div></div>`;
+  }
+  document.getElementById('txd-title').textContent=catName;
+  document.getElementById('txd-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">${headerStats}</div><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">Transactions (${txs.length})</div><div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${t.date.slice(5)}</span><span class="tx-desc">${t.description}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}</div>`;
+  document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+  openModal('txDetail');
+}
+
+function openSubcatDashboard(catName){
+  const cat=CATS.find(c=>c.name===catName);
+  const cycles=getTithingCycles();
+  const allTxs=S.transactions.filter(t=>t.category===catName&&t.status==='accepted');
+  const totalSpent=getCatSpent(catName);
+  const budgeted=cat.fn*cycles;
+  const bal=budgeted-totalSpent;
+
+  // Get yearly budgets per subcat for Bills
+  const PRESENTS_YEARLY = {
+    "Kasie's Family":200,"Benj's Family":200,'Kasie':100,'Benj':100,
+    'Zeke':100,'Izzy':100,"Father's Day":80,"Mother's Day":150,
+    "Kasie's Friends":150,'Children':200,"Benj's Work":100,
+    'GCC Teachers':100,'Christmas':600,'Thankfulness Day':100,
+    'Cards & Wrapping Paper':200,'Other':310
+  };
+  const subcatYearlyBudgets = catName==='Presents' ? PRESENTS_YEARLY : catName==='Bills' ? {
+    'Health Insurance':3400,'Car Insurance':1550,'Car Registration':1850,'Car Repairs':2500,
+    'House Insurance':2100,'Phone & Internet':3600,'Pet Insurance':1000,'Electricity':1600,
+    'RACQ':230,'Teacher Rego':105,'Pest Control':440,'Credit Card':200,'Rates':2280,
+    'Water':2500,'Music':320,'iCloud':180,'Lawyer':1010,'Costco':65,
+    'Streaming':120,'Amazon':120,'Linkt':300,'Other':530
+  } : {};
+
+  const subcatRows = cat.subs.map(sub=>{
+    const subTxs=allTxs.filter(t=>(t.subcat||'Other')===sub);
+    const subSpent=subTxs.reduce((a,t)=>a+t.amount,0);
+    const subYearly=subcatYearlyBudgets[sub]||0;
+    const subPct=subYearly>0?Math.min(subSpent/subYearly*100,100):0;
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;cursor:pointer;opacity:${subSpent===0?'0.5':'1'}" onclick="openSubcatDetail('${catName}','${sub.replace(/'/g,"\'")}')">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <span style="font-size:13px;font-weight:600">${sub}</span>
+        <span style="font-size:14px;font-weight:700;color:var(--text)">${fmt(subSpent)}</span>
+      </div>
+      ${subYearly>0?`<div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${subPct.toFixed(1)}%;background:var(--green);border-radius:2px"></div></div><div style="font-size:11px;color:var(--text2)">${Math.round(subPct)}% of ${fmt(subYearly)} yearly budget</div>`:''}
+      <div style="font-size:11px;color:var(--text2);margin-top:3px">${subTxs.length} transaction${subTxs.length!==1?'s':''}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('txd-title').textContent=catName+' — subcategories';
+  document.getElementById('txd-body').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+      <div class="stat"><div class="stat-label">Balance</div><div class="stat-value ${bal>=0?'pos':'neg'}">${fmtS(bal)}</div></div>
+      <div class="stat"><div class="stat-label">Total spent</div><div class="stat-value">${fmt(totalSpent)}</div></div>
+      <div class="stat"><div class="stat-label">Yearly budget</div><div class="stat-value">${fmt(cat.yearly)}</div></div>
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Sub-categories (tap to view transactions)</div>
+    ${subcatRows||'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}`;
+  document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+  openModal('txDetail');
+}
+
+function openSubcatDetail(catName, sub){
+  const txs=S.transactions.filter(t=>t.category===catName&&(t.subcat||'Other')===sub&&t.status==='accepted').sort((a,b)=>b.date.localeCompare(a.date));
+  const spent=txs.reduce((a,t)=>a+t.amount,0);
+  document.getElementById('txd-title').textContent=catName+' — '+sub;
+  document.getElementById('txd-body').innerHTML=`
+    <div style="margin-bottom:12px">
+      <div class="stat"><div class="stat-label">Total spent</div><div class="stat-value">${fmt(spent)}</div></div>
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Transactions (${txs.length})</div>
+    <div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}</span><span class="tx-amt">${fmt(t.amount)}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions</div>'}</div>`;
+  document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="openSubcatDashboard('${catName}')">← Back</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+}
+
+// ─── CSV HANDLING ─────────────────────────────────────────────────────────────
+function parseMyCardDate(str){
+  // Convert "31 May 26" to "2026-05-31"
+  const months={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+  const parts=(str||'').trim().split(' ');
+  if(parts.length===3){
+    const day=parts[0].padStart(2,'0');
+    const mon=months[parts[1]]||'01';
+    const yr='20'+parts[2];
+    return `${yr}-${mon}-${day}`;
+  }
+  return str;
+}
+
+function handleCSV(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const lines=ev.target.result.split('\n').filter(l=>l.trim());
+    const csvTxs=[];
+    for(let i=1;i<lines.length;i++){
+      const cols=[];let cur='',inQ=false;
+      for(const ch of lines[i]){if(ch==='"'){inQ=!inQ;}else if(ch===','&&!inQ){cols.push(cur.trim());cur='';}else cur+=ch;}
+      cols.push(cur.trim());
+      if(cols.length<5)continue;
+      const rawDate=cols[0]||'';
+      const date=parseMyCardDate(rawDate);
+      const amt=Math.abs(parseFloat((cols[1]||'0').replace(/[^0-9.-]/g,''))||0);
+      if(!amt)continue;
+      const txDetails=cols[5]||'';
+      const mcCategory=cols[6]||'';
+      const merchantName=cols[7]||txDetails;
+      const description=merchantName||txDetails;
+      const cat=autoAssign(description,mcCategory,txDetails);
+      const catObj=CATS.find(c=>c.name===cat);
+      const subcat=catObj?.subs?autoSubcat(description,catObj.subs,txDetails):'';
+      csvTxs.push({id:'csv_'+Date.now()+'_'+i,date,description,amount:amt,category:cat,subcat,method:'credit',status:'pending',source:'csv',rawDetails:txDetails});
+    }
+
+    // Get all unaccepted manual transactions from this fortnight
+    const manualPending=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending');
+    const matchedManualIds=new Set();
+    const merged=[];
+    const unmatchedCSV=[];
+
+    for(const csv of csvTxs){
+      const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<0.01);
+      if(manualMatch){
+        matchedManualIds.add(manualMatch.id);
+        merged.push({csv,manual:manualMatch,action:'merge'});
+      } else {
+        unmatchedCSV.push(csv);
+      }
+    }
+    // Manual transactions with no CSV match
+    const unmatchedManual=manualPending.filter(m=>!matchedManualIds.has(m.id));
+
+    S.csvPending={merged,unmatchedCSV,unmatchedManual,csvTxs};
+    openCSVReview(S.csvPending);
+  };
+  reader.readAsText(file);
+}
+
+function openCSVReview(data){
+  const{merged,unmatchedCSV,unmatchedManual}=data;
+  const total=merged.length+unmatchedCSV.length+unmatchedManual.length;
+  let html=`<div style="font-size:13px;color:var(--text2);margin-bottom:14px">${total} transactions to review — ${merged.length} matched to manual entries, ${unmatchedCSV.length} new from CSV, ${unmatchedManual.length} manual with no CSV match.</div>`;
+
+  // Section 1: Merged (manual + CSV match)
+  if(merged.length){
+    html+=`<div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">✓ Matched — manual entry + credit card (${merged.length})</div>`;
+    merged.forEach((m,i)=>{
+      html+=`<div style="border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--gl)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--gd)">${m.csv.description}</div>
+            <div style="font-size:11px;color:var(--green)">Manual entry: "${m.manual.description}" · ${m.manual.category}</div>
+          </div>
+          <span style="font-size:15px;font-weight:700;color:var(--gd)">${fmt(m.csv.amount)}</span>
+        </div>
+        <div class="frow">
+          <div class="field" style="margin:0"><label>Date</label><input type="date" value="${m.csv.date}" onchange="S.csvPending.merged[${i}].csv.date=this.value"></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].csv.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.map(c=>`<option value="${c.name}"${c.name===m.csv.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option></select></div>
+        </div>
+        <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)}</div>
+        <div class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value" style="width:100%"></div>
+        <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: manual entry will be removed and replaced with this credit card transaction</div>
+      </div>`;
+    });
+  }
+
+  // Section 2: Unmatched CSV transactions
+  if(unmatchedCSV.length){
+    html+=`<div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">New credit card transactions (${unmatchedCSV.length})</div>`;
+    unmatchedCSV.forEach((t,i)=>{
+      html+=`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:13px;font-weight:600">${t.description}</span>
+          <span style="font-size:14px;font-weight:700">${fmt(t.amount)}</span>
+        </div>
+        <div class="frow">
+          <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched')">${CATS.map(c=>`<option value="${c.name}"${c.name===t.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option><option value="Split">⇄ Split transaction</option></select></div>
+        </div>
+        <div id="csv-sub-c${i}" style="margin-top:8px">${renderCSVSubcatNamed('c'+i,t.category,t.subcat)}</div>
+        <div id="csv-split-c${i}" style="display:none;margin-top:8px">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Split amounts</div>
+          <div id="csv-split-rows-c${i}"></div>
+          <button class="btn btn-sm" onclick="addCSVSplitRow('c${i}')" style="margin-top:4px">+ Add split</button>
+        </div>
+        <div class="field" style="margin-top:8px;margin-bottom:0"><label>Summary / description</label><input type="text" value="${t.description}" onchange="S.csvPending.unmatchedCSV[${i}].description=this.value" style="width:100%"></div>
+      </div>`;
+    });
+  }
+
+  // Section 3: Manual transactions with no CSV match
+  if(unmatchedManual.length){
+    html+=`<div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">⚠ Manual entries — no credit card match found (${unmatchedManual.length})</div>`;
+    unmatchedManual.forEach((t,i)=>{
+      html+=`<div style="border:1px solid #E8C060;border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--al)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <div>
+            <div style="font-size:13px;font-weight:700">${t.description}</div>
+            <div style="font-size:11px;color:var(--amber)">Manually entered · ${t.category}${t.subcat?' · '+t.subcat:''} · ${t.date}</div>
+          </div>
+          <span style="font-size:15px;font-weight:700">${fmt(t.amount)}</span>
+        </div>
+        <div style="font-size:12px;color:#7A5A10;margin-bottom:8px">This transaction has no matching credit card entry. Was it paid by cash/debit, or is it still to appear on your statement?</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='keep'">Keep as-is</button>
+          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='remove'">Remove</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  document.getElementById('csv-review-body').innerHTML=html;
+  openModal('csvReview');
+}
+
+function renderCSVSubcatNamed(key,catName,selected){
+  const cat=CATS.find(c=>c.name===catName);
+  if(!cat?.subs)return'';
+  return`<div class="field" style="margin:0"><label>Sub-category</label><select onchange="updateSubcatValue('${key}',this.value)">${cat.subs.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('')}</select></div>`;
+}
+function updateMergedSubcat(key,catName){
+  const el=document.getElementById('csv-sub-'+key);
+  if(el)el.innerHTML=renderCSVSubcatNamed(key,catName,'');
+}
+function updateSubcatValue(key,val){
+  const prefix=key[0];const i=parseInt(key.slice(1));
+  if(prefix==='m')S.csvPending.merged[i].csv.subcat=val;
+  else if(prefix==='c')S.csvPending.unmatchedCSV[i].subcat=val;
+}
+function toggleCSVSplit(key,catName,idx,section){
+  const splitArea=document.getElementById('csv-split-'+key);
+  const subcatArea=document.getElementById('csv-sub-'+key);
+  if(catName==='Split'){
+    if(splitArea)splitArea.style.display='block';
+    if(subcatArea)subcatArea.style.display='none';
+    if(splitArea&&!splitArea.querySelector('.csv-split-row'))addCSVSplitRow(key);
+  } else {
+    if(splitArea)splitArea.style.display='none';
+    if(subcatArea)subcatArea.style.display='block';
+  }
+}
+function addCSVSplitRow(key){
+  const container=document.getElementById('csv-split-rows-'+key);
+  if(!container)return;
+  const div=document.createElement('div');
+  div.className='csv-split-row split-row';
+  div.style.marginBottom='6px';
+  div.innerHTML=`<select style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">${CATS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')}<option value="Other">Other</option></select><input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove()" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button>`;
+  container.appendChild(div);
+}
+function getCSVSplitRows(key){
+  const rows=document.querySelectorAll('#csv-split-rows-'+key+' .csv-split-row');
+  const splits=[];
+  rows.forEach(row=>{
+    const selects=row.querySelectorAll('select');
+    const inputs=row.querySelectorAll('input');
+    const cat=selects[0]?.value||'';
+    const desc=inputs[0]?.value||'';
+    const amt=parseFloat(inputs[1]?.value)||0;
+    if(cat&&amt)splits.push({category:cat,description:desc,amount:amt});
+  });
+  return splits;
+}
+function renderCSVSubcat(i,catName,selected){const cat=CATS.find(c=>c.name===catName);if(!cat?.subs)return'';return`<div class="field" style="margin:0"><label>Sub-category</label><select>${cat.subs.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('')}</select></div>`;}
+function updateCSVSubcat(i,catName){const el=document.getElementById('csv-sub-'+i);if(el)el.innerHTML=renderCSVSubcat(i,catName,'');}
+
+function acceptCSVReview(){
+  const{merged,unmatchedCSV,unmatchedManual}=S.csvPending;
+  // Process merged: remove manual, add CSV version
+  merged.forEach((m,i)=>{
+    S.transactions=S.transactions.filter(t=>t.id!==m.manual.id);
+    // Check for split
+    const splitKey='m'+i;
+    const splitArea=document.getElementById('csv-split-'+splitKey);
+    if(splitArea&&splitArea.style.display!=='none'){
+      const splits=getCSVSplitRows(splitKey);
+      splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:m.csv.date,description:sp.description||m.csv.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
+    } else {
+      S.transactions.push({...m.csv,status:'pending'});
+    }
+  });
+  // Add unmatched CSV as pending (handle splits)
+  unmatchedCSV.forEach((t,i)=>{
+    const splitKey='c'+i;
+    const splitArea=document.getElementById('csv-split-'+splitKey);
+    if(splitArea&&splitArea.style.display!=='none'){
+      const splits=getCSVSplitRows(splitKey);
+      splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
+    } else {
+      S.transactions.push({...t,status:'pending'});
+    }
+  });
+  // Handle unmatched manual
+  unmatchedManual.forEach(t=>{
+    if(t.keepAction==='remove')S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
+  });
+  S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
+  saveS();closeModal('csvReview');doneStep(1);
+}
+
+function autoAssign(desc, mcCat, rawDetails){
+  const d=(desc||'').toLowerCase();
+  const m=(mcCat||'').toLowerCase();
+  const r=(rawDetails||'').toLowerCase();
+  const all=d+' '+m+' '+r;
+
+  // Food / Groceries
+  if(/coles|woolworth|woolies|aldi|iga|harris farm|costco|drakes|spar/.test(all)||m.includes('grocer'))return'Food';
+  // Petrol
+  if(/shell|bp |caltex|7-eleven|ampol|united petrol|puma energy/.test(all))return'Petrol';
+  // Linkt/tolls
+  if(/linkt|e-toll|toll/.test(all))return'Bills';
+  // Medical
+  if(/medicare|chemist|pharmacy|doctor|dental|pathology|hospital|ortho|physio|chiro|optical|eyewear/.test(all)||m.includes('medical')||m.includes('health care'))return'Medical';
+  // School
+  if(/school fee|education|uniform|tuckshop|canteen/.test(all))return'School';
+  // Entertainment / dining
+  if(m.includes('restaurant')||m.includes('takeaway')||m.includes('cafe')||m.includes('dining')||/mcdonald|hungry jack|kfc|subway|pizza|nandos|guzman|domino|red rooster/.test(all))return'Entertainment';
+  // Maintenance / hardware
+  if(/bunnings|mitre 10|hardware|plumb/.test(all)||m.includes('hardware'))return'Maintenance';
+  // Clothing
+  if(/kmart|target|big w|cotton on|myer|david jones|uniqlo|h&m|city beach|rivers/.test(all)||m.includes('clothing')||m.includes('apparel'))return'Clothing';
+  // Child
+  if(/toy|lego|kids|children|baby|mothercare/.test(all))return'Child';
+  // House
+  if(/ikea|spotlight|bed bath|homewares|homemaker/.test(all)||m.includes('homeware'))return'House';
+  // Insurance / Bills
+  if(/bupa|medibank|hbf|hcf|nrma|aami|allianz|suncorp/.test(all))return'Bills';
+  if(/netflix|spotify|kayo|binge|stan|disney|apple\.com|icloud|amazon prime|hubbl/.test(all)||m.includes('subscription'))return'Bills';
+  if(/electricity|agl|energex|origin|ergon|aurora/.test(all))return'Bills';
+  if(/vodafone|optus|telstra|tpg|aussie broadband/.test(all)||m.includes('phone')||m.includes('internet'))return'Bills';
+  if(/racq|nrma|insurance/.test(all)||m.includes('insurance'))return'Bills';
+  if(/rates|water|council/.test(all))return'Bills';
+  if(/barber|hairdress|beauty|salon|personal care/.test(all)||m.includes('personal care'))return'Clothing';
+  return'Bills';
+}
+
+function autoSubcat(desc,subs,rawDetails){
+  const d=(desc||'').toLowerCase();
+  const r=(rawDetails||'').toLowerCase();
+  const all=d+' '+r;
+  const map={
+    'netflix':'Streaming','kayo':'Streaming','binge':'Streaming','stan':'Streaming','hubbl':'Streaming','disney':'Streaming',
+    'spotify':'Music','apple music':'Music',
+    'amazon':'Amazon',
+    'icloud':'iCloud','apple.com':'iCloud',
+    'costco':'Costco',
+    'electricity':'Electricity','agl':'Electricity','energex':'Electricity','origin':'Electricity',
+    'bupa':'Health Insurance','medibank':'Health Insurance','hbf':'Health Insurance','nib':'Health Insurance',
+    'racq':'RACQ',
+    'linkt':'Linkt',
+    'vodafone':'Phone & Internet','optus':'Phone & Internet','telstra':'Phone & Internet','tpg':'Phone & Internet','aussie broadband':'Phone & Internet',
+    'rates':'Rates','water':'Water',
+    'lawyer':'Lawyer'
+  };
+  for(const[k,v]of Object.entries(map))if(all.includes(k)&&subs.includes(v))return v;
+  return subs[subs.length-1];
+}
+
+// ─── MODALS ───────────────────────────────────────────────────────────────────
+function openModal(id){
+  if(id==='editOverall'){document.getElementById('eo-sav').value=(S.overall.actualSavings||0).toFixed(2);document.getElementById('eo-ndis').value=(S.overall.ndisOwed||0).toFixed(2);document.getElementById('eo-cash').value=(S.overall.cashSavings||0).toFixed(2);document.getElementById('eo-mort').value=(S.overall.mortgageAhead||0).toFixed(2);}
+  if(id==='quickTx'){document.getElementById('qt-date').value=new Date().toISOString().split('T')[0];populateQTCats();}
+  if(id==='moneyOwedDetail'){renderOwedList();const od=document.getElementById('ow-date');if(od)od.value=new Date().toISOString().split('T')[0];}
+  if(id==='recycleBin')renderRecycleBin();
+  if(id==='cycleHistory')renderCycleHistory();
+  document.getElementById('modal-'+id).classList.add('open');
+}
+function closeModal(id){document.getElementById('modal-'+id).classList.remove('open');}
+function openActualSavingsDetail(){
+  const{actualSavings,ndisOwed,cashSavings,mortgageAhead}=S.overall;
+  const cycles=getTithingCycles();
+  // Calculate positive budget balances (excluding special cats)
+  const excludeCats=['Tithing','Mortgage','Spending - Benj','Spending - Kasie','Other'];
+  let positiveBudgets=0;
+  const budgetBreakdown=[];
+  for(const cat of CATS){
+    if(cat.noGrid||cat.isSpending||cat.specialAction)continue;
+    if(excludeCats.includes(cat.name))continue;
+    const budgeted=cat.fn*cycles;
+    const spent=getCatSpent(cat.name);
+    const bal=budgeted-spent;
+    if(bal>0&&spent<=cat.yearly){
+      positiveBudgets+=bal;
+      budgetBreakdown.push({name:cat.name,bal});
+    }
+  }
+  const netSavings=mortgageAhead-positiveBudgets;
+  document.getElementById('txd-title').textContent='Savings breakdown';
+  document.getElementById('txd-body').innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div><div style="font-size:13px;font-weight:600">NDIS owed</div><div style="font-size:11px;color:var(--text2)">Expected within 2 business days</div></div>
+        <div style="font-size:18px;font-weight:700;color:var(--green)">${fmt(ndisOwed)}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div><div style="font-size:13px;font-weight:600">Cash savings</div><div style="font-size:11px;color:var(--text2)">Physical cash held</div></div>
+        <div style="font-size:18px;font-weight:700">${fmt(cashSavings)}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div>
+          <div style="font-size:13px;font-weight:600">Net savings</div>
+          <div style="font-size:11px;color:var(--text2)">Mortgage ahead less positive budget balances</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">${fmt(mortgageAhead)} mortgage − ${fmt(positiveBudgets)} in budgets</div>
+        </div>
+        <div style="font-size:18px;font-weight:700;color:${netSavings>=0?'var(--green)':'var(--red)'}">${netSavings<0?'-':''}${fmt(Math.abs(netSavings))}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:var(--gl);border-radius:var(--radius-sm);border:1px solid #5DBB99;margin-top:4px">
+        <div style="font-size:14px;font-weight:700;color:var(--gd)">Total actual savings</div>
+        <div style="font-size:22px;font-weight:700;color:var(--gd)">${fmt(actualSavings)}</div>
+      </div>
+    </div>`;
+  document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="openModal('editOverall')">✏️ Edit figures</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+  openModal('txDetail');
+}
+function saveOverall(){S.overall.actualSavings=parseFloat(document.getElementById('eo-sav').value)||0;S.overall.ndisOwed=parseFloat(document.getElementById('eo-ndis').value)||0;S.overall.cashSavings=parseFloat(document.getElementById('eo-cash').value)||0;S.overall.mortgageAhead=parseFloat(document.getElementById('eo-mort').value)||0;saveS();closeModal('editOverall');}
+
+
+function populateQTCats(){const sel=document.getElementById('qt-cat');sel.innerHTML=CATS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')+'<option value="Other">Other</option><option value="Split">⇄ Split transaction</option>';sel.onchange=updateQTSubcat;updateQTSubcat();}
+function updateQTSubcat(){
+  const val=document.getElementById('qt-cat')?.value;
+  const cat=CATS.find(c=>c.name===val);
+  const wrap=document.getElementById('qt-subcat-wrap');
+  const sel=document.getElementById('qt-subcat');
+  const splitArea=document.getElementById('qt-split-area');
+  const descWrap=document.getElementById('qt-desc-wrap');
+  const amtWrap=document.getElementById('qt-amount')?.closest('.frow');
+  const specialWrap=document.getElementById('qt-special-wrap');
+  // Hide/show special action fields
+  if(specialWrap)specialWrap.style.display=cat?.specialAction==='owed-add'?'block':'none';
+  if(val==='Split'){
+    wrap.style.display='none';
+    splitArea.style.display='block';
+    if(descWrap)descWrap.style.display='none';
+    if(!document.getElementById('split-rows').children.length)addSplitRow();
+  } else {
+    splitArea.style.display='none';
+    if(descWrap)descWrap.style.display='block';
+    if(cat?.subs){wrap.style.display='block';sel.innerHTML=cat.subs.map(s=>`<option value="${s}">${s}</option>`).join('');}
+    else wrap.style.display='none';
+  }
+}
+function toggleSplit(){const on=document.getElementById('qt-split-chk')?.checked;document.getElementById('qt-split-area').style.display=on?'block':'none';if(on&&!document.getElementById('split-rows').children.length)addSplitRow();}
+function addSplitRow(){
+  const div=document.createElement('div');
+  div.className='split-row';
+  div.style.cssText='display:flex;flex-direction:column;gap:6px;margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
+  div.innerHTML=`
+    <div style="display:flex;gap:6px;align-items:center">
+      <select style="flex:2;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">${CATS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')}<option value="Other">Other</option></select>
+      <input type="number" placeholder="Amount $" step="0.01" min="0" style="flex:1;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+      <button class="btn btn-sm" onclick="this.closest('.split-row').remove()" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button>
+    </div>
+    <input type="text" placeholder="Description for this split" style="width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">`;
+  document.getElementById('split-rows').appendChild(div);
+}
+
+function saveQuickTx(){
+  const date=document.getElementById('qt-date').value,amount=parseFloat(document.getElementById('qt-amount').value),desc=document.getElementById('qt-desc').value.trim(),method=document.getElementById('qt-method').value,notes=document.getElementById('qt-notes').value.trim();
+  if(!date||!amount||!desc){alert('Please fill in date, amount, and description.');return;}
+  // Handle special action categories
+  const specialCat=CATS.find(c=>c.name===cat);
+  if(specialCat?.specialAction==='cash-add'){
+    S.overall.cashSavings=(S.overall.cashSavings||0)+amount;
+    saveS();closeModal('quickTx');
+    return;
+  }
+  if(specialCat?.specialAction==='owed-add'){
+    const owedDesc=document.getElementById('qt-owed-desc')?.value||desc||'Amount owed to savings';
+    S.moneyOwedItems=S.moneyOwedItems||[];
+    S.moneyOwedItems.push({id:'ow_'+Date.now(),description:owedDesc,amount:amount,date:date});
+    S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
+    saveS();closeModal('quickTx');
+    return;
+  }
+  const isSplit=document.getElementById('qt-cat').value==='Split';
+  if(isSplit){
+    document.getElementById('split-rows').querySelectorAll('.split-row').forEach(row=>{
+      const cat=row.querySelector('select').value;
+      const inputs=row.querySelectorAll('input');
+      const amt=parseFloat(inputs[0]?.value)||0;
+      const splitDesc=inputs[1]?.value||desc||'Split transaction';
+      if(amt)S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date,description:splitDesc,amount:amt,category:cat,subcat:'',method,notes,status:'pending',source:'manual'});
+    });
+  }else{
+    const cat=document.getElementById('qt-cat').value,catObj=CATS.find(c=>c.name===cat),subcat=catObj?.subs?document.getElementById('qt-subcat').value:'';
+    if(method==='cash')S.overall.cashSavings=(S.overall.cashSavings||0)-amount;
+    S.transactions.push({id:'tx_'+Date.now(),date,description:desc,amount,category:cat,subcat,method,notes,status:'pending',source:'manual'});
+  }
+
+  saveS();closeModal('quickTx');
+}
+
+function getNegativeBudgets(){
+  const cycles=getTithingCycles();
+  const neg=[];
+  for(const cat of CATS){
+    if(cat.noGrid)continue;
+    if(cat.isSpending){
+      const sb=S.spendingBalances||{};
+      const cur=cat.person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
+      if(cur<0)neg.push({name:cat.name,amount:Math.abs(cur)});
+    } else {
+      const budgeted=cat.fn*cycles;
+      const spent=getCatSpent(cat.name);
+      const bal=budgeted-spent;
+      if(bal<0)neg.push({name:cat.name,amount:Math.abs(bal)});
+    }
+  }
+  return neg;
+}
+
+function renderOwedList(){
+  const el=document.getElementById('owed-list');
+  const negBudgets=getNegativeBudgets();
+  const manualItems=S.moneyOwedItems||[];
+  const manualTotal=manualItems.reduce((a,o)=>a+o.amount,0);
+  const negTotal=negBudgets.reduce((a,b)=>a+b.amount,0);
+
+  // Get last money day date (most recent accepted tithing entry)
+  const tithingDates=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').map(t=>t.date).sort();
+  const lastMoneyDay=tithingDates[tithingDates.length-1]||'—';
+
+  let html='';
+
+  if(manualItems.length){
+    html+=`<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">People who owe you</div>`;
+    html+='<div class="tx-list" style="margin-bottom:14px">'+manualItems.map(o=>`
+      <div class="tx accepted" style="cursor:default;flex-wrap:wrap;gap:6px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500">${o.description}</div>
+          <div style="font-size:11px;color:var(--text2)">Added: ${o.date||'—'}</div>
+        </div>
+        <span style="font-size:14px;font-weight:700;color:var(--green)">${fmt(o.amount)}</span>
+        <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="markOwedPaid('${o.id}')">✓ Paid</button>
+      </div>`).join('')+'</div>';
+  }
+
+  if(negBudgets.length){
+    html+=`<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Overspent budgets</div>`;
+    html+='<div class="tx-list" style="margin-bottom:14px">'+negBudgets.map(b=>`
+      <div class="tx flagged" style="cursor:default">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500">${b.name} owes</div>
+          <div style="font-size:11px;color:var(--text2)">Last money done: ${lastMoneyDay}</div>
+        </div>
+        <span style="font-size:14px;font-weight:700;color:var(--red)">${fmt(b.amount)}</span>
+      </div>`).join('')+'</div>';
+  }
+
+  if(!manualItems.length&&!negBudgets.length){
+    html='<div style="font-size:13px;color:var(--text2);padding:8px 0">Nothing owed — you\'re all square! ✓</div>';
+  }
+
+  const grandOwed=manualTotal+negTotal;
+  html+=`<div style="font-size:14px;font-weight:600;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+    <span>Grand total owed to savings</span>
+    <span style="font-size:18px;color:${grandOwed>0?'var(--green)':'var(--text)'}">${fmt(grandOwed)}</span>
+  </div>`;
+
+  el.innerHTML=html;
+}
+function markOwedPaid(id){
+  if(!confirm('Mark this as paid and remove it?'))return;
+  removeOwed(id);
+}
+function addOwedEntry(){const desc=document.getElementById('ow-desc').value.trim(),amt=parseFloat(document.getElementById('ow-amt').value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.moneyOwedItems=S.moneyOwedItems||[];const owDate=document.getElementById('ow-date')?.value||new Date().toISOString().split('T')[0];S.moneyOwedItems.push({id:'ow_'+Date.now(),description:desc,amount:amt,date:owDate});S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);document.getElementById('ow-desc').value='';document.getElementById('ow-amt').value='';saveS();renderOwedList();}
+function removeOwed(id){S.moneyOwedItems=S.moneyOwedItems.filter(o=>o.id!==id);S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);saveS();renderOwedList();}
+
+function exportCSV(){
+  const cf=document.getElementById('f-cat').value;
+  const sf=document.getElementById('f-status').value;
+  const mf=document.getElementById('f-method').value;
+  const pf=document.getElementById('f-period')?.value||'';
+  let txs=[...S.transactions].sort((a,b)=>b.date.localeCompare(a.date));
+  if(cf)txs=txs.filter(t=>t.category===cf);
+  if(sf)txs=txs.filter(t=>t.status===sf);
+  if(mf)txs=txs.filter(t=>t.method===mf);
+  if(pf){const dates=getPeriodDates(pf);if(dates){if(dates.from)txs=txs.filter(t=>t.date>=dates.from);if(dates.to)txs=txs.filter(t=>t.date<=dates.to);}}
+  const rows=[['Date','Description','Amount','Category','Sub-category','Method','Status','Notes']];
+  txs.forEach(t=>rows.push([t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.notes||'']));
+  const csv=rows.map(r=>r.join(',')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  const filterDesc=[cf||'all-categories',sf||'all-status',mf||'all-methods'].filter(f=>!f.startsWith('all')).join('-')||'all';
+  a.download='budget-transactions-'+filterDesc+'-'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function showTab(tab){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  const map={'dashboard':0,'transactions':1};
+  if(map[tab]!==undefined)document.querySelectorAll('.tab')[map[tab]]?.classList.add('active');
+  if(tab==='transactions')renderTxList();
+  if(tab==='workflow-tab')renderWorkflow();
+}
+</script>
+
+<script>
+// No Google API scripts needed - using Netlify functions
+function gapiLoaded(){}
+function gisLoaded(){}
+// Auto-init on load
+window.addEventListener('load',()=>{
+  gapiInited=true;gisInited=true;
+  document.getElementById('loading').style.display='none';
+  const authed=sessionStorage.getItem('shbn_auth');
+  if(authed){
+    document.getElementById('app-screen').style.display='flex';
+    loadFromSheets().then(render);
+  } else {
+    document.getElementById('auth-screen').style.display='flex';
+  }
+});
+</script>
+</body>
+</html>
