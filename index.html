@@ -319,22 +319,8 @@ input[type=file]{display:none}
       <button class="btn btn-sm" onclick="addSplitRow()" style="margin-top:6px">+ Add split</button>
     </div>
     <div class="field"><label>Notes (optional)</label><textarea id="qt-notes" placeholder="Any notes..."></textarea></div>
-    <div class="field">
-      <label>Additional actions (optional)</label>
-      <select id="qt-extra" onchange="toggleQTExtra()">
-        <option value="">None</option>
-        <option value="cash-add">➕ Add amount to cash savings</option>
-        <option value="owed-add">💰 Add amount owed to savings</option>
-      </select>
-    </div>
-    <div id="qt-extra-amount" class="field" style="display:none">
-      <label>Amount ($)</label>
-      <input type="number" id="qt-extra-amt" step="0.01" placeholder="0.00">
-      <div id="qt-extra-desc-wrap" class="field" style="display:none;margin-top:8px">
-        <label>Who owes and why</label>
-        <input type="text" id="qt-extra-desc" placeholder="e.g. John owes for dinner">
-      </div>
-    </div>
+    <div id="qt-special-wrap" class="field" style="display:none"><label>Who owes and why</label><input type="text" id="qt-owed-desc" placeholder="e.g. John owes for dinner"></div>
+
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('quickTx')">Cancel</button>
       <button class="btn btn-primary" onclick="saveQuickTx()">✓ Save for review</button>
@@ -460,6 +446,8 @@ const CATS = [
   {name:'Spending - Kasie',fn:140,yearly:1820,isSpending:true,person:'Kasie'},
   {name:'Tithing',fn:600,yearly:7800,noGrid:true},
   {name:'Mortgage',fn:1060,yearly:13780,noGrid:true},
+  {name:'➕ Add to Cash Savings',fn:0,yearly:0,noGrid:true,specialAction:'cash-add'},
+  {name:'💰 Add to Money Owed',fn:0,yearly:0,noGrid:true,specialAction:'owed-add'},
 ];
 
 const MONEY_DAYS = [];
@@ -1544,13 +1532,26 @@ function openModal(id){
 function closeModal(id){document.getElementById('modal-'+id).classList.remove('open');}
 function openActualSavingsDetail(){
   const{actualSavings,ndisOwed,cashSavings,mortgageAhead}=S.overall;
-  document.getElementById('txd-title').textContent='Actual savings breakdown';
+  const cycles=getTithingCycles();
+  // Calculate positive budget balances (excluding special cats)
+  const excludeCats=['Tithing','Mortgage','Spending - Benj','Spending - Kasie','Other'];
+  let positiveBudgets=0;
+  const budgetBreakdown=[];
+  for(const cat of CATS){
+    if(cat.noGrid||cat.isSpending||cat.specialAction)continue;
+    if(excludeCats.includes(cat.name))continue;
+    const budgeted=cat.fn*cycles;
+    const spent=getCatSpent(cat.name);
+    const bal=budgeted-spent;
+    if(bal>0&&spent<=cat.yearly){
+      positiveBudgets+=bal;
+      budgetBreakdown.push({name:cat.name,bal});
+    }
+  }
+  const netSavings=mortgageAhead-positiveBudgets;
+  document.getElementById('txd-title').textContent='Savings breakdown';
   document.getElementById('txd-body').innerHTML=`
     <div style="display:flex;flex-direction:column;gap:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border)">
-        <div><div style="font-size:13px;font-weight:600">Mortgage savings</div><div style="font-size:11px;color:var(--text2)">How much ahead on mortgage</div></div>
-        <div style="font-size:18px;font-weight:700;color:var(--green)">${fmt(mortgageAhead)}</div>
-      </div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border)">
         <div><div style="font-size:13px;font-weight:600">NDIS owed</div><div style="font-size:11px;color:var(--text2)">Expected within 2 business days</div></div>
         <div style="font-size:18px;font-weight:700;color:var(--green)">${fmt(ndisOwed)}</div>
@@ -1558,6 +1559,14 @@ function openActualSavingsDetail(){
       <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border)">
         <div><div style="font-size:13px;font-weight:600">Cash savings</div><div style="font-size:11px;color:var(--text2)">Physical cash held</div></div>
         <div style="font-size:18px;font-weight:700">${fmt(cashSavings)}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div>
+          <div style="font-size:13px;font-weight:600">Net savings</div>
+          <div style="font-size:11px;color:var(--text2)">Mortgage ahead less positive budget balances</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">${fmt(mortgageAhead)} mortgage − ${fmt(positiveBudgets)} in budgets</div>
+        </div>
+        <div style="font-size:18px;font-weight:700;color:${netSavings>=0?'var(--green)':'var(--red)'}">${netSavings<0?'-':''}${fmt(Math.abs(netSavings))}</div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:var(--gl);border-radius:var(--radius-sm);border:1px solid #5DBB99;margin-top:4px">
         <div style="font-size:14px;font-weight:700;color:var(--gd)">Total actual savings</div>
@@ -1569,13 +1578,7 @@ function openActualSavingsDetail(){
 }
 function saveOverall(){S.overall.actualSavings=parseFloat(document.getElementById('eo-sav').value)||0;S.overall.ndisOwed=parseFloat(document.getElementById('eo-ndis').value)||0;S.overall.cashSavings=parseFloat(document.getElementById('eo-cash').value)||0;S.overall.mortgageAhead=parseFloat(document.getElementById('eo-mort').value)||0;saveS();closeModal('editOverall');}
 
-function toggleQTExtra(){
-  const val=document.getElementById('qt-extra')?.value;
-  const amtWrap=document.getElementById('qt-extra-amount');
-  const descWrap=document.getElementById('qt-extra-desc-wrap');
-  if(amtWrap)amtWrap.style.display=val?'block':'none';
-  if(descWrap)descWrap.style.display=val==='owed-add'?'block':'none';
-}
+
 function populateQTCats(){const sel=document.getElementById('qt-cat');sel.innerHTML=CATS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')+'<option value="Other">Other</option><option value="Split">⇄ Split transaction</option>';sel.onchange=updateQTSubcat;updateQTSubcat();}
 function updateQTSubcat(){
   const val=document.getElementById('qt-cat')?.value;
@@ -1584,6 +1587,10 @@ function updateQTSubcat(){
   const sel=document.getElementById('qt-subcat');
   const splitArea=document.getElementById('qt-split-area');
   const descWrap=document.getElementById('qt-desc-wrap');
+  const amtWrap=document.getElementById('qt-amount')?.closest('.frow');
+  const specialWrap=document.getElementById('qt-special-wrap');
+  // Hide/show special action fields
+  if(specialWrap)specialWrap.style.display=cat?.specialAction==='owed-add'?'block':'none';
   if(val==='Split'){
     wrap.style.display='none';
     splitArea.style.display='block';
@@ -1614,6 +1621,21 @@ function addSplitRow(){
 function saveQuickTx(){
   const date=document.getElementById('qt-date').value,amount=parseFloat(document.getElementById('qt-amount').value),desc=document.getElementById('qt-desc').value.trim(),method=document.getElementById('qt-method').value,notes=document.getElementById('qt-notes').value.trim();
   if(!date||!amount||!desc){alert('Please fill in date, amount, and description.');return;}
+  // Handle special action categories
+  const specialCat=CATS.find(c=>c.name===cat);
+  if(specialCat?.specialAction==='cash-add'){
+    S.overall.cashSavings=(S.overall.cashSavings||0)+amount;
+    saveS();closeModal('quickTx');
+    return;
+  }
+  if(specialCat?.specialAction==='owed-add'){
+    const owedDesc=document.getElementById('qt-owed-desc')?.value||desc||'Amount owed to savings';
+    S.moneyOwedItems=S.moneyOwedItems||[];
+    S.moneyOwedItems.push({id:'ow_'+Date.now(),description:owedDesc,amount:amount,date:date});
+    S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
+    saveS();closeModal('quickTx');
+    return;
+  }
   const isSplit=document.getElementById('qt-cat').value==='Split';
   if(isSplit){
     document.getElementById('split-rows').querySelectorAll('.split-row').forEach(row=>{
@@ -1628,16 +1650,7 @@ function saveQuickTx(){
     if(method==='cash')S.overall.cashSavings=(S.overall.cashSavings||0)-amount;
     S.transactions.push({id:'tx_'+Date.now(),date,description:desc,amount,category:cat,subcat,method,notes,status:'pending',source:'manual'});
   }
-  // Handle extra actions
-  const extra=document.getElementById('qt-extra')?.value;
-  const extraAmt=parseFloat(document.getElementById('qt-extra-amt')?.value)||0;
-  if(extra==='cash-add'&&extraAmt){S.overall.cashSavings=(S.overall.cashSavings||0)+extraAmt;}
-  if(extra==='owed-add'&&extraAmt){
-    const extraDesc=document.getElementById('qt-extra-desc')?.value||'Amount owed to savings';
-    S.moneyOwedItems=S.moneyOwedItems||[];
-    S.moneyOwedItems.push({id:'ow_'+Date.now(),description:extraDesc,amount:extraAmt,date:new Date().toISOString().split('T')[0]});
-    S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
-  }
+
   saveS();closeModal('quickTx');
 }
 
