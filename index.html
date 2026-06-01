@@ -1558,7 +1558,12 @@ function openActualSavingsDetail(){
 function saveOverall(){S.overall.actualSavings=parseFloat(document.getElementById('eo-sav').value)||0;S.overall.ndisOwed=parseFloat(document.getElementById('eo-ndis').value)||0;S.overall.cashSavings=parseFloat(document.getElementById('eo-cash').value)||0;S.overall.mortgageAhead=parseFloat(document.getElementById('eo-mort').value)||0;saveS();closeModal('editOverall');}
 
 
-function populateQTCats(){const sel=document.getElementById('qt-cat');sel.innerHTML=CATS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')+'<option value="Other">Other</option><option value="Split">⇄ Split transaction</option>';sel.onchange=updateQTSubcat;updateQTSubcat();}
+function populateQTCats(){
+  const sel=document.getElementById('qt-cat');
+  sel.innerHTML='<option value="">-- Select category --</option>'+CATS.filter(c=>!c.specialAction).map(c=>`<option value="${c.name}">${c.name}</option>`).join('')+'<option value="Other">Other</option><option value="Split">⇄ Split transaction</option><option value="➕ Add to Cash Savings">➕ Add to Cash Savings</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option>';
+  sel.onchange=updateQTSubcat;
+  updateQTSubcat();
+}
 function updateQTSubcat(){
   const val=document.getElementById('qt-cat')?.value;
   const cat=CATS.find(c=>c.name===val);
@@ -1578,8 +1583,13 @@ function updateQTSubcat(){
   } else {
     splitArea.style.display='none';
     if(descWrap)descWrap.style.display='block';
-    if(cat?.subs){wrap.style.display='block';sel.innerHTML=cat.subs.map(s=>`<option value="${s}">${s}</option>`).join('');}
-    else wrap.style.display='none';
+    // Only show subcat for Bills and Presents
+    if(cat?.subs&&(val==='Bills'||val==='Presents')){
+      wrap.style.display='block';
+      sel.innerHTML='<option value="">-- Select sub-category --</option>'+cat.subs.map(s=>`<option value="${s}">${s}</option>`).join('');
+    } else {
+      wrap.style.display='none';
+    }
   }
 }
 function toggleSplit(){const on=document.getElementById('qt-split-chk')?.checked;document.getElementById('qt-split-area').style.display=on?'block':'none';if(on&&!document.getElementById('split-rows').children.length)addSplitRow();}
@@ -1598,8 +1608,14 @@ function addSplitRow(){
 }
 
 function saveQuickTx(){
-  const date=document.getElementById('qt-date').value,amount=parseFloat(document.getElementById('qt-amount').value),desc=document.getElementById('qt-desc').value.trim(),method=document.getElementById('qt-method').value,notes=document.getElementById('qt-notes').value.trim();
+  const date=document.getElementById('qt-date').value;
+  const amount=parseFloat(document.getElementById('qt-amount').value);
+  const desc=document.getElementById('qt-desc').value.trim();
+  const method=document.getElementById('qt-method').value;
+  const notes=document.getElementById('qt-notes').value.trim();
+  const cat=document.getElementById('qt-cat').value;
   if(!date||!amount||!desc){alert('Please fill in date, amount, and description.');return;}
+  if(!cat){alert('Please select a category.');return;}
   // Handle special action categories
   const specialCat=CATS.find(c=>c.name===cat);
   if(specialCat?.specialAction==='cash-add'){
