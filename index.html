@@ -524,133 +524,58 @@ function checkPassword(){
     sessionStorage.setItem('shbn_auth','1');
     document.getElementById('auth-screen').style.display='none';
     document.getElementById('app-screen').style.display='flex';
-    // Trigger OAuth for Sheets access
-    if(tokenClient)tokenClient.requestAccessToken({prompt:''});
     loadFromSheets().then(render);
   } else {
     if(errEl)errEl.style.display='block';
     if(document.getElementById('password-input'))document.getElementById('password-input').value='';
   }
 }
-function gapiLoaded(){
-  gapi.load('client',async()=>{
-    await gapi.client.init({
-      apiKey:API_KEY,
-      discoveryDocs:['https://sheets.googleapis.com/$discovery/rest?version=v4']
-    });
-    gapiInited=true;maybeShowApp();
-  });
-}
-function gisLoaded(){
-  tokenClient=google.accounts.oauth2.initTokenClient({
-    client_id:CLIENT_ID,
-    scope:SCOPES,
-    prompt:'none',
-    login_hint:'benjshanahan@gmail.com',
-    callback:async(resp)=>{
-      if(resp.error){
-        // If silent auth fails, try with prompt
-        tokenClient2=google.accounts.oauth2.initTokenClient({
-          client_id:CLIENT_ID,scope:SCOPES,
-          callback:async(r2)=>{
-            if(!r2.error){
-              accessToken=r2.access_token;
-              gapi.client.setToken({access_token:accessToken});
-            }
-          }
-        });
-        tokenClient2.requestAccessToken({prompt:'consent'});
-        return;
-      }
-      accessToken=resp.access_token;
-      gapi.client.setToken({access_token:accessToken});
-    }
-  });
-  gisInited=true;maybeShowApp();
-}
-function maybeShowApp(){
-  if(!gapiInited||!gisInited)return;
-  document.getElementById('loading').style.display='none';
-  const authed=sessionStorage.getItem('shbn_auth');
-  if(authed){
-    document.getElementById('app-screen').style.display='flex';
-    // Request OAuth token silently in background for Sheets access
-    if(tokenClient)tokenClient.requestAccessToken({prompt:''});
-    loadFromSheets().then(render);
-  } else {
-    document.getElementById('auth-screen').style.display='flex';
-  }
-}
+function gapiLoaded(){}
+function gisLoaded(){}
+function maybeShowApp(){}
 function signIn(){checkPassword();}
 function signOut(){
   sessionStorage.removeItem('shbn_auth');
-  accessToken=null;
   document.getElementById('app-screen').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
   if(document.getElementById('password-input'))document.getElementById('password-input').value='';
 }
 
-// ─── GOOGLE SHEETS SYNC ───────────────────────────────────────────────────────
+// ─── NETLIFY FUNCTION SYNC ────────────────────────────────────────────────────
+const FUNCTION_URL = '/.netlify/functions/sheets';
+
 function setSyncStatus(status){
   const dot=document.getElementById('sync-dot');
-  const text=document.getElementById('sync-text');
-  if(!dot||!text)return;
+  if(!dot)return;
   dot.className='sync-dot'+(status==='syncing'?' syncing':status==='error'?' error':'');
-  text.textContent=status==='syncing'?'Saving...':status==='error'?'Sync error':'Synced';
 }
 
-async function ensureSheets(){
-  // Get existing sheet names
-  const meta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:SPREADSHEET_ID});
-  const existing = meta.result.sheets.map(s=>s.properties.title);
-  const needed = ['Transactions','Config','MoneyOwed','Spending','Workflow'];
-  const toCreate = needed.filter(n=>!existing.includes(n));
-  if(toCreate.length>0){
-    await gapi.client.sheets.spreadsheets.batchUpdate({
-      spreadsheetId:SPREADSHEET_ID,
-      resource:{requests:toCreate.map(title=>({addSheet:{properties:{title}}}))}
-    });
-  }
+async function callSheets(action,body={}){
+  const resp=await fetch(FUNCTION_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...body})});
+  if(!resp.ok)throw new Error('Function error: '+resp.status);
+  return resp.json();
 }
 
 async function loadFromSheets(){
   try{
     setSyncStatus('syncing');
-    // Use API key for reading (always works), OAuth token for writing
-    if(accessToken)gapi.client.setToken({access_token:accessToken});
-    // API key is set in gapi.client.init so reads work without OAuth
-
-    // Ensure all required sheets exist
-    await ensureSheets();
-
-    // Try to read existing data
-    const resp = await gapi.client.sheets.spreadsheets.values.batchGet({
-      spreadsheetId: SPREADSHEET_ID,
-      ranges: ['Transactions!A:K','Config!A:B','MoneyOwed!A:C','Spending!A:B','Workflow!A:B']
-    });
-
-    const ranges = resp.result.valueRanges;
-
-    // Parse Transactions
-    const txRows = ranges[0].values||[];
+    await callSheets('ensureSheets');
+    const result=await callSheets('read');
+    const ranges=result.data;
+    const txRows=ranges[0].values||[];
     if(txRows.length>1){
-      S.transactions = txRows.slice(1).map(r=>({
+      S.transactions=txRows.slice(1).map(r=>({
         id:r[0]||'',date:r[1]||'',description:r[2]||'',
-        amount:parseFloat(String(r[3]).replace(/[^0-9.-]/g,''))||0,category:r[4]||'',
-        subcat:r[5]||'',method:r[6]||'',
-        status:r[7]||'accepted',source:r[8]||'',
-        flag:r[9]||'',notes:r[10]||''
+        amount:parseFloat(String(r[3]).replace(/[^0-9.-]/g,''))||0,
+        category:r[4]||'',subcat:r[5]||'',method:r[6]||'',
+        status:r[7]||'accepted',source:r[8]||'',flag:r[9]||'',notes:r[10]||''
       })).filter(t=>t.id);
     } else {
-      // First load — write all imported data
       await writeImportedData();
       return;
     }
-
-    // Parse Config
-    const cfgRows = ranges[1].values||[];
     const cfg={};
-    cfgRows.forEach(r=>{if(r[0])cfg[r[0]]=r[1];});
+    (ranges[1].values||[]).forEach(r=>{if(r[0])cfg[r[0]]=r[1];});
     if(cfg.actualSavings!==undefined){
       S.overall={
         actualSavings:parseFloat(cfg.actualSavings)||0,
@@ -660,26 +585,32 @@ async function loadFromSheets(){
         moneyOwed:parseFloat(cfg.moneyOwed)||0
       };
     }
-
-    // Parse MoneyOwed
-    const owedRows = ranges[2].values||[];
+    const owedRows=ranges[2].values||[];
     if(owedRows.length>1){
-      S.moneyOwedItems=owedRows.slice(1).map(r=>({id:r[0]||'',description:r[1]||'',amount:parseFloat(r[2])||0})).filter(o=>o.id);
+      S.moneyOwedItems=owedRows.slice(1).map(r=>({id:r[0]||'',description:r[1]||'',amount:parseFloat(r[2])||0,date:r[3]||''})).filter(o=>o.id);
     }
-
-    // Parse Spending balances
-    const spendRows = ranges[3].values||[];
     const sp={};
-    spendRows.forEach(r=>{if(r[0])sp[r[0]]=parseFloat(r[1])||0;});
+    (ranges[3].values||[]).forEach(r=>{if(r[0])sp[r[0]]=parseFloat(r[1])||0;});
     if(sp.benjCurrent!==undefined){
       S.spendingBalances={benj:{current:sp.benjCurrent},kasie:{current:sp.kasieCurrent||0}};
     }
-
-    // Parse Workflow
-    const wfRows = ranges[4].values||[];
     S.workflowData={};
-    wfRows.forEach(r=>{if(r[0]&&r[1]==='true')S.workflowData[r[0]]=true;});
-
+    (ranges[4].values||[]).forEach(r=>{if(r[0]&&r[1]==='true')S.workflowData[r[0]]=true;});
+    const delRows=ranges[5]?.values||[];
+    if(delRows.length>1){
+      S.deletedTransactions=delRows.slice(1).map(r=>({
+        id:r[0]||'',date:r[1]||'',description:r[2]||'',amount:parseFloat(r[3])||0,
+        category:r[4]||'',subcat:r[5]||'',method:r[6]||'',
+        status:r[7]||'',source:r[8]||'',deletedAt:r[9]||''
+      })).filter(t=>t.id);
+    }
+    const cycleRows=ranges[6]?.values||[];
+    if(cycleRows.length>1){
+      S.completedCycles=cycleRows.slice(1).map(r=>({
+        id:r[0]||'',date:r[1]||'',tithe:parseFloat(r[2])||0,
+        gross:parseFloat(r[3])||0,transactionIds:(r[4]||'').split(',').filter(Boolean)
+      }));
+    }
     setSyncStatus('synced');
   } catch(e){
     console.error('Load error:',e);
@@ -689,45 +620,25 @@ async function loadFromSheets(){
 
 async function saveToSheets(){
   setSyncStatus('syncing');
-  if(!accessToken){
-    // Try to get token silently
-    if(tokenClient)tokenClient.requestAccessToken({prompt:''});
-    // Wait briefly then try to save
-    await new Promise(r=>setTimeout(r,2000));
-    if(!accessToken){setSyncStatus('error');console.warn('No access token for saving');return;}
-  }
   try{
-    gapi.client.setToken({access_token:accessToken});
-    const data = [];
-
-    // Transactions sheet
-    const txRows = [['id','date','description','amount','category','subcat','method','status','source','flag','notes']];
+    const data=[];
+    const txRows=[['id','date','description','amount','category','subcat','method','status','source','flag','notes']];
     S.transactions.forEach(t=>txRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.source||'',t.flag||'',t.notes||'']));
     data.push({range:'Transactions!A1',values:txRows});
-
-    // Config sheet
-    const cfgRows = Object.entries(S.overall).map(([k,v])=>[k,v]);
-    data.push({range:'Config!A1',values:cfgRows});
-
-    // MoneyOwed sheet
-    const owRows = [['id','description','amount']];
-    (S.moneyOwedItems||[]).forEach(o=>owRows.push([o.id,o.description,o.amount]));
+    data.push({range:'Config!A1',values:Object.entries(S.overall).map(([k,v])=>[k,v])});
+    const owRows=[['id','description','amount','date']];
+    (S.moneyOwedItems||[]).forEach(o=>owRows.push([o.id,o.description,o.amount,o.date||'']));
     data.push({range:'MoneyOwed!A1',values:owRows});
-
-    // Spending sheet
-    data.push({range:'Spending!A1',values:[
-      ['benjCurrent',S.spendingBalances?.benj?.current||0],
-      ['kasieCurrent',S.spendingBalances?.kasie?.current||0]
-    ]});
-
-    // Workflow sheet
-    const wfRows2 = Object.entries(S.workflowData).map(([k,v])=>[k,String(v)]);
-    data.push({range:'Workflow!A1',values:wfRows2.length?wfRows2:[['','']]});
-
-    await gapi.client.sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId:SPREADSHEET_ID,
-      resource:{valueInputOption:'RAW',data}
-    });
+    data.push({range:'Spending!A1',values:[['benjCurrent',S.spendingBalances?.benj?.current||0],['kasieCurrent',S.spendingBalances?.kasie?.current||0]]});
+    const wfRows=Object.entries(S.workflowData).map(([k,v])=>[k,String(v)]);
+    data.push({range:'Workflow!A1',values:wfRows.length?wfRows:[['','']]});
+    const delRows=[['id','date','description','amount','category','subcat','method','status','source','deletedAt']];
+    (S.deletedTransactions||[]).forEach(t=>delRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status||'',t.source||'',t.deletedAt||'']));
+    data.push({range:'DeletedTx!A1',values:delRows});
+    const cycRows=[['id','date','tithe','gross','transactionIds']];
+    (S.completedCycles||[]).forEach(c=>cycRows.push([c.id,c.date,c.tithe||0,c.gross||0,(c.transactionIds||[]).join(',')]));
+    data.push({range:'Cycles!A1',values:cycRows});
+    await callSheets('write',{data});
     setSyncStatus('synced');
   } catch(e){
     console.error('Save error:',e);
@@ -736,10 +647,9 @@ async function saveToSheets(){
 }
 
 async function writeImportedData(){
-  // Write all imported transactions on first load
-  S.transactions = IMPORT_TXS.map(t=>({...t}));
-  S.overall = {...IMPORT_OVERALL};
-  S.moneyOwedItems = [{id:'ow_init',description:"Rixons owe for Jen's birthday",amount:44.95}];
+  S.transactions=IMPORT_TXS.map(t=>({...t}));
+  S.overall={...IMPORT_OVERALL};
+  S.moneyOwedItems=[{id:'ow_init',description:"Rixons owe for Jen's birthday",amount:44.95,date:'2026-04-22'}];
   await saveToSheets();
 }
 
@@ -1832,8 +1742,22 @@ function showTab(tab){
 }
 </script>
 
-<!-- Google APIs -->
-<script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-<script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+<script>
+// No Google API scripts needed - using Netlify functions
+function gapiLoaded(){}
+function gisLoaded(){}
+// Auto-init on load
+window.addEventListener('load',()=>{
+  gapiInited=true;gisInited=true;
+  document.getElementById('loading').style.display='none';
+  const authed=sessionStorage.getItem('shbn_auth');
+  if(authed){
+    document.getElementById('app-screen').style.display='flex';
+    loadFromSheets().then(render);
+  } else {
+    document.getElementById('auth-screen').style.display='flex';
+  }
+});
+</script>
 </body>
 </html>
