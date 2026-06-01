@@ -439,9 +439,8 @@ input[type=file]{display:none}
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const CLIENT_ID = '189032459083-0clbsplisfn0b1o1tj2h4dlisutbpm13.apps.googleusercontent.com';
 const SPREADSHEET_ID = '114vo9a8wrVAsDTU6IJASsADSI6Gtv8Dlj2vSuaDwwPg';
+const API_KEY = 'AIzaSyB8rrfxchEb5ObK8ejDv5IVVyHOFvCqJKE';
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
-// API_KEY is used for reading public sheets - for write access we use OAuth
-// Since we switched to password auth, we use OAuth silently in background
 
 // ─── BUDGET DATA ──────────────────────────────────────────────────────────────
 const CATS = [
@@ -535,7 +534,10 @@ function checkPassword(){
 }
 function gapiLoaded(){
   gapi.load('client',async()=>{
-    await gapi.client.init({discoveryDocs:['https://sheets.googleapis.com/$discovery/rest?version=v4']});
+    await gapi.client.init({
+      apiKey:API_KEY,
+      discoveryDocs:['https://sheets.googleapis.com/$discovery/rest?version=v4']
+    });
     gapiInited=true;maybeShowApp();
   });
 }
@@ -614,7 +616,9 @@ async function ensureSheets(){
 async function loadFromSheets(){
   try{
     setSyncStatus('syncing');
+    // Use API key for reading (always works), OAuth token for writing
     if(accessToken)gapi.client.setToken({access_token:accessToken});
+    // API key is set in gapi.client.init so reads work without OAuth
 
     // Ensure all required sheets exist
     await ensureSheets();
@@ -685,8 +689,15 @@ async function loadFromSheets(){
 
 async function saveToSheets(){
   setSyncStatus('syncing');
+  if(!accessToken){
+    // Try to get token silently
+    if(tokenClient)tokenClient.requestAccessToken({prompt:''});
+    // Wait briefly then try to save
+    await new Promise(r=>setTimeout(r,2000));
+    if(!accessToken){setSyncStatus('error');console.warn('No access token for saving');return;}
+  }
   try{
-    if(accessToken)gapi.client.setToken({access_token:accessToken});
+    gapi.client.setToken({access_token:accessToken});
     const data = [];
 
     // Transactions sheet
