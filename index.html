@@ -661,13 +661,16 @@ async function loadFromSheets(){
     const result=await callSheets('read');
     const ranges=result.data;
     const txRows=ranges[0].values||[];
+    // Parse deleted transactions first so we can filter them out
+    const delRowsEarly=ranges[5]?.values||[];
+    const deletedIds=new Set(delRowsEarly.slice(1).map(r=>r[0]).filter(Boolean));
     if(txRows.length>1){
       S.transactions=txRows.slice(1).map(r=>({
         id:r[0]||'',date:r[1]||'',description:r[2]||'',
         amount:parseFloat(String(r[3]).replace(/[^0-9.-]/g,''))||0,
         category:r[4]||'',subcat:r[5]||'',method:r[6]||'',
         status:r[7]||'accepted',source:r[8]||'',flag:r[9]||'',notes:r[10]||''
-      })).filter(t=>t.id);
+      })).filter(t=>t.id&&!deletedIds.has(t.id));
     } else {
       await writeImportedData();
       return;
