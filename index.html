@@ -2126,7 +2126,9 @@ function saveQuickTx(){
   const method=document.getElementById('qt-method').value;
   const notes=document.getElementById('qt-notes').value.trim();
   const cat=document.getElementById('qt-cat').value;
-  if(!date||!amount||!desc){alert('Please fill in date, amount, and description.');return;}
+  const isSplitCat=cat==='Split';
+  if(!date||!amount){alert('Please fill in date and amount.');return;}
+  if(!isSplitCat&&!desc){alert('Please fill in a description.');return;}
   if(!cat){alert('Please select a category.');return;}
   // Handle special action categories
   const specialCat=CATS.find(c=>c.name===cat);
@@ -2157,7 +2159,7 @@ function saveQuickTx(){
 
     return;
   }
-  const isSplit=document.getElementById('qt-cat').value==='Split';
+  const isSplit=isSplitCat;
   if(isSplit){
     document.getElementById('split-rows').querySelectorAll('.split-row').forEach(row=>{
       const cat=row.querySelector('select').value;
