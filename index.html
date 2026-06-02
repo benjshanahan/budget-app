@@ -2198,7 +2198,10 @@ function renderNDIS(){
   area.innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">NDIS — Ezekiel Shanahan</div>
-      <button class="btn btn-primary btn-sm" onclick="openModal('addNdis')">+ Add invoice</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="scanDriveFolders()" id="scan-drive-btn">🔍 Link Drive files</button>
+        <button class="btn btn-primary btn-sm" onclick="openModal('addNdis')">+ Add invoice</button>
+      </div>
     </div>
 
     ${unpaidTxs.length?`<div class="banner banner-err" style="margin-bottom:12px">⚠ ${unpaidTxs.length} unpaid invoice${unpaidTxs.length>1?'s':''} — action required</div>`:''}
@@ -2238,6 +2241,59 @@ function renderNDIS(){
     </div>`;
 }
 
+async function scanDriveFolders(){
+  const btn=document.getElementById('scan-drive-btn');
+  if(btn){btn.textContent='🔄 Scanning...';btn.disabled=true;}
+  try{
+    const resp=await fetch('/.netlify/functions/sheets',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'listDriveFiles'})
+    });
+    const result=await resp.json();
+    if(!result.success)throw new Error(result.error||'Scan failed');
+
+    const allFiles=result.files; // {core:[{id,name,webViewLink}], idls:[...], ...}
+    const allTxs=getNdisTransactions();
+    let matched=0;
+
+    // For each transaction, try to find matching file by number and amount
+    for(const tx of allTxs){
+      const catFiles=allFiles[tx.cat]||[];
+      // Match by transaction number at start of filename
+      const match=catFiles.find(f=>{
+        const fname=f.name.toLowerCase();
+        // Match: starts with number, contains amount
+        const numMatch=fname.startsWith(tx.num+'__')||fname.startsWith(tx.num+'_');
+        const amtStr=tx.amount.toFixed(2).replace('.','_');
+        const amtMatch=fname.includes(amtStr);
+        return numMatch||amtMatch;
+      });
+      if(match){
+        // Store link against this transaction
+        const wfKey='ndisFileLink_'+tx.id;
+        if(!S.workflowData[wfKey]){
+          S.workflowData[wfKey]=match.webViewLink;
+          S.workflowData['ndisFile_'+tx.id]=match.name;
+          matched++;
+        }
+      }
+    }
+    if(matched>0){
+      saveS();
+      alert('✅ Linked '+matched+' invoice'+( matched!==1?'s':'')+' to Drive files!\n\nTap any transaction to see the Drive link.');
+    } else {
+      alert('No new matches found. Files may already be linked, or filenames do not match the expected format.');
+    }
+    renderNDIS();
+  } catch(err){
+    console.error('Scan error:',err);
+    alert('Scan failed: '+err.message);
+  } finally {
+    if(btn){btn.textContent='🔍 Link Drive files';btn.disabled=false;}
+  }
+}
+
 function openNdisCatDetail(catId){
   const cat=NDIS_CATS.find(c=>c.id===catId);
   const allTxs=getNdisTransactions().filter(t=>t.cat===catId);
@@ -2263,9 +2319,10 @@ function openNdisCatDetail(catId){
             <div style="font-size:13px;font-weight:500">${t.num}. ${t.provider}${t.invoiceNo?' — '+t.invoiceNo:''}</div>
             <div style="font-size:11px;color:var(--text2)">${fmtDate(t.date)} · ${t.comments}</div>
           </div>
-          <div style="text-align:right;flex-shrink:0">
+          <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
             <div style="font-size:13px;font-weight:700">${fmt(t.amount)}</div>
-            <div style="font-size:11px;padding:2px 7px;border-radius:20px;background:${NDIS_STATUS_BG[t.status]};color:${NDIS_STATUS_COLORS[t.status]};font-weight:600;margin-top:2px">${NDIS_STATUS_LABELS[t.status]}</div>
+            <div style="font-size:11px;padding:2px 7px;border-radius:20px;background:${NDIS_STATUS_BG[t.status]};color:${NDIS_STATUS_COLORS[t.status]};font-weight:600">${NDIS_STATUS_LABELS[t.status]}</div>
+            ${S.workflowData?.['ndisFileLink_'+t.id]?`<a href="${S.workflowData['ndisFileLink_'+t.id]}" target="_blank" style="font-size:10px;color:var(--blue)" onclick="event.stopPropagation()">📄 Invoice</a>`:''}
           </div>
         </div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No invoices yet</div>'}
     </div>`;
