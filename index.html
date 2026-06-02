@@ -239,6 +239,7 @@ input[type=file]{display:none}
     <div class="tab-bar">
       <div class="tab active" onclick="showTab('dashboard')">Dashboard</div>
       <div class="tab" onclick="showTab('transactions')">Transactions</div>
+      <div class="tab" onclick="showTab('ndis')">NDIS</div>
     </div>
 
     <!-- Dashboard -->
@@ -302,6 +303,10 @@ input[type=file]{display:none}
     <!-- Workflow -->
     <div id="tab-workflow-tab" class="screen">
       <div id="workflow-area"></div>
+    </div>
+
+    <div id="tab-ndis" class="screen">
+      <div id="ndis-area"></div>
     </div>
   </main>
 </div>
@@ -412,6 +417,39 @@ input[type=file]{display:none}
   </div>
 </div>
 
+<!-- Add NDIS Invoice Modal -->
+<div id="modal-addNdis" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('addNdis')">✕</button>
+    <div class="modal-title">Add NDIS invoice</div>
+    <div class="field"><label>Category</label>
+      <select id="ndis-cat">
+        ${NDIS_CATS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}
+      </select>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Date</label><input type="date" id="ndis-date"></div>
+      <div class="field"><label>Amount ($)</label><input type="number" id="ndis-amount" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="field"><label>Provider</label><input type="text" id="ndis-provider" placeholder="e.g. Fortify Physiotherapy"></div>
+    <div class="field"><label>Invoice number</label><input type="text" id="ndis-invno" placeholder="e.g. INV017839"></div>
+    <div class="field"><label>Comments</label><input type="text" id="ndis-comments" placeholder="e.g. Weekly hydrotherapy"></div>
+    <div class="field"><label>Status</label>
+      <select id="ndis-status">
+        <option value="unpaid">Unpaid</option>
+        <option value="paid">Paid</option>
+        <option value="claimed">Claimed</option>
+        <option value="reimbursed">Reimbursed</option>
+      </select>
+    </div>
+    <div id="ndis-filename-preview" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:1rem;font-size:11px;color:var(--text2);font-family:monospace;word-break:break-all;display:none"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('addNdis')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNdisInvoice()">✓ Add invoice</button>
+    </div>
+  </div>
+</div>
+
 <!-- Recycle Bin Modal -->
 <div id="modal-recycleBin" class="modal-overlay">
   <div class="modal">
@@ -463,6 +501,54 @@ const CATS = [
   {name:'💰 Add to Money Owed',fn:0,yearly:0,noGrid:true,specialAction:'owed-add'},
 ];
 
+// ─── NDIS DATA ────────────────────────────────────────────────────────────────
+const NDIS_CATS = [
+  {id:'core',name:'Core Flexible',budget:2000},
+  {id:'idls',name:'Capacity Building Stated - IDLS',budget:24636.76},
+  {id:'sc',name:'Capacity Building Stated - SC',budget:3605.04},
+  {id:'at',name:'Capital Stated: AT',budget:20000},
+];
+
+const NDIS_IMPORT = [
+  {id:'ndis_1',cat:'core',num:1,provider:'Pull Ups',invoiceNo:'',date:'2026-02-22',amount:37.99,comments:'Pull ups',status:'claimed'},
+  {id:'ndis_2',cat:'core',num:2,provider:'Pull Ups',invoiceNo:'',date:'2026-03-29',amount:36.77,comments:'Pull ups',status:'claimed'},
+  {id:'ndis_3',cat:'core',num:3,provider:'Pull Ups',invoiceNo:'',date:'2026-04-23',amount:39.47,comments:'Pull ups',status:'claimed'},
+  {id:'ndis_4',cat:'core',num:4,provider:'Pull Ups & Baby Wipes',invoiceNo:'',date:'2026-05-14',amount:88.95,comments:'Pull ups and baby wipes',status:'claimed'},
+  {id:'ndis_5',cat:'idls',num:1,provider:'Fortify Physiotherapy',invoiceNo:'INV016953',date:'2026-01-08',amount:107.33,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_6',cat:'idls',num:2,provider:'Fortify Physiotherapy',invoiceNo:'INV017000',date:'2026-01-15',amount:107.33,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_7',cat:'idls',num:3,provider:'MDQ',invoiceNo:'E2983',date:'2026-02-06',amount:195.39,comments:'Physiotherapist Zac Lau',status:'claimed'},
+  {id:'ndis_8',cat:'idls',num:4,provider:'Fortify Physiotherapy',invoiceNo:'INV017135',date:'2026-02-05',amount:107.33,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_9',cat:'idls',num:5,provider:'Fortify Physiotherapy',invoiceNo:'INV017185',date:'2026-02-11',amount:107.33,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_10',cat:'idls',num:6,provider:'Fortify Physiotherapy',invoiceNo:'INV017225',date:'2026-02-18',amount:96.60,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_11',cat:'idls',num:7,provider:'MDQ',invoiceNo:'E3020',date:'2026-02-19',amount:32.98,comments:'OT Zoe Matthews',status:'claimed'},
+  {id:'ndis_12',cat:'idls',num:8,provider:'Fortify Physiotherapy',invoiceNo:'INV017277',date:'2026-02-25',amount:107.33,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_13',cat:'idls',num:9,provider:'Fortify Physiotherapy',invoiceNo:'INV017324',date:'2026-03-04',amount:107.33,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_14',cat:'idls',num:10,provider:'MDQ',invoiceNo:'E3071',date:'2026-03-05',amount:48.50,comments:'OT Zoe Matthews',status:'claimed'},
+  {id:'ndis_15',cat:'idls',num:11,provider:'Fortify Physiotherapy',invoiceNo:'INV017373',date:'2026-03-11',amount:107.33,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_16',cat:'idls',num:12,provider:'Fortify Physiotherapy',invoiceNo:'INV017433',date:'2026-03-18',amount:15.33,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_17',cat:'idls',num:13,provider:'MDQ',invoiceNo:'E3197',date:'2026-03-19',amount:247.23,comments:'OT Zoe Matthews',status:'claimed'},
+  {id:'ndis_18',cat:'idls',num:14,provider:'Fortify Physiotherapy',invoiceNo:'INV017526',date:'2026-03-31',amount:107.33,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_19',cat:'idls',num:15,provider:'Fortify Physiotherapy',invoiceNo:'INV017432',date:'2026-03-31',amount:92.00,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_20',cat:'idls',num:16,provider:'Fortify Physiotherapy',invoiceNo:'INV017666',date:'2026-04-21',amount:107.33,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_21',cat:'idls',num:17,provider:'Fortify Physiotherapy',invoiceNo:'INV017738',date:'2026-04-29',amount:107.33,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_22',cat:'idls',num:18,provider:'Orthotic Solutions',invoiceNo:'INV26936',date:'2026-04-30',amount:96.50,comments:'AFO cast consultation',status:'claimed'},
+  {id:'ndis_23',cat:'idls',num:19,provider:'Fortify Physiotherapy',invoiceNo:'INV017791',date:'2026-05-08',amount:131.27,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_24',cat:'idls',num:20,provider:'Fortify Physiotherapy',invoiceNo:'INV017839',date:'2026-05-15',amount:131.27,comments:'Weekly hydrotherapy',status:'claimed'},
+  {id:'ndis_25',cat:'sc',num:1,provider:'MDQ',invoiceNo:'E2886',date:'2026-01-08',amount:25.04,comments:'MDQ Phone call/email',status:'claimed'},
+  {id:'ndis_26',cat:'sc',num:2,provider:'MDQ',invoiceNo:'E2947',date:'2026-01-22',amount:67.10,comments:'MDQ Phone call/email',status:'claimed'},
+  {id:'ndis_27',cat:'sc',num:3,provider:'MDQ',invoiceNo:'I3089',date:'2026-03-05',amount:25.04,comments:'MDQ Phone call/email',status:'claimed'},
+  {id:'ndis_28',cat:'sc',num:4,provider:'MDQ',invoiceNo:'E3255',date:'2026-04-29',amount:25.04,comments:'MDQ Phone call/email',status:'claimed'},
+  {id:'ndis_29',cat:'sc',num:5,provider:'MDQ',invoiceNo:'E3299',date:'2026-05-13',amount:42.06,comments:'MDQ Phone call/email',status:'claimed'},
+  {id:'ndis_30',cat:'at',num:1,provider:'Aidacare',invoiceNo:'PFINV01913868',date:'2026-01-09',amount:6587.90,comments:'Luggie Elite Deluxe',status:'claimed'},
+  {id:'ndis_31',cat:'at',num:2,provider:'Power Mobility',invoiceNo:'PM009398',date:'2026-01-09',amount:10470.00,comments:'Wheelchair',status:'claimed'},
+  {id:'ndis_32',cat:'at',num:3,provider:'Orthotic Solutions QLD',invoiceNo:'AFO INV26940',date:'2026-05-01',amount:2820.50,comments:'AFOs',status:'claimed'},
+];
+
+const NDIS_STATUSES = ['unpaid','paid','claimed','reimbursed'];
+const NDIS_STATUS_LABELS = {unpaid:'Unpaid',paid:'Paid',claimed:'Claimed',reimbursed:'Reimbursed'};
+const NDIS_STATUS_COLORS = {unpaid:'var(--red)',paid:'var(--amber)',claimed:'var(--blue)',reimbursed:'var(--green)'};
+const NDIS_STATUS_BG = {unpaid:'var(--rl)',paid:'var(--al)',claimed:'var(--bl)',reimbursed:'var(--gl)'};
+
 const MONEY_DAYS = [];
 let _d = new Date('2026-04-22');
 while(_d <= new Date('2027-04-21')){MONEY_DAYS.push(new Date(_d));_d=new Date(_d.getTime()+14*24*60*60*1000);}
@@ -474,7 +560,8 @@ let S = {
   moneyOwedItems: [{id:'ow_init',description:"Rixons owe for Jen's birthday",amount:44.95}],
   spendingBalances: {benj:{current:-17.91},kasie:{current:-5.66}},
   workflowData: {},
-  csvPending: []
+  csvPending: [],
+  ndisTransactions: []
 };
 let tokenClient, accessToken, gapiInited = false, gisInited = false;
 let syncTimeout = null;
@@ -611,6 +698,15 @@ async function loadFromSheets(){
         gross:parseFloat(r[3])||0,transactionIds:(r[4]||'').split(',').filter(Boolean)
       }));
     }
+    // Parse NDIS transactions
+    const ndisRows=ranges[7]?.values||[];
+    if(ndisRows.length>1){
+      S.ndisTransactions=ndisRows.slice(1).map(r=>({
+        id:r[0]||'',cat:r[1]||'',num:parseInt(r[2])||0,provider:r[3]||'',
+        invoiceNo:r[4]||'',date:r[5]||'',amount:parseFloat(r[6])||0,
+        comments:r[7]||'',status:r[8]||'unpaid'
+      })).filter(t=>t.id);
+    }
     setSyncStatus('synced');
   } catch(e){
     console.error('Load error:',e);
@@ -638,6 +734,9 @@ async function saveToSheets(){
     const cycRows=[['id','date','tithe','gross','transactionIds']];
     (S.completedCycles||[]).forEach(c=>cycRows.push([c.id,c.date,c.tithe||0,c.gross||0,(c.transactionIds||[]).join(',')]));
     data.push({range:'Cycles!A1',values:cycRows});
+    const ndisRows=[['id','cat','num','provider','invoiceNo','date','amount','comments','status']];
+    (S.ndisTransactions||[]).forEach(t=>ndisRows.push([t.id,t.cat,t.num||0,t.provider,t.invoiceNo||'',t.date,t.amount,t.comments||'',t.status]));
+    data.push({range:'NDIS!A1',values:ndisRows});
     await callSheets('write',{data});
     setSyncStatus('synced');
   } catch(e){
@@ -726,7 +825,7 @@ function renderBanners(){
   fb.style.display=flagged.length?'block':'none';
   if(flagged.length)fb.innerHTML=`<div class="banner banner-err">⚠️ ${flagged.length} transaction${flagged.length>1?'s need':'needs'} attention (date errors) <button class="btn btn-sm" style="margin-left:auto;color:var(--red);border-color:var(--red)" onclick="showTab('transactions')">View</button></div>`;
   pb.style.display=pending.length?'block':'none';
-  if(pending.length)pb.innerHTML='<div class="banner banner-warn">🕐 '+pending.length+' pending transaction'+(pending.length>1?'s':'')+' ready to review <button class="btn btn-sm" style="margin-left:auto" onclick="showTab(\'workflow-tab\')">Review</button></div>';
+  if(pending.length)pb.innerHTML='<div class="banner banner-warn">🕐 '+pending.length+' pending transaction'+(pending.length>1?'s':'')+' ready to review <button class="btn btn-sm" style="margin-left:auto" onclick="showTab(\'transactions\')">Review</button></div>';
 }
 
 function renderBudgetGrid(){
@@ -1064,6 +1163,47 @@ function openTxDetail(id){
   openModal('txDetail');
 }
 
+function openNdisModal(){
+  document.getElementById('ndis-date').value=new Date().toISOString().split('T')[0];
+  // Populate category select
+  const sel=document.getElementById('ndis-cat');
+  sel.innerHTML=NDIS_CATS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  // Preview filename on input
+  ['ndis-provider','ndis-invno','ndis-date','ndis-amount'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('input',previewNdisFilename);
+  });
+}
+function previewNdisFilename(){
+  const provider=document.getElementById('ndis-provider')?.value||'';
+  const invNo=document.getElementById('ndis-invno')?.value||'';
+  const date=document.getElementById('ndis-date')?.value||'';
+  const amount=parseFloat(document.getElementById('ndis-amount')?.value)||0;
+  if(!provider||!date||!amount)return;
+  const fakeTx={num:'N',provider,invoiceNo:invNo,date,amount};
+  const preview=document.getElementById('ndis-filename-preview');
+  if(preview){preview.style.display='block';preview.textContent='📄 '+genNdisFilename(fakeTx);}
+}
+function saveNdisInvoice(){
+  const cat=document.getElementById('ndis-cat')?.value;
+  const date=document.getElementById('ndis-date')?.value;
+  const amount=parseFloat(document.getElementById('ndis-amount')?.value)||0;
+  const provider=document.getElementById('ndis-provider')?.value?.trim();
+  const invoiceNo=document.getElementById('ndis-invno')?.value?.trim();
+  const comments=document.getElementById('ndis-comments')?.value?.trim();
+  const status=document.getElementById('ndis-status')?.value||'unpaid';
+  if(!cat||!date||!amount||!provider){alert('Please fill in category, date, amount and provider.');return;}
+  // Get next number for this category
+  const catTxs=getNdisTransactions().filter(t=>t.cat===cat);
+  const num=(catTxs.length>0?Math.max(...catTxs.map(t=>t.num)):0)+1;
+  const tx={id:'ndis_'+Date.now(),cat,num,provider,invoiceNo:invoiceNo||'',date,amount,comments:comments||'',status};
+  S.ndisTransactions=S.ndisTransactions||[];
+  S.ndisTransactions.push(tx);
+  // If claimed, prompt to add to NDIS owed
+  if(status==='claimed'&&confirm(`Add ${fmt(amount)} to NDIS owed on dashboard?`)){
+    S.overall.ndisOwed=(S.overall.ndisOwed||0)+amount;
+  }
+  saveS();closeModal('addNdis');renderNDIS();
+}
 function renderRecycleBin(){
   const el=document.getElementById('recycle-bin-list');
   const deleted=S.deletedTransactions||[];
@@ -1109,23 +1249,28 @@ function updateEditSubcat(){
     wrap.style.display='none';
   }
 }
-function fixAndAccept(id){
+async function fixAndAccept(id){
   const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
   const di=document.getElementById('fix-date');if(di)tx.date=di.value;
   const dd=document.getElementById('edit-desc');if(dd)tx.description=dd.value;
   const dc=document.getElementById('edit-cat');if(dc)tx.category=dc.value;
   const ds=document.getElementById('edit-subcat');if(ds&&document.getElementById('edit-subcat-wrap')?.style.display!=='none')tx.subcat=ds.value;
   const dn=document.getElementById('edit-notes');if(dn)tx.notes=dn.value;
-  tx.status='accepted';delete tx.flag;saveS();closeModal('txDetail');
+  tx.status='accepted';delete tx.flag;
+  closeModal('txDetail');render();
+  await saveToSheets();
 }
-function deleteTx(id){
+async function deleteTx(id){
   if(!confirm('Delete this transaction? It will be moved to the recycle bin and can be restored.'))return;
   const tx=S.transactions.find(t=>t.id===id);
   if(!tx)return;
   S.deletedTransactions=S.deletedTransactions||[];
   S.deletedTransactions.push({...tx,deletedAt:new Date().toISOString()});
   S.transactions=S.transactions.filter(t=>t.id!==id);
-  saveS();closeModal('txDetail');
+  closeModal('txDetail');
+  render();
+  // Save immediately (not scheduled)
+  await saveToSheets();
 }
 
 function openCatDetail(catName){
@@ -1506,6 +1651,7 @@ function openModal(id){
   if(id==='moneyOwedDetail'){renderOwedList();const od=document.getElementById('ow-date');if(od)od.value=new Date().toISOString().split('T')[0];}
   if(id==='recycleBin')renderRecycleBin();
   if(id==='cycleHistory')renderCycleHistory();
+  if(id==='addNdis')openNdisModal();
   document.getElementById('modal-'+id).classList.add('open');
 }
 function closeModal(id){document.getElementById('modal-'+id).classList.remove('open');}
@@ -1747,14 +1893,169 @@ function exportCSV(){
   a.click();
   URL.revokeObjectURL(url);
 }
+// ─── NDIS FUNCTIONS ──────────────────────────────────────────────────────────
+
+function getNdisTransactions(){
+  // Merge imported + user-added, deduplicate by id
+  const existing = S.ndisTransactions||[];
+  const existingIds = new Set(existing.map(t=>t.id));
+  const imported = NDIS_IMPORT.filter(t=>!existingIds.has(t.id));
+  return [...imported,...existing].sort((a,b)=>a.cat.localeCompare(b.cat)||a.num-b.num);
+}
+
+function getNdisSpent(catId){
+  return getNdisTransactions().filter(t=>t.cat===catId).reduce((a,t)=>a+t.amount,0);
+}
+
+function genNdisFilename(t){
+  const d=t.date.split('-');
+  const dateStr=d[2]+'_'+d[1]+'_'+d[0];
+  const provider=t.provider.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+  const inv=t.invoiceNo?'_'+t.invoiceNo.replace(/\s+/g,'_'):'';
+  const amt=t.amount.toFixed(2).replace('.','_');
+  return `${t.num}__${provider}${inv}_-_${dateStr}_-__${amt}.pdf`;
+}
+
+function renderNDIS(){
+  const area=document.getElementById('ndis-area');
+  const allTxs=getNdisTransactions();
+  const totalBudget=NDIS_CATS.reduce((a,c)=>a+c.budget,0);
+  const totalSpent=NDIS_CATS.reduce((a,c)=>a+getNdisSpent(c.id),0);
+  const totalRemaining=totalBudget-totalSpent;
+  const unpaidTxs=allTxs.filter(t=>t.status==='unpaid');
+
+  area.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">NDIS — Ezekiel Shanahan</div>
+      <button class="btn btn-primary btn-sm" onclick="openModal('addNdis')">+ Add invoice</button>
+    </div>
+
+    ${unpaidTxs.length?`<div class="banner banner-err" style="margin-bottom:12px">⚠ ${unpaidTxs.length} unpaid invoice${unpaidTxs.length>1?'s':''} — action required <button class="btn btn-sm" style="margin-left:auto;color:var(--red);border-color:var(--red)" onclick="scrollToUnpaid()">View</button></div>`:''}
+
+    <div class="card" style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Overview 2026–27</div>
+      <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat"><div class="stat-label">Total budget</div><div class="stat-value">${fmt(totalBudget)}</div></div>
+        <div class="stat"><div class="stat-label">Total spent</div><div class="stat-value">${fmt(totalSpent)}</div></div>
+        <div class="stat"><div class="stat-label">Remaining</div><div class="stat-value pos">${fmt(totalRemaining)}</div></div>
+      </div>
+      <div style="height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;margin-top:12px;border:1px solid var(--border)">
+        <div style="height:100%;background:var(--green);width:${Math.min(totalSpent/totalBudget*100,100).toFixed(1)}%;border-radius:4px"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-top:5px">${Math.round(totalSpent/totalBudget*100)}% of total NDIS budget used</div>
+    </div>
+
+    ${NDIS_CATS.map(cat=>{
+      const catTxs=allTxs.filter(t=>t.cat===cat.id);
+      const spent=getNdisSpent(cat.id);
+      const remaining=cat.budget-spent;
+      const pct=Math.min(spent/cat.budget*100,100);
+      return`<div class="card" style="margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+          <div style="font-size:14px;font-weight:700">${cat.name}</div>
+          <div style="font-size:13px;color:var(--text2)">${fmt(remaining)} remaining</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div class="stat" style="flex:1"><div class="stat-label">Budget</div><div class="stat-value" style="font-size:16px">${fmt(cat.budget)}</div></div>
+          <div class="stat" style="flex:1"><div class="stat-label">Spent</div><div class="stat-value" style="font-size:16px">${fmt(spent)}</div></div>
+          <div class="stat" style="flex:1"><div class="stat-label">Used</div><div class="stat-value" style="font-size:16px">${Math.round(pct)}%</div></div>
+        </div>
+        <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-bottom:12px;border:1px solid var(--border)">
+          <div style="height:100%;background:${pct>90?'var(--red)':pct>70?'var(--amber)':'var(--green)'};width:${pct.toFixed(1)}%;border-radius:3px"></div>
+        </div>
+        <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Invoices (${catTxs.length})</div>
+        <div class="tx-list">
+          ${catTxs.map(t=>`
+            <div class="tx" style="border-left:3px solid ${NDIS_STATUS_COLORS[t.status]};cursor:pointer;background:${t.status==='unpaid'?'var(--rl)':'var(--surface)'}" onclick="openNdisTxDetail('${t.id}')">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500">${t.num}. ${t.provider}${t.invoiceNo?' — '+t.invoiceNo:''}</div>
+                <div style="font-size:11px;color:var(--text2)">${fmtDate(t.date)} · ${t.comments}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-size:13px;font-weight:700">${fmt(t.amount)}</div>
+                <div style="font-size:11px;padding:2px 7px;border-radius:20px;background:${NDIS_STATUS_BG[t.status]};color:${NDIS_STATUS_COLORS[t.status]};font-weight:600;margin-top:2px">${NDIS_STATUS_LABELS[t.status]}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    }).join('')}`;
+}
+
+function openNdisTxDetail(id){
+  const allTxs=getNdisTransactions();
+  const t=allTxs.find(x=>x.id===id);
+  if(!t)return;
+  const cat=NDIS_CATS.find(c=>c.id===t.cat);
+  const filename=genNdisFilename(t);
+  const statusIdx=NDIS_STATUSES.indexOf(t.status);
+
+  document.getElementById('txd-title').textContent=t.provider+(t.invoiceNo?' — '+t.invoiceNo:'');
+  document.getElementById('txd-body').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(t.amount)}</div></div>
+      <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:15px">${fmtDate(t.date)}</div></div>
+      <div class="stat"><div class="stat-label">Category</div><div class="stat-value" style="font-size:12px">${cat?.name||''}</div></div>
+      <div class="stat"><div class="stat-label">Status</div><div class="stat-value" style="font-size:13px;color:${NDIS_STATUS_COLORS[t.status]}">${NDIS_STATUS_LABELS[t.status]}</div></div>
+    </div>
+    ${t.comments?`<div style="font-size:13px;color:var(--text2);margin-bottom:12px">📝 ${t.comments}</div>`:''}
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Suggested filename</div>
+      <div style="font-size:12px;font-family:monospace;word-break:break-all;color:var(--text)">${filename}</div>
+      <button class="btn btn-sm" style="margin-top:8px" onclick="navigator.clipboard.writeText('${filename}').then(()=>alert('Filename copied!'))">📋 Copy filename</button>
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Update status</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${NDIS_STATUSES.map(s=>`<button class="btn btn-sm" style="background:${s===t.status?NDIS_STATUS_BG[s]:'var(--surface)'};color:${NDIS_STATUS_COLORS[s]};border-color:${NDIS_STATUS_COLORS[s]}" onclick="updateNdisStatus('${t.id}','${s}')">${s===t.status?'✓ ':''} ${NDIS_STATUS_LABELS[s]}</button>`).join('')}
+    </div>
+    ${t.status==='unpaid'?`<div style="margin-top:12px"><div class="banner banner-err">⚠ This invoice needs to be paid. Check provider bank details on the invoice.</div></div>`:''}`;
+
+  document.getElementById('txd-actions').innerHTML=`
+    <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteNdisTx('${t.id}')">🗑 Delete</button>
+    <button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+  openModal('txDetail');
+}
+
+function updateNdisStatus(id,status){
+  // Find in S.ndisTransactions first
+  let tx=S.ndisTransactions.find(t=>t.id===id);
+  if(!tx){
+    // Move from import to user transactions
+    const imported=NDIS_IMPORT.find(t=>t.id===id);
+    if(imported){tx={...imported};S.ndisTransactions.push(tx);}
+  }
+  if(tx){tx.status=status;saveS();}
+  closeModal('txDetail');
+  renderNDIS();
+  // If claimed, prompt to update NDIS owed
+  if(status==='claimed'){
+    const tx2=getNdisTransactions().find(t=>t.id===id);
+    if(tx2&&confirm(`Add ${fmt(tx2.amount)} to NDIS owed on dashboard?`)){
+      S.overall.ndisOwed=(S.overall.ndisOwed||0)+tx2.amount;
+      saveS();
+    }
+  }
+}
+
+function deleteNdisTx(id){
+  if(!confirm('Delete this NDIS transaction?'))return;
+  S.ndisTransactions=S.ndisTransactions.filter(t=>t.id!==id);
+  saveS();closeModal('txDetail');renderNDIS();
+}
+
+function scrollToUnpaid(){
+  const el=document.querySelector('.tx[style*="var(--rl)"]');
+  if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
 function showTab(tab){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
-  const map={'dashboard':0,'transactions':1};
+  const map={'dashboard':0,'transactions':1,'ndis':2};
   if(map[tab]!==undefined)document.querySelectorAll('.tab')[map[tab]]?.classList.add('active');
   if(tab==='transactions')renderTxList();
   if(tab==='workflow-tab')renderWorkflow();
+  if(tab==='ndis')renderNDIS();
 }
 </script>
 
