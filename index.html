@@ -827,7 +827,7 @@ function renderOverall(){
     <div class="stat private-sensitive"><div class="stat-label">Target</div><div class="stat-value">$10,000</div></div>
     <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openActualSavingsDetail()"><div class="stat-label">Actual savings ↗</div><div class="stat-value ${(actualSavings||0)>=10000?'pos':'neg'}">${fmt(actualSavings)}</div></div>
     <div class="stat" style="cursor:pointer" onclick="openModal('moneyOwedDetail')"><div class="stat-label">Money owed ↗</div><div class="stat-value pos">${fmt((moneyOwed||0)+getNegativeBudgets().reduce((a,b)=>a+b.amount,0))}</div></div>
-    ${S.overall.renovationsBalance!==undefined?`<div class="stat" style="cursor:pointer" onclick="showTab('dashboard')"><div class="stat-label">Renovations</div><div class="stat-value ${(S.overall.renovationsBalance||0)>0?'pos':'neg'}">${fmt(S.overall.renovationsBalance||0)}</div></div>`:'<div class="stat"><div class="stat-label"></div><div class="stat-value"></div></div>'}
+    <div class="stat"><div class="stat-label">Renovations</div><div class="stat-value ${(S.overall.renovationsBalance||0)>0?'pos':'neg'}">${S.overall.renovationsBalance!=null?fmt(S.overall.renovationsBalance):'Not set'}</div></div>
     <div class="stat" style="grid-column:span 2">
       <div class="stat-label">Budget year progress</div>
       <div style="position:relative;height:20px;background:var(--surface2);border-radius:var(--radius-sm);overflow:hidden;margin-top:6px;border:1px solid var(--border)">
