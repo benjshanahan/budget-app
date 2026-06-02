@@ -45,6 +45,7 @@ exports.handler = async (event) => {
         'Workflow!A:B',
         'DeletedTx!A:K',
         'Cycles!A:F',
+        'NDIS!A:I',
       ];
 
       const response = await sheets.spreadsheets.values.batchGet({
@@ -79,7 +80,7 @@ exports.handler = async (event) => {
     if (action === 'ensureSheets') {
       const meta = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
       const existing = meta.data.sheets.map(s => s.properties.title);
-      const needed = ['Transactions', 'Config', 'MoneyOwed', 'Spending', 'Workflow', 'DeletedTx', 'Cycles'];
+      const needed = ['Transactions', 'Config', 'MoneyOwed', 'Spending', 'Workflow', 'DeletedTx', 'Cycles', 'NDIS'];
       const toCreate = needed.filter(n => !existing.includes(n));
 
       if (toCreate.length > 0) {
