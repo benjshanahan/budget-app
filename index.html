@@ -919,6 +919,7 @@ function renderBudgetGrid(){
   const cycles=getTithingCycles();
   const grid=document.getElementById('budget-grid');
   grid.innerHTML='';
+  let bal=0,spent=0,pct=0,yPct=0,isOver=false,isWarn=false,note='';
   for(const cat of CATS){
     if(cat.noGrid)continue;
     if(cat.isRenovations)continue; // Shown in top stats only
