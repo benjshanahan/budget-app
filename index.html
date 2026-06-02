@@ -993,20 +993,37 @@ function renderWorkflow(){
 
 function renderStepBody(s,done,pending){
   if(done)return`<button class="btn btn-sm" onclick="undoStep(${s.n})">↩ Mark undone</button>`;
-  if(s.action==='upload')return`<div class="upload-zone" onclick="document.getElementById('csv-up').click()"><div class="upload-icon">📄</div><div style="font-size:13px;font-weight:600;color:var(--text)">Click to upload MyCard CSV</div><div style="font-size:11px;color:var(--text2);margin-top:4px">${getCSVPeriodLabel()}</div></div><input type="file" id="csv-up" accept=".csv" onchange="handleCSV(event)"><button class="btn btn-sm" style="margin-top:10px" onclick="doneStep(1)">Skip — no statement this fortnight</button>`;
+  if(s.action==='upload'){
+    const hasPending=S.csvPending&&(S.csvPending.merged?.length||S.csvPending.unmatchedCSV?.length||S.csvPending.unmatchedManual?.length);
+    return`<a href="https://secure.mycard.com.au/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 Open MyCard</a>
+      <div class="upload-zone" onclick="document.getElementById('csv-up').click()"><div class="upload-icon">📄</div><div style="font-size:13px;font-weight:600;color:var(--text)">Click to upload MyCard CSV</div><div style="font-size:11px;color:var(--text2);margin-top:4px">${getCSVPeriodLabel()}</div></div>
+      <input type="file" id="csv-up" accept=".csv" onchange="handleCSV(event)">
+      ${hasPending?'<div class="banner banner-warn" style="margin-top:10px">📋 You have an unfinished review — <button class="btn btn-sm" onclick="openCSVReview(S.csvPending)" style="margin-left:4px">Resume review</button></div>':''}
+      <button class="btn btn-sm" style="margin-top:10px" onclick="doneStep(1)">Skip — no statement this fortnight</button>`;
+  }
   if(s.action==='review')return`${pending>0?'<div class="banner banner-warn" style="margin-bottom:10px">👁 '+pending+' transactions to review</div>':''}<button class="btn btn-primary btn-sm" onclick="showTab(\'transactions\');doneStep(2)">👁 Review transactions</button>`;
   if(s.action==='manual')return`<button class="btn btn-primary btn-sm" onclick="openModal(\'quickTx\')">+ Add manual transaction</button><button class="btn btn-sm" style="margin-left:8px" onclick="doneStep(3)">Done adding</button>`;
   if(s.action==='accept'){const p=S.transactions.filter(t=>t.status==='pending').length;return`${p>0?'<div class="banner banner-warn" style="margin-bottom:10px">'+p+' pending transactions</div>':''}<button class="btn btn-primary btn-sm" onclick="acceptAllPending()">✓ Accept all (${p})</button>`;}
-  if(s.action==='confirm')return`<button class="btn btn-primary btn-sm" onclick="doneStep(${s.n})">${s.ct}</button>`;
-  if(s.action==='tithe'){const carersDefault=S.carersDefault||162.60;return`<div class="frow" style="margin-bottom:8px"><div class="field"><label>Benj gross income ($)</label><input type="number" id="tb" step="0.01" placeholder="0.00" oninput="calcTithe()"></div><div class="field"><label>Kasie gross income ($)</label><input type="number" id="tk" step="0.01" placeholder="0.00" oninput="calcTithe()"></div></div><div class="field" style="margin-bottom:8px"><label>Carers Payment ($)</label><div style="display:flex;gap:8px;align-items:center"><input type="number" id="tc" step="0.01" value="${carersDefault.toFixed(2)}" oninput="calcTithe()" style="flex:1"><button class="btn btn-sm" onclick="saveCarersDefault()" style="white-space:nowrap;flex-shrink:0">Set as default</button></div><div class="field-hint">Default: ${fmt(carersDefault)}</div></div><div id="tithe-out" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="saveTithe()">✓ Record tithe & done</button><button class="btn btn-sm" id="transfer-zcm-btn" style="display:none;background:var(--blue);color:#fff;border-color:#0F4A8A" onclick="showZCMTransfer()">💸 Manually transfer tithe to ZCM</button></div>`;}
-  if(s.action==='spending')return`<button class="btn btn-primary btn-sm" onclick="openSpendingModal()">💳 Enter debit card balances</button>`;
+  if(s.action==='confirm'){
+    const racqLink='<a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 RACQ Bank</a>';
+    const outlookLink='<a href="https://outlook.live.com/mail/" target="_blank" class="btn btn-sm" style="margin-bottom:8px;margin-right:6px;display:inline-flex">🔗 Outlook</a>';
+    const aglLink='<a href="https://secure.agl.com.au/u/login" target="_blank" class="btn btn-sm" style="margin-bottom:8px;display:inline-flex">🔗 AGL</a>';
+    const stepLinks=s.n===5?racqLink:s.n===8?outlookLink+aglLink:'';
+    return`${stepLinks}<button class="btn btn-primary btn-sm" onclick="doneStep(${s.n})">${s.ct}</button>`;
+  }
+  if(s.action==='tithe'){const carersDefault=S.carersDefault||162.60;return`<a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 RACQ Bank</a><div class="frow" style="margin-bottom:8px"><div class="field"><label>Benj gross income ($)</label><input type="number" id="tb" step="0.01" placeholder="0.00" oninput="calcTithe()"></div><div class="field"><label>Kasie gross income ($)</label><input type="number" id="tk" step="0.01" placeholder="0.00" oninput="calcTithe()"></div></div><div class="field" style="margin-bottom:8px"><label>Carers Payment ($)</label><div style="display:flex;gap:8px;align-items:center"><input type="number" id="tc" step="0.01" value="${carersDefault.toFixed(2)}" oninput="calcTithe()" style="flex:1"><button class="btn btn-sm" onclick="saveCarersDefault()" style="white-space:nowrap;flex-shrink:0">Set as default</button></div><div class="field-hint">Default: ${fmt(carersDefault)}</div></div><div id="tithe-out" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="saveTithe()">✓ Record tithe & done</button><button class="btn btn-sm" id="transfer-zcm-btn" style="display:none;background:var(--blue);color:#fff;border-color:#0F4A8A" onclick="showZCMTransfer()">💸 Manually transfer tithe to ZCM</button></div>`;}
+  if(s.action==='spending')return`<a href='https://banking.racqbank.com.au/#/login' target='_blank' class='btn btn-sm' style='margin-bottom:10px;display:inline-flex'>🔗 RACQ Bank</a><button class="btn btn-primary btn-sm" onclick="openSpendingModal()">💳 Enter debit card balances</button>`;
   if(s.action==='ndis'){
     const ndisTxs=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='accepted');
     const pendingNdis=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='pending');
     const processedIds=S.workflowData.ndisProcessed||[];
     const unprocessed=ndisTxs.filter(t=>!processedIds.includes(t.id));
     return`
-      ${pendingNdis.length?`<div class="banner banner-warn" style="margin-bottom:10px">⚠ ${pendingNdis.length} NDIS transaction${pendingNdis.length>1?'s are':' is'} still pending — accept them in Step 4 first</div>`:''}
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+      <a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm">🔗 RACQ Bank</a>
+      <a href="https://login.my.gov.au/las/mygov-login?execution=e1s1" target="_blank" class="btn btn-sm">🔗 MyGov</a>
+    </div>
+    ${pendingNdis.length?`<div class="banner banner-warn" style="margin-bottom:10px">⚠ ${pendingNdis.length} NDIS transaction${pendingNdis.length>1?'s are':' is'} still pending — accept them in Step 4 first</div>`:''}
       ${unprocessed.length?`
         <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Transactions to process (${unprocessed.length})</div>
         <div class="tx-list" style="margin-bottom:12px">
@@ -1030,7 +1047,7 @@ function renderStepBody(s,done,pending){
   }
   if(s.action==='cash')return`<div class="field"><label>Cash added to savings ($)</label><input type="number" id="cash-in" step="0.01" placeholder="0.00"><div class="field-hint">Current cash savings: ${fmt(S.overall.cashSavings||0)}</div></div><button class="btn btn-primary btn-sm" onclick="addCash()">✓ Update & done</button>`;
 
-  if(s.action==='mortgage')return`<div class="field"><label>Amount ahead on mortgage ($)</label><input type="number" id="mort-in" step="0.01" value="${(S.overall.mortgageAhead||0).toFixed(2)}"></div><button class="btn btn-primary btn-sm" onclick="saveMortgage()">✓ Update & done</button>`;
+  if(s.action==='mortgage')return`<a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 RACQ Bank</a><div class="field"><label>Amount ahead on mortgage ($)</label><input type="number" id="mort-in" step="0.01" value="${(S.overall.mortgageAhead||0).toFixed(2)}"></div><button class="btn btn-primary btn-sm" onclick="saveMortgage()">✓ Update & done</button>`;
   return'';
 }
 
