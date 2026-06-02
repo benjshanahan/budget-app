@@ -84,6 +84,24 @@ exports.handler = async (event) => {
       };
     }
 
+    if (action === 'listDriveFiles') {
+      const drive = google.drive({ version: 'v3', auth });
+      const results = {};
+      for (const [catId, folderId] of Object.entries(NDIS_FOLDERS)) {
+        const resp = await drive.files.list({
+          q: `'${folderId}' in parents and trashed = false`,
+          fields: 'files(id, name, webViewLink)',
+          pageSize: 200,
+        });
+        results[catId] = resp.data.files;
+      }
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ success: true, files: results }),
+      };
+    }
+
     if (action === 'uploadToDrive') {
       const { catId, filename, fileBase64, mimeType } = body;
       const folderId = NDIS_FOLDERS[catId];
