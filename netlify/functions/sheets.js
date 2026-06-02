@@ -56,6 +56,7 @@ exports.handler = async (event) => {
         'DeletedTx!A:K',
         'Cycles!A:F',
         'NDIS!A:I',
+        'CSVPending!A:A',
       ];
 
       const response = await sheets.spreadsheets.values.batchGet({
