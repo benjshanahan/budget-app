@@ -698,6 +698,9 @@ async function loadFromSheets(){
     }
     S.workflowData={};
     (ranges[4].values||[]).forEach(r=>{if(r[0]&&r[1]==='true')S.workflowData[r[0]]=true;});
+    // Load csvPending from sheet
+    const csvPendingRaw=ranges[8]?.values?.[0]?.[0];
+    if(csvPendingRaw){try{S.csvPending=JSON.parse(csvPendingRaw);}catch(e){S.csvPending={};}}
     const delRows=ranges[5]?.values||[];
     if(delRows.length>1){
       S.deletedTransactions=delRows.slice(1).map(r=>({
@@ -743,6 +746,9 @@ async function saveToSheets(){
     data.push({range:'Spending!A1',values:[['benjCurrent',S.spendingBalances?.benj?.current||0],['kasieCurrent',S.spendingBalances?.kasie?.current||0]]});
     const wfRows=Object.entries(S.workflowData).map(([k,v])=>[k,String(v)]);
     data.push({range:'Workflow!A1',values:wfRows.length?wfRows:[['','']]});
+    // Save csvPending as JSON in a single cell
+    const csvPendingJson=JSON.stringify(S.csvPending||{});
+    data.push({range:'CSVPending!A1',values:[[csvPendingJson]]});
     const delRows=[['id','date','description','amount','category','subcat','method','status','source','deletedAt']];
     (S.deletedTransactions||[]).forEach(t=>delRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status||'',t.source||'',t.deletedAt||'']));
     data.push({range:'DeletedTx!A1',values:delRows});
