@@ -317,7 +317,7 @@ input[type=file]{display:none}
     <div class="modal-title">Add transaction</div>
     <div class="frow">
       <div class="field"><label>Date</label><input type="date" id="qt-date"></div>
-      <div class="field"><label>Amount ($)</label><input type="number" id="qt-amount" placeholder="0.00" step="0.01" min="0"></div>
+      <div class="field"><label>Amount ($)</label><input type="number" id="qt-amount" placeholder="0.00" step="0.01" min="0" oninput="autoFillLastSplit()"></div>
     </div>
     <div id="qt-desc-wrap" class="field"><label>Description</label><input type="text" id="qt-desc" placeholder="What was this for?"></div>
     <div class="field"><label>Category</label><select id="qt-cat" onchange="updateQTSubcat()"></select></div>
@@ -355,7 +355,7 @@ input[type=file]{display:none}
     </div>
     <div class="frow">
       <div class="field"><label>Cash savings ($)</label><input type="number" id="eo-cash" step="0.01"></div>
-      <div class="field"><label>Mortgage ahead ($)</label><input type="number" id="eo-mort" step="0.01"></div>
+      <div class="field"><label>Renovations balance ($)</label><input type="number" id="eo-reno" step="0.01"><div class="field-hint">Current balance in Renovations account</div></div>
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('editOverall')">Cancel</button>
@@ -509,6 +509,7 @@ const CATS = [
   {name:'➕ Add to Cash Savings',fn:0,yearly:0,noGrid:true,specialAction:'cash-add'},
   {name:'💰 Add to Money Owed',fn:0,yearly:0,noGrid:true,specialAction:'owed-add'},
   {name:'NDIS',fn:0,yearly:0,noGrid:true,specialAction:'ndis'},
+  {name:'Renovations',fn:0,yearly:0,isRenovations:true},
 ];
 
 // ─── NDIS DATA ────────────────────────────────────────────────────────────────
@@ -566,8 +567,8 @@ while(_d <= new Date('2027-04-21')){MONEY_DAYS.push(new Date(_d));_d=new Date(_d
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let S = {
   transactions: [],
-  overall: {actualSavings:4713.11,ndisOwed:393.55,cashSavings:2275,mortgageAhead:9289.45,moneyOwed:44.95},
-  moneyOwedItems: [{id:'ow_init',description:"Rixons owe for Jen's birthday",amount:44.95}],
+  overall: {actualSavings:4713.11,ndisOwed:393.55,cashSavings:2275,mortgageAhead:9289.45,moneyOwed:44.95,renovationsBalance:undefined},
+  moneyOwedItems: [],
   spendingBalances: {benj:{current:-17.91},kasie:{current:-5.66}},
   workflowData: {},
   csvPending: [],
@@ -761,7 +762,7 @@ async function saveToSheets(){
 async function writeImportedData(){
   S.transactions=IMPORT_TXS.map(t=>({...t}));
   S.overall={...IMPORT_OVERALL};
-  S.moneyOwedItems=[{id:'ow_init',description:"Rixons owe for Jen's birthday",amount:44.95,date:'2026-04-22'}];
+  S.moneyOwedItems=[];
   await saveToSheets();
 }
 
@@ -826,6 +827,7 @@ function renderOverall(){
     <div class="stat private-sensitive"><div class="stat-label">Target</div><div class="stat-value">$10,000</div></div>
     <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openActualSavingsDetail()"><div class="stat-label">Actual savings ↗</div><div class="stat-value ${(actualSavings||0)>=10000?'pos':'neg'}">${fmt(actualSavings)}</div></div>
     <div class="stat" style="cursor:pointer" onclick="openModal('moneyOwedDetail')"><div class="stat-label">Money owed ↗</div><div class="stat-value pos">${fmt((moneyOwed||0)+getNegativeBudgets().reduce((a,b)=>a+b.amount,0))}</div></div>
+    ${S.overall.renovationsBalance!==undefined?`<div class="stat" style="cursor:pointer" onclick="showTab('dashboard')"><div class="stat-label">Renovations</div><div class="stat-value ${(S.overall.renovationsBalance||0)>0?'pos':'neg'}">${fmt(S.overall.renovationsBalance||0)}</div></div>`:'<div class="stat"><div class="stat-label"></div><div class="stat-value"></div></div>'}
     <div class="stat" style="grid-column:span 2">
       <div class="stat-label">Budget year progress</div>
       <div style="position:relative;height:20px;background:var(--surface2);border-radius:var(--radius-sm);overflow:hidden;margin-top:6px;border:1px solid var(--border)">
@@ -854,7 +856,17 @@ function renderBudgetGrid(){
   grid.innerHTML='';
   for(const cat of CATS){
     if(cat.noGrid)continue;
+    if(cat.name==='Renovations'&&(S.overall.renovationsBalance===undefined))continue;
     let bal,spent,pct,yPct,isOver,isWarn,note='';
+    if(cat.isRenovations){
+      const bal=S.overall.renovationsBalance||0;
+      const el=document.createElement('div');
+      el.className='bc';
+      el.innerHTML=`<div class="bc-header"><span class="bc-name">Renovations</span><span class="bc-bal ${bal>0?'pos':'neg'}">${fmt(bal)}</span></div><div class="pbar"><div class="pfill good" style="width:100%"></div></div><div class="bc-meta"><span>Balance remaining</span><span>No yearly budget</span></div>`;
+      el.onclick=()=>openCatDetail('Renovations');
+      grid.appendChild(el);
+      continue;
+    }
     if(cat.isSpending){
       const sb=S.spendingBalances||{benj:{current:0},kasie:{current:0}};
       const cur=cat.person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
@@ -980,7 +992,7 @@ function renderWorkflow(){
 
 function renderStepBody(s,done,pending){
   if(done)return`<button class="btn btn-sm" onclick="undoStep(${s.n})">↩ Mark undone</button>`;
-  if(s.action==='upload')return`<div class="upload-zone" onclick="document.getElementById('csv-up').click()"><div class="upload-icon">📄</div><div style="font-size:13px;color:var(--text2)">Click to upload MyCard CSV</div></div><input type="file" id="csv-up" accept=".csv" onchange="handleCSV(event)"><button class="btn btn-sm" style="margin-top:10px" onclick="doneStep(1)">Skip — no statement this fortnight</button>`;
+  if(s.action==='upload')return`<div class="upload-zone" onclick="document.getElementById('csv-up').click()"><div class="upload-icon">📄</div><div style="font-size:13px;font-weight:600;color:var(--text)">Click to upload MyCard CSV</div><div style="font-size:11px;color:var(--text2);margin-top:4px">${getCSVPeriodLabel()}</div></div><input type="file" id="csv-up" accept=".csv" onchange="handleCSV(event)"><button class="btn btn-sm" style="margin-top:10px" onclick="doneStep(1)">Skip — no statement this fortnight</button>`;
   if(s.action==='review')return`${pending>0?'<div class="banner banner-warn" style="margin-bottom:10px">👁 '+pending+' transactions to review</div>':''}<button class="btn btn-primary btn-sm" onclick="showTab(\'transactions\');doneStep(2)">👁 Review transactions</button>`;
   if(s.action==='manual')return`<button class="btn btn-primary btn-sm" onclick="openModal(\'quickTx\')">+ Add manual transaction</button><button class="btn btn-sm" style="margin-left:8px" onclick="doneStep(3)">Done adding</button>`;
   if(s.action==='accept'){const p=S.transactions.filter(t=>t.status==='pending').length;return`${p>0?'<div class="banner banner-warn" style="margin-bottom:10px">'+p+' pending transactions</div>':''}<button class="btn btn-primary btn-sm" onclick="acceptAllPending()">✓ Accept all (${p})</button>`;}
@@ -1488,7 +1500,7 @@ function renderRecycleBin(){
   const el=document.getElementById('recycle-bin-list');
   const deleted=S.deletedTransactions||[];
   if(!deleted.length){el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--text2);font-size:13px">No deleted transactions</div>';return;}
-  el.innerHTML='<div class="tx-list">'+deleted.map(t=>`
+  el.innerHTML='<div style="margin-bottom:10px"><button class="btn btn-sm btn-primary" onclick="restoreAllTx()">↩ Restore all transactions</button></div><div class="tx-list">'+deleted.map(t=>`
     <div class="tx flagged" style="cursor:default;flex-wrap:wrap;gap:6px">
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:500">${t.description}</div>
@@ -1497,6 +1509,16 @@ function renderRecycleBin(){
       <span style="font-size:13px;font-weight:700">${fmt(t.amount)}</span>
       <button class="btn btn-sm btn-primary" onclick="restoreTx('${t.id}')">↩ Restore</button>
     </div>`).join('')+'</div>';
+}
+function restoreAllTx(){
+  if(!confirm('Restore all '+( S.deletedTransactions||[]).length+' deleted transactions?'))return;
+  (S.deletedTransactions||[]).forEach(tx=>{
+    delete tx.deletedAt;
+    tx.status='pending';
+    S.transactions.push(tx);
+  });
+  S.deletedTransactions=[];
+  saveS();renderRecycleBin();
 }
 function restoreTx(id){
   const tx=(S.deletedTransactions||[]).find(t=>t.id===id);
@@ -1641,6 +1663,15 @@ function openSubcatDetail(catName, sub){
 }
 
 // ─── CSV HANDLING ─────────────────────────────────────────────────────────────
+function getCSVPeriodLabel(){
+  // Get last completed money day and today
+  const now=new Date();
+  const doneDays=MONEY_DAYS.filter(d=>d<=now);
+  const lastDone=doneDays.length>0?doneDays[doneDays.length-1]:new Date('2026-04-22');
+  const fromStr=lastDone.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+  const toStr=now.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+  return 'Include transactions from '+fromStr+' to '+toStr;
+}
 function parseMyCardDate(str){
   // Convert "31 May 26" to "2026-05-31"
   const months={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
@@ -1685,12 +1716,26 @@ function handleCSV(e){
     const merged=[];
     const unmatchedCSV=[];
 
+    // Get all accepted transactions from previous cycles for duplicate checking
+    const prevCycleIds=new Set((S.completedCycles||[]).flatMap(c=>c.transactionIds||[]));
+    const prevTxs=S.transactions.filter(t=>t.status==='accepted'&&prevCycleIds.has(t.id));
+
     for(const csv of csvTxs){
       const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<0.01);
       if(manualMatch){
         matchedManualIds.add(manualMatch.id);
         merged.push({csv,manual:manualMatch,action:'merge'});
       } else {
+        // Check for duplicate in previous accepted transactions (same date + amount)
+        const dupMatch=S.transactions.find(t=>
+          t.status==='accepted'&&
+          Math.abs(t.amount-csv.amount)<0.01&&
+          t.date===csv.date
+        );
+        if(dupMatch){
+          csv.isDuplicate=true;
+          csv.duplicateOf=dupMatch;
+        }
         unmatchedCSV.push(csv);
       }
     }
@@ -1740,6 +1785,7 @@ function openCSVReview(data){
           <span style="font-size:13px;font-weight:600">${t.description}</span>
           <span style="font-size:14px;font-weight:700">${fmt(t.amount)}</span>
         </div>
+      ${t.isDuplicate?`<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — ${fmt(t.amount)} on ${fmtDate(t.date)} already exists: "${t.duplicateOf?.description}". Check carefully.</div>`:''}
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
           <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched')">${CATS.map(c=>`<option value="${c.name}"${c.name===t.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option><option value="Split">⇄ Split transaction</option></select></div>
@@ -1926,7 +1972,14 @@ function autoSubcat(desc,subs,rawDetails){
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 function openModal(id){
-  if(id==='editOverall'){document.getElementById('eo-sav').value=(S.overall.actualSavings||0).toFixed(2);document.getElementById('eo-ndis').value=(S.overall.ndisOwed||0).toFixed(2);document.getElementById('eo-cash').value=(S.overall.cashSavings||0).toFixed(2);document.getElementById('eo-mort').value=(S.overall.mortgageAhead||0).toFixed(2);}
+  if(id==='editOverall'){
+    document.getElementById('eo-sav').value=(S.overall.actualSavings||0).toFixed(2);
+    document.getElementById('eo-ndis').value=(S.overall.ndisOwed||0).toFixed(2);
+    document.getElementById('eo-cash').value=(S.overall.cashSavings||0).toFixed(2);
+    document.getElementById('eo-mort').value=(S.overall.mortgageAhead||0).toFixed(2);
+    const renoEl=document.getElementById('eo-reno');
+    if(renoEl)renoEl.value=S.overall.renovationsBalance!==undefined?(S.overall.renovationsBalance||0).toFixed(2):'';
+  }
   if(id==='quickTx'){document.getElementById('qt-date').value=new Date().toISOString().split('T')[0];populateQTCats();}
   if(id==='moneyOwedDetail'){renderOwedList();const od=document.getElementById('ow-date');if(od)od.value=new Date().toISOString().split('T')[0];}
   if(id==='recycleBin')renderRecycleBin();
@@ -1981,12 +2034,20 @@ function openActualSavingsDetail(){
   document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="openModal('editOverall')">✏️ Edit figures</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   openModal('txDetail');
 }
-function saveOverall(){S.overall.actualSavings=parseFloat(document.getElementById('eo-sav').value)||0;S.overall.ndisOwed=parseFloat(document.getElementById('eo-ndis').value)||0;S.overall.cashSavings=parseFloat(document.getElementById('eo-cash').value)||0;S.overall.mortgageAhead=parseFloat(document.getElementById('eo-mort').value)||0;saveS();closeModal('editOverall');}
+function saveOverall(){
+  S.overall.actualSavings=parseFloat(document.getElementById('eo-sav').value)||0;
+  S.overall.ndisOwed=parseFloat(document.getElementById('eo-ndis').value)||0;
+  S.overall.cashSavings=parseFloat(document.getElementById('eo-cash').value)||0;
+  S.overall.mortgageAhead=parseFloat(document.getElementById('eo-mort').value)||0;
+  const reno=document.getElementById('eo-reno')?.value;
+  if(reno!==''&&reno!==null&&reno!==undefined)S.overall.renovationsBalance=parseFloat(reno)||0;
+  saveS();closeModal('editOverall');
+}
 
 
 function populateQTCats(){
   const sel=document.getElementById('qt-cat');
-  sel.innerHTML='<option value="">-- Select category --</option><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>`<option value="${c.name}">${c.name}</option>`).join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS (process in Step 9)</option><option value="➕ Add to Cash Savings">➕ Add to Cash Savings</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option>';
+  sel.innerHTML='<option value="">-- Select category --</option><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}">${n}</option>`).join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS (process in Step 9)</option><option value="Renovations">🏗 Renovations</option><option value="➕ Add to Cash Savings">➕ Add to Cash Savings</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option>';
   sel.onchange=updateQTSubcat;
   updateQTSubcat();
 }
@@ -2023,14 +2084,37 @@ function addSplitRow(){
   const div=document.createElement('div');
   div.className='split-row';
   div.style.cssText='display:flex;flex-direction:column;gap:6px;margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
+  const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
   div.innerHTML=`
     <div style="display:flex;gap:6px;align-items:center">
-      <select style="flex:2;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">${CATS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')}<option value="Other">Other</option></select>
-      <input type="number" placeholder="Amount $" step="0.01" min="0" style="flex:1;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
-      <button class="btn btn-sm" onclick="this.closest('.split-row').remove()" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button>
+      <select onchange="autoFillLastSplit()" style="flex:2;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+        <option value="">-- Category --</option>
+        ${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}
+        <option value="Other">Other</option>
+        <option value="Renovations">🏗 Renovations</option>
+      </select>
+      <input type="number" placeholder="Amount $" step="0.01" min="0" oninput="autoFillLastSplit()" style="flex:1;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+      <button class="btn btn-sm" onclick="this.closest('.split-row').remove();autoFillLastSplit()" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button>
     </div>
     <input type="text" placeholder="Description for this split" style="width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">`;
   document.getElementById('split-rows').appendChild(div);
+  autoFillLastSplit();
+}
+
+function autoFillLastSplit(){
+  const totalAmt=parseFloat(document.getElementById('qt-amount')?.value)||0;
+  if(!totalAmt)return;
+  const rows=document.getElementById('split-rows')?.querySelectorAll('.split-row');
+  if(!rows||rows.length<2)return;
+  // Sum all rows except the last
+  let usedAmt=0;
+  for(let i=0;i<rows.length-1;i++){
+    const amt=parseFloat(rows[i].querySelectorAll('input[type=number]')[0]?.value)||0;
+    usedAmt+=amt;
+  }
+  const remaining=Math.max(0,parseFloat((totalAmt-usedAmt).toFixed(2)));
+  const lastInput=rows[rows.length-1].querySelectorAll('input[type=number]')[0];
+  if(lastInput&&remaining>0)lastInput.value=remaining.toFixed(2);
 }
 
 function saveQuickTx(){
@@ -2058,9 +2142,17 @@ function saveQuickTx(){
     return;
   }
   if(specialCat?.specialAction==='ndis'){
-    // Save as pending NDIS transaction — will be processed in Step 9
     S.transactions.push({id:'tx_'+Date.now(),date,description:desc,amount,category:'NDIS',subcat:'',method,notes,status:'pending',source:'manual'});
     saveS();closeModal('quickTx');
+    return;
+  }
+  if(cat==='Renovations'){
+    // Deduct from renovations balance
+    S.overall.renovationsBalance=(S.overall.renovationsBalance||0)-amount;
+    S.transactions.push({id:'tx_'+Date.now(),date,description:desc,amount,category:'Renovations',subcat:'',method,notes,status:'pending',source:'manual'});
+    saveS();closeModal('quickTx');
+    setTimeout(()=>alert("Renovations transaction saved. Please transfer "+fmt(amount)+" from Renovations account to Savings."),300);
+
     return;
   }
   const isSplit=document.getElementById('qt-cat').value==='Split';
@@ -2086,6 +2178,16 @@ function getNegativeBudgets(){
   const neg=[];
   for(const cat of CATS){
     if(cat.noGrid)continue;
+    if(cat.name==='Renovations'&&(S.overall.renovationsBalance===undefined))continue;
+    if(cat.isRenovations){
+      const bal=S.overall.renovationsBalance||0;
+      const el=document.createElement('div');
+      el.className='bc';
+      el.innerHTML=`<div class="bc-header"><span class="bc-name">Renovations</span><span class="bc-bal ${bal>0?'pos':'neg'}">${fmt(bal)}</span></div><div class="pbar"><div class="pfill good" style="width:100%"></div></div><div class="bc-meta"><span>Balance remaining</span><span>No yearly budget</span></div>`;
+      el.onclick=()=>openCatDetail('Renovations');
+      grid.appendChild(el);
+      continue;
+    }
     if(cat.isSpending){
       const sb=S.spendingBalances||{};
       const cur=cat.person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
@@ -2142,20 +2244,31 @@ function renderOwedList(){
     html='<div style="font-size:13px;color:var(--text2);padding:8px 0">Nothing owed — you\'re all square! ✓</div>';
   }
 
-  const grandOwed=manualTotal+negTotal;
+  // Dashboard figure = manualOwed + negBudgets (same as what dashboard shows)
+  const dashboardFigure=(S.overall.moneyOwed||0)+negTotal;
   html+=`<div style="font-size:14px;font-weight:600;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
     <span>Grand total owed to savings</span>
-    <span style="font-size:18px;color:${grandOwed>0?'var(--green)':'var(--text)'}">${fmt(grandOwed)}</span>
+    <span style="font-size:18px;color:${dashboardFigure>0?'var(--green)':'var(--text)'}">${fmt(dashboardFigure)}</span>
   </div>`;
 
   el.innerHTML=html;
 }
-function markOwedPaid(id){
+async function markOwedPaid(id){
   if(!confirm('Mark this as paid and remove it?'))return;
-  removeOwed(id);
+  S.moneyOwedItems=(S.moneyOwedItems||[]).filter(o=>o.id!==id);
+  S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
+  closeModal('moneyOwedDetail');
+  render();
+  await saveToSheets();
 }
 function addOwedEntry(){const desc=document.getElementById('ow-desc').value.trim(),amt=parseFloat(document.getElementById('ow-amt').value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.moneyOwedItems=S.moneyOwedItems||[];const owDate=document.getElementById('ow-date')?.value||new Date().toISOString().split('T')[0];S.moneyOwedItems.push({id:'ow_'+Date.now(),description:desc,amount:amt,date:owDate});S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);document.getElementById('ow-desc').value='';document.getElementById('ow-amt').value='';saveS();renderOwedList();}
-function removeOwed(id){S.moneyOwedItems=S.moneyOwedItems.filter(o=>o.id!==id);S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);saveS();renderOwedList();}
+async function removeOwed(id){
+  S.moneyOwedItems=S.moneyOwedItems.filter(o=>o.id!==id);
+  S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
+  renderOwedList();
+  render();
+  await saveToSheets();
+}
 
 function exportCSV(){
   const cf=document.getElementById('f-cat').value;
