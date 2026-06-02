@@ -2,6 +2,13 @@ const { google } = require('googleapis');
 
 const SPREADSHEET_ID = '114vo9a8wrVAsDTU6IJASsADSI6Gtv8Dlj2vSuaDwwPg';
 
+const NDIS_FOLDERS = {
+  core: '1upqz4gwIM0q7klvfkTIAhNkS3ecgs4US',
+  idls: '1GVmWlO4dSzhvPZnzG4hhiHaZA9-d2yKj',
+  sc:   '1cKzi9eZ6hLtmbAsgYQKWTqTmCII2pPa0',
+  at:   '1T4TRV-23F87jVO6b2gIqKyiWiypxTmTM',
+};
+
 function getAuth() {
   const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
   const auth = new google.auth.GoogleAuth({
@@ -74,6 +81,38 @@ exports.handler = async (event) => {
         statusCode: 200,
         headers,
         body: JSON.stringify({ success: true }),
+      };
+    }
+
+    if (action === 'uploadToDrive') {
+      const { catId, filename, fileBase64, mimeType } = body;
+      const folderId = NDIS_FOLDERS[catId];
+      if (!folderId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unknown category' }) };
+
+      const drive = google.drive({ version: 'v3', auth });
+      const buffer = Buffer.from(fileBase64, 'base64');
+
+      const response = await drive.files.create({
+        requestBody: {
+          name: filename,
+          parents: [folderId],
+        },
+        media: {
+          mimeType: mimeType || 'application/pdf',
+          body: require('stream').Readable.from(buffer),
+        },
+        fields: 'id, name, webViewLink',
+      });
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          fileId: response.data.id,
+          fileName: response.data.name,
+          webViewLink: response.data.webViewLink,
+        }),
       };
     }
 
