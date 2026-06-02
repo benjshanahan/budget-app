@@ -567,7 +567,7 @@ while(_d <= new Date('2027-04-21')){MONEY_DAYS.push(new Date(_d));_d=new Date(_d
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let S = {
   transactions: [],
-  overall: {actualSavings:4713.11,ndisOwed:393.55,cashSavings:2275,mortgageAhead:9289.45,moneyOwed:44.95,renovationsBalance:undefined},
+  overall: {actualSavings:4713.11,ndisOwed:393.55,cashSavings:2275,mortgageAhead:9289.45,moneyOwed:44.95,renovationsBalance:null},
   moneyOwedItems: [],
   spendingBalances: {benj:{current:-17.91},kasie:{current:-5.66}},
   workflowData: {},
@@ -683,7 +683,8 @@ async function loadFromSheets(){
         ndisOwed:parseFloat(cfg.ndisOwed)||0,
         cashSavings:parseFloat(cfg.cashSavings)||0,
         mortgageAhead:parseFloat(cfg.mortgageAhead)||0,
-        moneyOwed:parseFloat(cfg.moneyOwed)||0
+        moneyOwed:parseFloat(cfg.moneyOwed)||0,
+        renovationsBalance:cfg.renovationsBalance!=null&&cfg.renovationsBalance!==''&&cfg.renovationsBalance!=='null'&&cfg.renovationsBalance!=='undefined'?parseFloat(cfg.renovationsBalance):null
       };
     }
     const owedRows=ranges[2].values||[];
@@ -827,7 +828,7 @@ function renderOverall(){
     <div class="stat private-sensitive"><div class="stat-label">Target</div><div class="stat-value">$10,000</div></div>
     <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openActualSavingsDetail()"><div class="stat-label">Actual savings ↗</div><div class="stat-value ${(actualSavings||0)>=10000?'pos':'neg'}">${fmt(actualSavings)}</div></div>
     <div class="stat" style="cursor:pointer" onclick="openModal('moneyOwedDetail')"><div class="stat-label">Money owed ↗</div><div class="stat-value pos">${fmt((moneyOwed||0)+getNegativeBudgets().reduce((a,b)=>a+b.amount,0))}</div></div>
-    <div class="stat"><div class="stat-label">Renovations</div><div class="stat-value ${(S.overall.renovationsBalance||0)>0?'pos':'neg'}">${S.overall.renovationsBalance!=null?fmt(S.overall.renovationsBalance):'Not set'}</div></div>
+    <div class="stat"><div class="stat-label">Renovations</div><div class="stat-value ${(S.overall.renovationsBalance||0)>0?'pos':(S.overall.renovationsBalance||0)<0?'neg':''}">${S.overall.renovationsBalance!=null&&S.overall.renovationsBalance!==undefined?fmt(S.overall.renovationsBalance):'Not set — tap Update figures'}</div></div>
     <div class="stat" style="grid-column:span 2">
       <div class="stat-label">Budget year progress</div>
       <div style="position:relative;height:20px;background:var(--surface2);border-radius:var(--radius-sm);overflow:hidden;margin-top:6px;border:1px solid var(--border)">
@@ -2042,7 +2043,10 @@ async function saveOverall(){
   const mortInput=document.getElementById('eo-mort');
   if(mortInput)S.overall.mortgageAhead=parseFloat(mortInput.value)||0;
   const renoVal=document.getElementById('eo-reno')?.value;
-  if(renoVal!==''&&renoVal!=null)S.overall.renovationsBalance=parseFloat(renoVal)||0;
+  if(renoVal!==''&&renoVal!==null&&renoVal!==undefined){
+    const parsed=parseFloat(renoVal);
+    S.overall.renovationsBalance=isNaN(parsed)?null:parsed;
+  }
   closeModal('editOverall');
   render();
   await saveToSheets();
