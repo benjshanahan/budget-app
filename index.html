@@ -1205,7 +1205,7 @@ function openTxDetail(id){
   document.getElementById('txd-body').innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem">
       <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(tx.amount)}</div></div>
-      <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:16px">${tx.date}</div></div>
+      <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:16px">${fmtDate(tx.date)}</div></div>
       <div class="stat"><div class="stat-label">Category</div><div class="stat-value" style="font-size:13px">${tx.category}${tx.subcat?' · '+tx.subcat:''}</div></div>
       <div class="stat"><div class="stat-label">Method</div><div class="stat-value" style="font-size:13px">${tx.method}</div></div>
     </div>
@@ -1593,7 +1593,7 @@ function openCatDetail(catName){
     headerStats=`<div class="stat"><div class="stat-label">Balance</div><div class="stat-value ${bal>=0?'pos':'neg'}">${fmtS(bal)}</div></div><div class="stat"><div class="stat-label">Spent</div><div class="stat-value">${fmt(spent)}</div></div><div class="stat"><div class="stat-label">Yearly budget</div><div class="stat-value">${fmt(cat?.yearly||0)}</div></div>`;
   }
   document.getElementById('txd-title').textContent=catName;
-  document.getElementById('txd-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">${headerStats}</div><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">Transactions (${txs.length})</div><div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${t.date.slice(5)}</span><span class="tx-desc">${t.description}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}</div>`;
+  document.getElementById('txd-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">${headerStats}</div><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">Transactions (${txs.length})</div><div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}</div>`;
   document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   openModal('txDetail');
 }
@@ -1674,16 +1674,37 @@ function getCSVPeriodLabel(){
   return 'Include transactions from '+fromStr+' to '+toStr;
 }
 function parseMyCardDate(str){
-  // Convert "31 May 26" to "2026-05-31"
+  const s=(str||'').trim();
+  // Format: "31 May 26" -> 2026-05-31
   const months={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
-  const parts=(str||'').trim().split(' ');
-  if(parts.length===3){
+  const parts=s.split(' ');
+  if(parts.length===3&&isNaN(parts[1])){
     const day=parts[0].padStart(2,'0');
     const mon=months[parts[1]]||'01';
-    const yr='20'+parts[2];
+    const yr=parts[2].length===2?'20'+parts[2]:parts[2];
     return `${yr}-${mon}-${day}`;
   }
-  return str;
+  // Format: "02/01/2026" (DD/MM/YYYY) -> 2026-01-02
+  if(s.includes('/')){
+    const p=s.split('/');
+    if(p.length===3){
+      const day=p[0].padStart(2,'0');
+      const mon=p[1].padStart(2,'0');
+      const yr=p[2].length===2?'20'+p[2]:p[2];
+      return `${yr}-${mon}-${day}`;
+    }
+  }
+  // Format: "02-01-2026" (DD-MM-YYYY) -> 2026-01-02
+  if(s.includes('-')&&s.length<=10){
+    const p=s.split('-');
+    if(p.length===3&&p[0].length<=2){
+      const day=p[0].padStart(2,'0');
+      const mon=p[1].padStart(2,'0');
+      const yr=p[2].length===2?'20'+p[2]:p[2];
+      return `${yr}-${mon}-${day}`;
+    }
+  }
+  return s;
 }
 
 function handleCSV(e){
@@ -1722,11 +1743,24 @@ function handleCSV(e){
     const prevTxs=S.transactions.filter(t=>t.status==='accepted'&&prevCycleIds.has(t.id));
 
     for(const csv of csvTxs){
-      const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<0.01);
+      // First try exact amount match on single transaction
+      const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<0.01&&m.date===csv.date);
       if(manualMatch){
         matchedManualIds.add(manualMatch.id);
         merged.push({csv,manual:manualMatch,action:'merge'});
       } else {
+        // Try matching split transactions — find all pending txs on same date that sum to CSV amount
+        const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&m.date===csv.date);
+        // Group by checking if any subset sums to csv.amount
+        // Simple approach: find all same-date pending that were split (same source group)
+        // Check if total of same-date transactions matches
+        const sameDateTotal=sameDatePending.reduce((a,t)=>a+t.amount,0);
+        if(sameDatePending.length>1&&Math.abs(sameDateTotal-csv.amount)<0.01){
+          // All same-date pending transactions together match this CSV entry
+          sameDatePending.forEach(m=>matchedManualIds.add(m.id));
+          merged.push({csv,manualGroup:sameDatePending,action:'merge-split'});
+          continue;
+        }
         // Check for duplicate in previous accepted transactions (same date + amount)
         const dupMatch=S.transactions.find(t=>
           t.status==='accepted'&&
@@ -1758,11 +1792,14 @@ function openCSVReview(data){
   if(merged.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">✓ Matched — manual entry + credit card (${merged.length})</div>`;
     merged.forEach((m,i)=>{
+      const manualDesc=m.action==='merge-split'
+        ? m.manualGroup.map(t=>t.description+' ('+fmt(t.amount)+')').join(', ')
+        : '"'+m.manual.description+'" · '+m.manual.category;
       html+=`<div style="border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--gl)">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
           <div>
             <div style="font-size:13px;font-weight:700;color:var(--gd)">${m.csv.description}</div>
-            <div style="font-size:11px;color:var(--green)">Manual entry: "${m.manual.description}" · ${m.manual.category}</div>
+            <div style="font-size:11px;color:var(--green)">${m.action==='merge-split'?'Split match: ':' Manual entry: '}${manualDesc}</div>
           </div>
           <span style="font-size:15px;font-weight:700;color:var(--gd)">${fmt(m.csv.amount)}</span>
         </div>
@@ -1773,6 +1810,7 @@ function openCSVReview(data){
         <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)}</div>
         <div class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value" style="width:100%"></div>
         <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: manual entry will be removed and replaced with this credit card transaction</div>
+        <button class="btn btn-sm" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('merged',${i})">🗑 Remove</button>
       </div>`;
     });
   }
@@ -1798,6 +1836,7 @@ function openCSVReview(data){
           <button class="btn btn-sm" onclick="addCSVSplitRow('c${i}')" style="margin-top:4px">+ Add split</button>
         </div>
         <div class="field" style="margin-top:8px;margin-bottom:0"><label>Summary / description</label><input type="text" value="${t.description}" onchange="S.csvPending.unmatchedCSV[${i}].description=this.value" style="width:100%"></div>
+        <button class="btn btn-sm" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('csv',${i})">🗑 Remove</button>
       </div>`;
     });
   }
@@ -1827,6 +1866,30 @@ function openCSVReview(data){
   openModal('csvReview');
 }
 
+function deleteFromCSVReview(type, idx){
+  const pending=S.csvPending;
+  if(type==='csv'){
+    const tx=pending.unmatchedCSV[idx];
+    if(tx){
+      S.deletedTransactions=S.deletedTransactions||[];
+      S.deletedTransactions.push({...tx,deletedAt:new Date().toISOString(),status:'pending'});
+      pending.unmatchedCSV.splice(idx,1);
+    }
+  } else if(type==='merged'){
+    const m=pending.merged[idx];
+    if(m){
+      // Move CSV tx to deleted bin
+      S.deletedTransactions=S.deletedTransactions||[];
+      S.deletedTransactions.push({...m.csv,deletedAt:new Date().toISOString(),status:'pending'});
+      // Return manual tx back to pending
+      if(m.manual)m.manual.status='pending';
+      if(m.manualGroup)m.manualGroup.forEach(t=>t.status='pending');
+      pending.merged.splice(idx,1);
+    }
+  }
+  // Re-render the review
+  openCSVReview(pending);
+}
 function renderCSVSubcatNamed(key,catName,selected){
   const cat=CATS.find(c=>c.name===catName);
   if(!cat?.subs)return'';
@@ -1880,20 +1943,29 @@ function updateCSVSubcat(i,catName){const el=document.getElementById('csv-sub-'+
 
 function acceptCSVReview(){
   const{merged,unmatchedCSV,unmatchedManual}=S.csvPending;
-  // Process merged: remove manual, add CSV version
+  // Process merged matches
   merged.forEach((m,i)=>{
-    S.transactions=S.transactions.filter(t=>t.id!==m.manual.id);
-    // Check for split
-    const splitKey='m'+i;
-    const splitArea=document.getElementById('csv-split-'+splitKey);
-    if(splitArea&&splitArea.style.display!=='none'){
-      const splits=getCSVSplitRows(splitKey);
-      splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:m.csv.date,description:sp.description||m.csv.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
+    if(m.action==='merge-split'){
+      // Split group match - remove manual entries, add them back as credit
+      const groupIds=new Set((m.manualGroup||[]).map(t=>t.id));
+      S.transactions=S.transactions.filter(t=>!groupIds.has(t.id));
+      (m.manualGroup||[]).forEach(mt=>{
+        S.transactions.push({...mt,method:'credit',status:'pending',source:'csv',date:m.csv.date});
+      });
     } else {
-      S.transactions.push({...m.csv,status:'pending'});
+      // Single match - remove manual, add CSV version
+      S.transactions=S.transactions.filter(t=>t.id!==m.manual?.id);
+      const splitKey='m'+i;
+      const splitArea=document.getElementById('csv-split-'+splitKey);
+      if(splitArea&&splitArea.style.display!=='none'){
+        const splits=getCSVSplitRows(splitKey);
+        splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:m.csv.date,description:sp.description||m.csv.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
+      } else {
+        S.transactions.push({...m.csv,status:'pending'});
+      }
     }
   });
-  // Add unmatched CSV as pending (handle splits)
+  // Add unmatched CSV as pending
   unmatchedCSV.forEach((t,i)=>{
     const splitKey='c'+i;
     const splitArea=document.getElementById('csv-split-'+splitKey);
