@@ -396,11 +396,11 @@ input[type=file]{display:none}
 <!-- CSV Review Modal -->
 <div id="modal-csvReview" class="modal-overlay">
   <div class="modal" style="max-width:620px">
-    <button class="mclose" onclick="saveS();closeModal('csvReview')">✕</button>
+    <button class="mclose" onclick="saveS();closeModal('csvReview');renderWorkflow()">✕</button>
     <div class="modal-title">Review credit card transactions</div>
     <div id="csv-review-body"></div>
     <div class="modal-actions">
-      <button class="btn" onclick="saveS();closeModal('csvReview')">Cancel</button>
+      <button class="btn" onclick="saveS();closeModal('csvReview');renderWorkflow()">Cancel</button>
       <button class="btn btn-primary" onclick="acceptCSVReview()">✓ Accept all & add to pending</button>
     </div>
   </div>
