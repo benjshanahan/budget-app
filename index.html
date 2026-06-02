@@ -957,7 +957,7 @@ function renderWorkflow(){
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Fortnightly workflow · ${getTithingCycles()} cycles</div>
       <button class="btn btn-sm" onclick="openModal('cycleHistory')">📅 History</button>
-      <button class="btn btn-sm" onclick="resetWorkflow()">↺ New fortnight</button>
+      <button class="btn btn-primary btn-sm" onclick="resetWorkflow()" style="background:var(--blue);border-color:#0F4A8A">↺ Start new fortnight</button>
     </div>
     ${steps.map(s=>{
       const done=!!wd['s'+s.n];
@@ -1082,7 +1082,13 @@ function finaliseWorkflow(){
 function toggleStep(n){document.getElementById('sb'+n)?.classList.toggle('open');}
 function doneStep(n){S.workflowData['s'+n]=true;saveS();renderWorkflow();}
 function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
-function resetWorkflow(){if(confirm('Start a new fortnight? This resets the workflow checklist only.')){S.workflowData={};saveS();}}
+function resetWorkflow(){
+  if(confirm('Start a new fortnight?\n\nThis will reset all workflow steps back to the beginning. Your transactions and budget data will not be affected.')){
+    S.workflowData={};
+    saveS();
+    renderWorkflow();
+  }
+}
 function calcTithe(){
   const b=parseFloat(document.getElementById('tb')?.value)||0;
   const k=parseFloat(document.getElementById('tk')?.value)||0;
