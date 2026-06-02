@@ -2188,14 +2188,9 @@ function getNegativeBudgets(){
   const neg=[];
   for(const cat of CATS){
     if(cat.noGrid)continue;
-    if(cat.name==='Renovations'&&(S.overall.renovationsBalance===undefined))continue;
     if(cat.isRenovations){
       const bal=S.overall.renovationsBalance||0;
-      const el=document.createElement('div');
-      el.className='bc';
-      el.innerHTML=`<div class="bc-header"><span class="bc-name">Renovations</span><span class="bc-bal ${bal>0?'pos':'neg'}">${fmt(bal)}</span></div><div class="pbar"><div class="pfill good" style="width:100%"></div></div><div class="bc-meta"><span>Balance remaining</span><span>No yearly budget</span></div>`;
-      el.onclick=()=>openCatDetail('Renovations');
-      grid.appendChild(el);
+      if(bal<0)neg.push({name:'Renovations',amount:Math.abs(bal)});
       continue;
     }
     if(cat.isSpending){
