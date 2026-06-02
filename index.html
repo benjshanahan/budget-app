@@ -2266,11 +2266,13 @@ async function scanDriveFolders(){
       // Match by transaction number at start of filename
       const match=catFiles.find(f=>{
         const fname=f.name.toLowerCase();
-        // Match: starts with number, contains amount
-        const numMatch=fname.startsWith(tx.num+'__')||fname.startsWith(tx.num+'_');
-        const amtStr=tx.amount.toFixed(2).replace('.','_');
-        const amtMatch=fname.includes(amtStr);
-        return numMatch||amtMatch;
+        // Match by number at start (handles both "1." and "1__" formats)
+        const numMatch=fname.startsWith(tx.num+'.')||fname.startsWith(tx.num+' ')||fname.startsWith(tx.num+'_');
+        // Match by amount (handles both "$6587.90" and "6587_90" formats)
+        const amtDot=tx.amount.toFixed(2); // e.g. "6587.90"
+        const amtUnd=tx.amount.toFixed(2).replace('.','_'); // e.g. "6587_90"
+        const amtMatch=fname.includes(amtDot)||fname.includes(amtUnd);
+        return numMatch&&amtMatch;
       });
       if(match){
         // Store link against this transaction
