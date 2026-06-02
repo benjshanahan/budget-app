@@ -2035,15 +2035,17 @@ function openActualSavingsDetail(){
   document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="openModal('editOverall')">✏️ Edit figures</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   openModal('txDetail');
 }
-function saveOverall(){
-  S.overall.actualSavings=parseFloat(document.getElementById('eo-sav').value)||0;
-  S.overall.ndisOwed=parseFloat(document.getElementById('eo-ndis').value)||0;
-  S.overall.cashSavings=parseFloat(document.getElementById('eo-cash').value)||0;
+async function saveOverall(){
+  S.overall.actualSavings=parseFloat(document.getElementById('eo-sav')?.value)||0;
+  S.overall.ndisOwed=parseFloat(document.getElementById('eo-ndis')?.value)||0;
+  S.overall.cashSavings=parseFloat(document.getElementById('eo-cash')?.value)||0;
   const mortInput=document.getElementById('eo-mort');
   if(mortInput)S.overall.mortgageAhead=parseFloat(mortInput.value)||0;
-  const reno=document.getElementById('eo-reno')?.value;
-  if(reno!==''&&reno!==null&&reno!==undefined)S.overall.renovationsBalance=parseFloat(reno)||0;
-  saveS();closeModal('editOverall');
+  const renoVal=document.getElementById('eo-reno')?.value;
+  if(renoVal!==''&&renoVal!=null)S.overall.renovationsBalance=parseFloat(renoVal)||0;
+  closeModal('editOverall');
+  render();
+  await saveToSheets();
 }
 
 
