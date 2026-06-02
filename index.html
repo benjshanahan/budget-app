@@ -1976,7 +1976,8 @@ function openModal(id){
     document.getElementById('eo-sav').value=(S.overall.actualSavings||0).toFixed(2);
     document.getElementById('eo-ndis').value=(S.overall.ndisOwed||0).toFixed(2);
     document.getElementById('eo-cash').value=(S.overall.cashSavings||0).toFixed(2);
-    document.getElementById('eo-mort').value=(S.overall.mortgageAhead||0).toFixed(2);
+    const mortEl=document.getElementById('eo-mort');
+    if(mortEl)mortEl.value=(S.overall.mortgageAhead||0).toFixed(2);
     const renoEl=document.getElementById('eo-reno');
     if(renoEl)renoEl.value=S.overall.renovationsBalance!==undefined?(S.overall.renovationsBalance||0).toFixed(2):'';
   }
@@ -2038,7 +2039,8 @@ function saveOverall(){
   S.overall.actualSavings=parseFloat(document.getElementById('eo-sav').value)||0;
   S.overall.ndisOwed=parseFloat(document.getElementById('eo-ndis').value)||0;
   S.overall.cashSavings=parseFloat(document.getElementById('eo-cash').value)||0;
-  S.overall.mortgageAhead=parseFloat(document.getElementById('eo-mort').value)||0;
+  const mortInput=document.getElementById('eo-mort');
+  if(mortInput)S.overall.mortgageAhead=parseFloat(mortInput.value)||0;
   const reno=document.getElementById('eo-reno')?.value;
   if(reno!==''&&reno!==null&&reno!==undefined)S.overall.renovationsBalance=parseFloat(reno)||0;
   saveS();closeModal('editOverall');
