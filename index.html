@@ -1280,13 +1280,70 @@ function renderNdisStepAction(stepId,txId){
   return'';
 }
 
-function handleNdisUpload(e,txId){
+async function handleNdisUpload(e,txId){
   const file=e.target.files[0];
   if(!file)return;
-  // Store filename reference
-  S.workflowData['ndisFile_'+txId]=file.name;
-  markNdisStep(txId,'upload');
-  alert('Invoice "'+file.name+'" noted. Remember to save it to your NDIS folder with the correct filename.');
+  const tx=S.transactions.find(t=>t.id===txId);
+  // Get category for this tx if already categorised, else we'll upload after categorise
+  const catId=S.workflowData['ndisCat_'+txId];
+  const ndisEntry=S.ndisTransactions?.find(t=>S.workflowData['ndisCat_'+txId]&&t.date===tx?.date&&t.amount===tx?.amount);
+
+  // Generate filename
+  const provider=document.getElementById('ndis-provider-'+txId)?.value||tx?.description||'Provider';
+  const invNo=document.getElementById('ndis-invno-'+txId)?.value||'';
+  const date=tx?.date||new Date().toISOString().split('T')[0];
+  const amount=tx?.amount||0;
+  const num=ndisEntry?.num||'N';
+  const fakeTx={num,provider,invoiceNo:invNo,date,amount};
+  const filename=genNdisFilename(fakeTx);
+
+  // Show uploading state
+  const uploadBtn=document.querySelector('#ndis-inv-upload');
+  if(uploadBtn)uploadBtn.disabled=true;
+
+  try{
+    // Convert file to base64
+    const base64=await new Promise((res,rej)=>{
+      const reader=new FileReader();
+      reader.onload=()=>res(reader.result.split(',')[1]);
+      reader.onerror=rej;
+      reader.readAsDataURL(file);
+    });
+
+    if(catId){
+      // Upload to Drive immediately
+      setSyncStatus('syncing');
+      const resp=await fetch('/.netlify/functions/sheets',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'uploadToDrive',catId,filename,fileBase64:base64,mimeType:file.type||'application/pdf'})
+      });
+      const result=await resp.json();
+      if(result.success){
+        S.workflowData['ndisFile_'+txId]=result.fileName;
+        S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
+        setSyncStatus('synced');
+        markNdisStep(txId,'upload');
+        alert('✅ Invoice uploaded to Google Drive!\n\nFile: '+result.fileName);
+      } else {
+        throw new Error(result.error||'Upload failed');
+      }
+    } else {
+      // Store for later upload after categorisation
+      S.workflowData['ndisFileData_'+txId]=base64;
+      S.workflowData['ndisFileMime_'+txId]=file.type||'application/pdf';
+      S.workflowData['ndisFileOrig_'+txId]=file.name;
+      markNdisStep(txId,'upload');
+      alert('Invoice ready — it will be uploaded to the correct Drive folder after you select the NDIS category.');
+    }
+  } catch(err){
+    console.error('Drive upload error:',err);
+    setSyncStatus('error');
+    alert('Upload failed: '+err.message+'\n\nPlease save the file manually to your NDIS Drive folder.');
+    // Still mark as done so they can continue
+    S.workflowData['ndisFile_'+txId]=file.name;
+    markNdisStep(txId,'upload');
+  }
 }
 
 function markNdisStep(txId,stepId){
@@ -1297,7 +1354,7 @@ function markNdisStep(txId,stepId){
   openNdisProcessModal(txId);
 }
 
-function saveNdisCategorise(txId){
+async function saveNdisCategorise(txId){
   const catId=document.getElementById('ndis-cat-select-'+txId)?.value;
   const provider=document.getElementById('ndis-provider-'+txId)?.value?.trim();
   const invoiceNo=document.getElementById('ndis-invno-'+txId)?.value?.trim();
@@ -1318,6 +1375,31 @@ function saveNdisCategorise(txId){
     status:'paid'
   });
   S.workflowData['ndisCat_'+txId]=catId;
+  // Upload pending file to Drive now that we have the category
+  const pendingFile=S.workflowData['ndisFileData_'+txId];
+  if(pendingFile){
+    const newEntry=S.ndisTransactions[S.ndisTransactions.length-1];
+    const filename=genNdisFilename(newEntry);
+    try{
+      setSyncStatus('syncing');
+      const resp=await fetch('/.netlify/functions/sheets',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'uploadToDrive',catId,filename,fileBase64:pendingFile,mimeType:S.workflowData['ndisFileMime_'+txId]||'application/pdf'})
+      });
+      const result=await resp.json();
+      if(result.success){
+        S.workflowData['ndisFile_'+txId]=result.fileName;
+        S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
+        delete S.workflowData['ndisFileData_'+txId];
+        setSyncStatus('synced');
+        alert('✅ Invoice uploaded to Google Drive!\n\nFile: '+result.fileName);
+      }
+    } catch(err){
+      console.error('Drive upload error:',err);
+      setSyncStatus('error');
+    }
+  }
   markNdisStep(txId,'categorise');
 }
 
@@ -2210,6 +2292,7 @@ function openNdisTxDetail(id){
       <div class="stat"><div class="stat-label">Status</div><div class="stat-value" style="font-size:13px;color:${NDIS_STATUS_COLORS[t.status]}">${NDIS_STATUS_LABELS[t.status]}</div></div>
     </div>
     ${t.comments?`<div style="font-size:13px;color:var(--text2);margin-bottom:12px">📝 ${t.comments}</div>`:''}
+    ${S.workflowData?.['ndisFileLink_'+t.id]?`<a href="${S.workflowData['ndisFileLink_'+t.id]}" target="_blank" class="btn btn-sm" style="margin-bottom:12px;display:inline-flex">📄 View invoice in Drive</a>`:''}
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px">
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Suggested filename</div>
       <div style="font-size:12px;font-family:monospace;word-break:break-all;color:var(--text)">${filename}</div>
