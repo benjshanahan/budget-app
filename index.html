@@ -220,9 +220,9 @@ input[type=file]{display:none}
   <nav class="top-nav" style="padding:0">
     <div style="background:#1A56A0;padding:1rem 1.25rem 0.875rem;text-align:center;width:100%">
       <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-.01em">💰 Shanahan Budget</div>
-      <div style="font-size:12px;color:rgba(255,255,255,0.75);margin-top:3px">22 April 2026 – 20 April 2027</div>
     </div>
     <div style="padding:.75rem 1rem;display:flex;align-items:stretch;gap:8px;border-bottom:1px solid var(--border);background:var(--surface)">
+      <button class="btn" onclick="openModal('budgetOverview')" style="flex:1;justify-content:center;font-size:13px;padding:10px 8px;white-space:nowrap;background:#fff;color:#1A56A0;border-color:#1A56A0">📊 Overview</button>
       <button class="btn btn-primary" onclick="openModal('quickTx')" style="flex:1;justify-content:center;background:#1A56A0;border-color:#0F4A8A;font-size:14px;padding:10px 8px;white-space:nowrap">+ Transaction</button>
       <button class="btn btn-primary" onclick="showTab('workflow-tab')" id="do-money-btn" style="flex:1;justify-content:center;font-size:13px;padding:10px 8px;white-space:nowrap;flex-direction:column;gap:2px;line-height:1.2">
         <span>Update Budget</span>
@@ -456,6 +456,17 @@ input[type=file]{display:none}
       <button class="btn" onclick="closeModal('addNdis')">Cancel</button>
       <button class="btn btn-primary" onclick="saveNdisInvoice()">✓ Add invoice</button>
     </div>
+  </div>
+</div>
+
+<!-- Budget Overview Modal -->
+<div id="modal-budgetOverview" class="modal-overlay">
+  <div class="modal" style="max-width:600px">
+    <button class="mclose" onclick="closeModal('budgetOverview')">✕</button>
+    <div class="modal-title">📊 Budget Overview 2026–27</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">22 April 2026 – 20 April 2027</div>
+    <div id="budget-overview-body"></div>
+    <div class="modal-actions"><button class="btn" onclick="closeModal('budgetOverview')">Close</button></div>
   </div>
 </div>
 
@@ -722,10 +733,13 @@ async function loadFromSheets(){
       S.ndisTransactions=ndisRows.slice(1).map(r=>({
         id:r[0]||'',cat:r[1]||'',num:parseInt(r[2])||0,provider:r[3]||'',
         invoiceNo:r[4]||'',date:r[5]||'',amount:parseFloat(r[6])||0,
-        comments:r[7]||'',status:r[8]||'unpaid'
+        comments:r[7]||'',status:r[8]||'unpaid',
+        driveFileId:r[9]||'',driveLink:r[10]||'',fileName:r[11]||''
       })).filter(t=>t.id);
     }
     setSyncStatus('synced');
+    // Repair any split transactions
+    repairSplitTransactions();
   } catch(e){
     console.error('Load error:',e);
     setSyncStatus('error');
@@ -755,8 +769,8 @@ async function saveToSheets(){
     const cycRows=[['id','date','tithe','gross','transactionIds']];
     (S.completedCycles||[]).forEach(c=>cycRows.push([c.id,c.date,c.tithe||0,c.gross||0,(c.transactionIds||[]).join(',')]));
     data.push({range:'Cycles!A1',values:cycRows});
-    const ndisRows=[['id','cat','num','provider','invoiceNo','date','amount','comments','status']];
-    (S.ndisTransactions||[]).forEach(t=>ndisRows.push([t.id,t.cat,t.num||0,t.provider,t.invoiceNo||'',t.date,t.amount,t.comments||'',t.status]));
+    const ndisRows=[['id','cat','num','provider','invoiceNo','date','amount','comments','status','driveFileId','driveLink','fileName']];
+    (S.ndisTransactions||[]).forEach(t=>ndisRows.push([t.id,t.cat,t.num||0,t.provider,t.invoiceNo||'',t.date,t.amount,t.comments||'',t.status,t.driveFileId||'',t.driveLink||'',t.fileName||'']));
     data.push({range:'NDIS!A1',values:ndisRows});
     await callSheets('write',{data});
     setSyncStatus('synced');
@@ -778,6 +792,19 @@ function scheduleSave(){
   syncTimeout=setTimeout(()=>saveToSheets(),1500);
 }
 
+function repairSplitTransactions(){
+  // Find transactions with category='Split' and flag them for user review
+  let fixed=0;
+  S.transactions.forEach(t=>{
+    if(t.category==='Split'){
+      // Can't auto-fix without knowing splits, mark as flagged for manual review
+      t.flag='Split category needs reassigning — please edit this transaction';
+      t.status='flagged';
+      fixed++;
+    }
+  });
+  if(fixed>0){saveS();console.log('Flagged '+fixed+' split transactions for review');}
+}
 function saveS(){
   scheduleSave();
   render();
@@ -809,6 +836,37 @@ function applyPrivateMode(){
     el.style.pointerEvents=privateMode?'none':'';
   });
 }
+function renderBudgetOverview(){
+  const el=document.getElementById('budget-overview-body');
+  if(!el)return;
+  const cats=CATS.filter(c=>!c.noGrid&&!c.specialAction&&!c.isRenovations&&!c.isSpending);
+  const privMode=privateMode;
+  el.innerHTML=`
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
+            <th style="text-align:left;padding:8px 10px;font-weight:600">Category</th>
+            <th style="text-align:right;padding:8px 10px;font-weight:600" class="${privMode?'private-blur':''}">Fortnightly</th>
+            <th style="text-align:right;padding:8px 10px;font-weight:600" class="${privMode?'private-blur':''}">Yearly</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${cats.map((cat,i)=>`
+            <tr style="border-bottom:1px solid var(--border);background:${i%2===0?'var(--surface)':'var(--surface2)'}">
+              <td style="padding:8px 10px">${cat.name}</td>
+              <td style="text-align:right;padding:8px 10px;font-weight:500" class="${privMode?'private-blur':''}">${fmt(cat.fn)}</td>
+              <td style="text-align:right;padding:8px 10px;font-weight:500" class="${privMode?'private-blur':''}">${fmt(cat.yearly)}</td>
+            </tr>`).join('')}
+          <tr style="border-top:2px solid var(--border);background:var(--gl);font-weight:700">
+            <td style="padding:10px">Total</td>
+            <td style="text-align:right;padding:10px" class="${privMode?'private-blur':''}">${fmt(cats.reduce((a,c)=>a+c.fn,0))}</td>
+            <td style="text-align:right;padding:10px" class="${privMode?'private-blur':''}">${fmt(cats.reduce((a,c)=>a+c.yearly,0))}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+}
 function renderYearProgress(){
   const cycles=getTithingCycles();
   const totalFn=26; // 26 fortnights in the budget year
@@ -833,8 +891,8 @@ function renderOverall(){
   document.getElementById('overall-stats').innerHTML=`
     <div class="stat private-sensitive"><div class="stat-label">Target</div><div class="stat-value">$10,000</div></div>
     <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openActualSavingsDetail()"><div class="stat-label">Actual savings ↗</div><div class="stat-value ${(actualSavings||0)>=10000?'pos':'neg'}">${fmt(actualSavings)}</div></div>
-    <div class="stat" style="cursor:pointer" onclick="openModal('moneyOwedDetail')"><div class="stat-label">Money owed ↗</div><div class="stat-value pos">${fmt((moneyOwed||0)+getNegativeBudgets().reduce((a,b)=>a+b.amount,0))}</div></div>
-    <div class="stat"><div class="stat-label">Renovations</div><div class="stat-value ${(S.overall.renovationsBalance||0)>0?'pos':(S.overall.renovationsBalance||0)<0?'neg':''}">${S.overall.renovationsBalance!=null&&S.overall.renovationsBalance!==undefined?fmt(S.overall.renovationsBalance):'Not set — tap Update figures'}</div></div>
+    <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openModal('moneyOwedDetail')"><div class="stat-label">Money owed ↗</div><div class="stat-value pos">${fmt((moneyOwed||0)+getNegativeBudgets().reduce((a,b)=>a+b.amount,0))}</div></div>
+    <div class="stat private-sensitive"><div class="stat-label">Renovations</div><div class="stat-value ${(S.overall.renovationsBalance||0)>0?'pos':(S.overall.renovationsBalance||0)<0?'neg':''}">${S.overall.renovationsBalance!=null&&S.overall.renovationsBalance!==undefined?fmt(S.overall.renovationsBalance):'Not set — tap Update figures'}</div></div>
     <div class="stat" style="grid-column:span 2">
       <div class="stat-label">Budget year progress</div>
       <div style="position:relative;height:20px;background:var(--surface2);border-radius:var(--radius-sm);overflow:hidden;margin-top:6px;border:1px solid var(--border)">
@@ -863,17 +921,7 @@ function renderBudgetGrid(){
   grid.innerHTML='';
   for(const cat of CATS){
     if(cat.noGrid)continue;
-    if(cat.name==='Renovations'&&(S.overall.renovationsBalance===undefined))continue;
-    let bal,spent,pct,yPct,isOver,isWarn,note='';
-    if(cat.isRenovations){
-      const bal=S.overall.renovationsBalance||0;
-      const el=document.createElement('div');
-      el.className='bc';
-      el.innerHTML=`<div class="bc-header"><span class="bc-name">Renovations</span><span class="bc-bal ${bal>0?'pos':'neg'}">${fmt(bal)}</span></div><div class="pbar"><div class="pfill good" style="width:100%"></div></div><div class="bc-meta"><span>Balance remaining</span><span>No yearly budget</span></div>`;
-      el.onclick=()=>openCatDetail('Renovations');
-      grid.appendChild(el);
-      continue;
-    }
+    if(cat.isRenovations)continue; // Shown in top stats only
     if(cat.isSpending){
       const sb=S.spendingBalances||{benj:{current:0},kasie:{current:0}};
       const cur=cat.person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
@@ -940,7 +988,14 @@ function renderTxList(){
   // Show/hide custom range
   const customRange=document.getElementById('f-custom-range');
   if(customRange)customRange.style.display=pf==='custom'?'flex':'none';
-  let txs=[...S.transactions].sort((a,b)=>b.date.localeCompare(a.date));
+  // Include NDIS transactions in the list
+  const ndisTxsForList=(S.ndisTransactions||[]).map(t=>({
+    id:'ndis_view_'+t.id,date:t.date,description:t.provider+(t.invoiceNo?' '+t.invoiceNo:''),
+    amount:t.amount,category:'NDIS',subcat:NDIS_CATS.find(c=>c.id===t.cat)?.name||'',
+    method:'credit',status:t.status==='unpaid'?'pending':'accepted',source:'ndis',
+    _ndisId:t.id
+  }));
+  let txs=[...S.transactions,...ndisTxsForList].sort((a,b)=>b.date.localeCompare(a.date));
   if(cf)txs=txs.filter(t=>t.category===cf);
   if(sf)txs=txs.filter(t=>t.status===sf);
   if(mf)txs=txs.filter(t=>t.method===mf);
@@ -988,7 +1043,7 @@ function renderWorkflow(){
       const done=!!wd['s'+s.n];
       const active=!done&&(s.n===1||!!wd['s'+(s.n-1)]);
       const nc=done?'sn-d':active?'sn-a':'sn-p';
-      return`<div class="step"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${done?'✓':s.n}</div><div class="step-title">${s.title}</div><span>${done?'<span class="badge bg">Done</span>':active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div><div class="step-body${active||done?' open':''}" id="sb${s.n}"><div class="step-desc">${s.desc}</div>${renderStepBody(s,done,pending)}</div></div>`;
+      return`<div class="step"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${done?'✓':s.n}</div><div class="step-title">${s.title}</div><span>${done?'<span class="badge bg" style="cursor:pointer" onclick="event.stopPropagation();undoStep('+s.n+')">Done ↩</span>':active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div><div class="step-body${active||done?' open':''}" id="sb${s.n}"><div class="step-desc">${s.desc}</div>${renderStepBody(s,done,pending)}</div></div>`;
     }).join('')}
     ${allDone?`<div style="margin-top:16px;padding:16px;background:var(--gl);border:1px solid #5DBB99;border-radius:var(--radius);text-align:center">
       <div style="font-size:14px;font-weight:600;color:var(--gd);margin-bottom:8px">All steps complete!</div>
@@ -1017,7 +1072,7 @@ function renderStepBody(s,done,pending){
     const stepLinks=s.n===5?racqLink:s.n===8?outlookLink+aglLink:'';
     return`${stepLinks}<button class="btn btn-primary btn-sm" onclick="doneStep(${s.n})">${s.ct}</button>`;
   }
-  if(s.action==='tithe'){const carersDefault=S.carersDefault||162.60;return`<a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 RACQ Bank</a><div class="frow" style="margin-bottom:8px"><div class="field"><label>Benj gross income ($)</label><input type="number" id="tb" step="0.01" placeholder="0.00" oninput="calcTithe()"></div><div class="field"><label>Kasie gross income ($)</label><input type="number" id="tk" step="0.01" placeholder="0.00" oninput="calcTithe()"></div></div><div class="field" style="margin-bottom:8px"><label>Carers Payment ($)</label><div style="display:flex;gap:8px;align-items:center"><input type="number" id="tc" step="0.01" value="${carersDefault.toFixed(2)}" oninput="calcTithe()" style="flex:1"><button class="btn btn-sm" onclick="saveCarersDefault()" style="white-space:nowrap;flex-shrink:0">Set as default</button></div><div class="field-hint">Default: ${fmt(carersDefault)}</div></div><div id="tithe-out" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="saveTithe()">✓ Record tithe & done</button><button class="btn btn-sm" id="transfer-zcm-btn" style="display:none;background:var(--blue);color:#fff;border-color:#0F4A8A" onclick="showZCMTransfer()">💸 Manually transfer tithe to ZCM</button></div>`;}
+  if(s.action==='tithe'){const carersDefault=S.carersDefault||162.60;return`<a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex;margin-right:6px">🔗 RACQ Bank</a><a href="https://outlook.live.com/mail/" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 Outlook</a><div class="frow" style="margin-bottom:8px"><div class="field"><label>Benj gross income ($)</label><input type="number" id="tb" step="0.01" placeholder="0.00" oninput="calcTithe()"></div><div class="field"><label>Kasie gross income ($)</label><input type="number" id="tk" step="0.01" placeholder="0.00" oninput="calcTithe()"></div></div><div class="field" style="margin-bottom:8px"><label>Carers Payment ($)</label><div style="display:flex;gap:8px;align-items:center"><input type="number" id="tc" step="0.01" value="${carersDefault.toFixed(2)}" oninput="calcTithe()" style="flex:1"><button class="btn btn-sm" onclick="saveCarersDefault()" style="white-space:nowrap;flex-shrink:0">Set as default</button></div><div class="field-hint">Default: ${fmt(carersDefault)}</div></div><div id="tithe-out" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="saveTithe()">✓ Record tithe & done</button><button class="btn btn-sm" id="transfer-zcm-btn" style="display:none;background:var(--blue);color:#fff;border-color:#0F4A8A" onclick="showZCMTransfer()">💸 Manually transfer tithe to ZCM</button></div>`;}
   if(s.action==='spending')return`<a href='https://banking.racqbank.com.au/#/login' target='_blank' class='btn btn-sm' style='margin-bottom:10px;display:inline-flex'>🔗 RACQ Bank</a><button class="btn btn-primary btn-sm" onclick="openSpendingModal()">💳 Enter debit card balances</button>`;
   if(s.action==='ndis'){
     const ndisTxs=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='accepted');
@@ -1053,7 +1108,14 @@ function renderStepBody(s,done,pending){
   }
   if(s.action==='cash')return`<div class="field"><label>Cash added to savings ($)</label><input type="number" id="cash-in" step="0.01" placeholder="0.00"><div class="field-hint">Current cash savings: ${fmt(S.overall.cashSavings||0)}</div></div><button class="btn btn-primary btn-sm" onclick="addCash()">✓ Update & done</button>`;
 
-  if(s.action==='mortgage')return`<a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 RACQ Bank</a><div class="field"><label>Amount ahead on mortgage ($)</label><input type="number" id="mort-in" step="0.01" value="${(S.overall.mortgageAhead||0).toFixed(2)}"></div><button class="btn btn-primary btn-sm" onclick="saveMortgage()">✓ Update & done</button>`;
+  if(s.action==='mortgage')return`
+    <a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 RACQ Bank</a>
+    <div class="banner banner-warn" style="margin-bottom:12px">
+      <div style="font-weight:600;margin-bottom:4px">Before updating mortgage position:</div>
+      <div style="font-size:12px">Transfer any remaining balance from your <strong>Pay</strong> account and <strong>NDIS</strong> account to <strong>Mortgage Savings</strong>.</div>
+    </div>
+    <div class="field"><label>Amount ahead on mortgage ($)</label><input type="number" id="mort-in" step="0.01" value="${(S.overall.mortgageAhead||0).toFixed(2)}"></div>
+    <button class="btn btn-primary btn-sm" onclick="saveMortgage()">✓ Update & done</button>`;
   return'';
 }
 
@@ -1063,16 +1125,42 @@ function renderCycleHistory(){
   const cycles=S.completedCycles||[];
   if(!cycles.length){el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--text2);font-size:13px">No completed fortnights yet</div>';return;}
   const lastCycleId=cycles[cycles.length-1].id;
-  el.innerHTML=cycles.slice().reverse().map(c=>`
-    <div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px">
+  el.innerHTML=cycles.slice().reverse().map(c=>{
+    const cycTxs=S.transactions.filter(t=>(c.transactionIds||[]).includes(t.id));
+    const isLast=c.id===lastCycleId;
+    return`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <div>
           <div style="font-size:14px;font-weight:600">Fortnight completed ${fmtDate(c.date)}</div>
-          <div style="font-size:12px;color:var(--text2)">Tithe: ${fmt(c.tithe||0)} · Gross: ${fmt(c.gross||0)}</div>
+          <div style="font-size:12px;color:var(--text2)">Tithe: ${fmt(c.tithe||0)} · ${cycTxs.length} transactions</div>
         </div>
-        ${c.id===lastCycleId?`<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="confirmRevertCycle('${c.id}')">↩ Revert this fortnight</button>`:'<span class="badge bgray">Past</span>'}
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="toggleCycleDetail('cycle-detail-${c.id}')">📋 Review</button>
+          ${isLast?`<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="confirmRevertCycle('${c.id}')">↩ Revert</button>`:''}
+        </div>
       </div>
-    </div>`).join('');
+      <div id="cycle-detail-${c.id}" style="display:none;margin-top:10px">
+        <div class="tx-list">
+          ${cycTxs.length?cycTxs.map(t=>`
+            <div class="tx ${t.status}" style="cursor:pointer" onclick="closeModal('cycleHistory');setTimeout(()=>openTxDetail('${t.id}'),100)">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500">${t.description}</div>
+                <div style="font-size:11px;color:var(--text2)">${fmtDate(t.date)} · ${t.category}${t.subcat?' · '+t.subcat:''}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-size:13px;font-weight:700">${fmt(t.amount)}</div>
+                <div style="font-size:10px;color:var(--blue)">tap to edit</div>
+              </div>
+            </div>`).join(''):'<div style="text-align:center;padding:10px;font-size:12px;color:var(--text2)">No transactions recorded for this fortnight</div>'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCycleDetail(id){
+  const el=document.getElementById(id);
+  if(el)el.style.display=el.style.display==='none'?'block':'none';
 }
 function confirmRevertCycle(id){
   if(!confirm('Revert this fortnight?\n\nThis will:\n• Remove the fortnightly allocation\n• Delete all transactions entered during this workflow\n• Return manually entered transactions to pending\n\nThis cannot be undone.'))return;
@@ -1116,12 +1204,29 @@ function finaliseWorkflow(){
   S.completedCycles.push(cycleRecord);
   // Reset workflow
   S.workflowData={};
+  S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
   saveS();
   renderWorkflow();
   showTab('dashboard');
-  alert('Fortnight finalised! All budget allocations updated. Great work 🎉');
+  // Show completion message
+  setTimeout(()=>{
+    const d=document.createElement('div');
+    d.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1A56A0;color:#fff;padding:24px 28px;border-radius:12px;font-size:15px;z-index:9999;max-width:320px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,0.3)';
+    const closeBtn=document.createElement('button');
+    closeBtn.textContent='Done';
+    closeBtn.style.cssText='background:#fff;color:#1A56A0;border:none;border-radius:6px;padding:8px 20px;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px';
+    closeBtn.onclick=()=>d.remove();
+    d.innerHTML='🎉 <strong>Fortnight complete!</strong><br><br>All budgets have been updated and this fortnight has been saved to your history.<br><br>';
+    d.appendChild(closeBtn);
+    document.body.appendChild(d);
+  },300);
 }
 function toggleStep(n){document.getElementById('sb'+n)?.classList.toggle('open');}
+function undoStep(n){
+  if(!confirm('Undo step '+n+'? This will mark it as incomplete so you can redo it.'))return;
+  delete S.workflowData['s'+n];
+  saveS();renderWorkflow();
+}
 function doneStep(n){S.workflowData['s'+n]=true;saveS();renderWorkflow();}
 function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
 function resetWorkflow(){
@@ -1173,7 +1278,12 @@ function saveNDIS(){const a=parseFloat(document.getElementById('ndis-in')?.value
 function addCash(){const a=parseFloat(document.getElementById('cash-in')?.value)||0;S.overall.cashSavings=(S.overall.cashSavings||0)+a;saveS();doneStep(10);}
 function addOther(){const desc=document.getElementById('oth-desc')?.value.trim(),amt=parseFloat(document.getElementById('oth-amt')?.value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.transactions.push({id:'oth_'+Date.now(),date:new Date().toISOString().split('T')[0],description:desc,amount:amt,category:'Other',method:'other',status:'accepted',source:'manual'});if(document.getElementById('oth-desc'))document.getElementById('oth-desc').value='';if(document.getElementById('oth-amt'))document.getElementById('oth-amt').value='';saveS();alert('Added!');}
 function saveMoneyOwed(){const a=parseFloat(document.getElementById('ow-total-in')?.value)||0;S.overall.moneyOwed=a;saveS();doneStep(12);}
-function saveMortgage(){const a=parseFloat(document.getElementById('mort-in')?.value)||0;S.overall.mortgageAhead=a;saveS();doneStep(10);}
+function saveMortgage(){
+  const a=parseFloat(document.getElementById('mort-in')?.value)||0;
+  S.overall.mortgageAhead=a;
+  saveS();
+  doneStep(10);
+}
 function acceptAllPending(){let n=0;S.transactions.filter(t=>t.status==='pending').forEach(t=>{t.status='accepted';n++;});saveS();doneStep(4);alert(n+' transactions accepted.');}
 
 function openSpendingModal(){
@@ -1209,8 +1319,8 @@ function calcSpending(person){
   const transferEl=document.getElementById(person.toLowerCase()+'-transfer');
   if(resultEl){resultEl.textContent=(current<0?'-':'')+fmt(Math.abs(current));resultEl.style.color=current<0?'var(--red)':current<20?'var(--amber)':'var(--green)';}
   if(transferEl){
-    if(current>=20)transferEl.innerHTML=`<div class="transfer-box"><div class="t-label">↗ Transfer to ${person}'s debit account</div><div class="t-amount">${fmt(current)}</div><div class="t-sub">Full balance to debit card</div></div>`;
-    else transferEl.innerHTML=`<div class="debt-box"><div class="t-label">⚠ Balance below $20 — transfer minimum</div><div class="t-amount">Transfer $20.00</div><div class="t-sub">Current will show as ${fmtS(current-20)} after transfer</div></div>`;
+    if(current>=20){const transferAmt=Math.min(current,70);transferEl.innerHTML=`<div class="transfer-box"><div class="t-label">↗ Transfer to ${person}'s debit account</div><div class="t-amount">${fmt(transferAmt)}</div><div class="t-sub">${transferAmt<current?'Capped at $70 fortnightly limit':'Full balance to debit card'}</div></div>`;}
+    else{const needed=Math.max(0,parseFloat((20-debit).toFixed(2)));if(needed>0)transferEl.innerHTML=`<div class="debt-box"><div class="t-label">⚠ Balance below $20 — top up needed</div><div class="t-amount">Transfer ${fmt(needed)}</div><div class="t-sub">Will bring debit to $20.00</div></div>`;else transferEl.innerHTML=`<div class="transfer-box"><div class="t-label">✓ Balance OK</div><div class="t-amount">${fmt(debit)}</div><div class="t-sub">No transfer needed</div></div>`;}
   }
 }
 
@@ -1298,11 +1408,13 @@ function renderNdisProcessSteps(txId,doneSteps){
 function renderNdisStepAction(stepId,txId){
   const tx=S.transactions.find(t=>t.id===txId);
   if(stepId==='upload')return`
-    <div class="upload-zone" onclick="document.getElementById('ndis-inv-upload').click()" style="padding:1rem">
+    <div class="upload-zone" onclick="document.getElementById('ndis-inv-upload-${txId}').click()" style="padding:1rem">
       <div style="font-size:22px;margin-bottom:4px">📄</div>
       <div style="font-size:12px;color:var(--text2)">Click to upload invoice PDF</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">AI will scan and auto-fill invoice details</div>
     </div>
-    <input type="file" id="ndis-inv-upload" accept=".pdf" onchange="handleNdisUpload(event,'${txId}')">
+    <input type="file" id="ndis-inv-upload-${txId}" accept=".pdf,image/*" onchange="handleNdisUpload(event,'${txId}')">
+    <div id="ndis-scan-status-${txId}" style="font-size:12px;color:var(--text2);margin-top:6px;display:none"></div>
     <button class="btn btn-sm" style="margin-top:6px" onclick="markNdisStep('${txId}','upload')">Skip — no invoice available</button>`;
   if(stepId==='pay')return`
     <button class="btn btn-primary btn-sm" onclick="markNdisStep('${txId}','pay')">✓ I have paid this invoice</button>`;
@@ -1328,8 +1440,75 @@ function renderNdisStepAction(stepId,txId){
     </div>
     <button class="btn btn-primary btn-sm" onclick="saveNdisCategorise('${txId}')">✓ Save & continue</button>`;
   if(stepId==='claim')return`
+    <a href="https://login.my.gov.au/las/mygov-login?execution=e1s1" target="_blank" class="btn btn-sm" style="margin-bottom:8px;display:inline-flex">🔗 Open MyGov</a>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">${S.workflowData?.['ndisFileLink_'+txId]?'<a href="'+S.workflowData['ndisFileLink_'+txId]+'" target="_blank" style="color:var(--blue)">📄 Download invoice from Drive to upload to MyGov</a>':'No invoice file linked yet'}</div>
     <button class="btn btn-primary btn-sm" onclick="markNdisStep('${txId}','claim')">✓ Claimed in MyGov</button>`;
   return'';
+}
+
+async function handleRetroNdisUpload(e,ndisId,catId){
+  const file=e.target.files[0];
+  if(!file)return;
+  const tx=S.ndisTransactions?.find(t=>t.id===ndisId);
+  if(!tx)return;
+  const base64=await new Promise((res,rej)=>{
+    const reader=new FileReader();
+    reader.onload=()=>res(reader.result.split(',')[1]);
+    reader.onerror=rej;
+    reader.readAsDataURL(file);
+  });
+  const filename=genNdisFilename(tx);
+  try{
+    setSyncStatus('syncing');
+    const resp=await fetch('/.netlify/functions/sheets',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'uploadToDrive',catId,filename,fileBase64:base64,mimeType:file.type||'application/pdf'})
+    });
+    const result=await resp.json();
+    if(result.success){
+      tx.driveFileId=result.fileId;
+      tx.driveLink=result.webViewLink;
+      tx.fileName=result.fileName;
+      setSyncStatus('synced');
+      saveS();
+      closeModal('txDetail');
+      setTimeout(()=>openNdisTxDetail(ndisId),100);
+      alert('Invoice uploaded to Drive: '+result.fileName);
+    }
+  } catch(err){
+    console.error('Upload error:',err);
+    setSyncStatus('error');
+    alert('Upload failed: '+err.message);
+  }
+}
+async function scanInvoiceWithAI(base64,mimeType,txId){
+  const statusEl=document.getElementById('ndis-scan-status-'+txId);
+  if(statusEl){statusEl.style.display='block';statusEl.textContent='🔍 Scanning invoice with AI...';}
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:500,
+        messages:[{role:'user',content:[
+          {type:'document',source:{type:'base64',media_type:mimeType||'application/pdf',data:base64}},
+          {type:'text',text:'Extract from this invoice: provider name, invoice number, date (YYYY-MM-DD), and total amount. Respond ONLY with JSON: {"provider":"","invoiceNo":"","date":"","amount":0}'}
+        ]}]
+      })
+    });
+    const data=await resp.json();
+    const text=data.content?.[0]?.text||'';
+    const clean=text.replace(/```json|```/g,'').trim();
+    const parsed=JSON.parse(clean);
+    if(statusEl){statusEl.textContent='✅ Invoice scanned!';}
+    return parsed;
+  } catch(err){
+    console.error('AI scan error:',err);
+    if(statusEl){statusEl.textContent='Could not auto-scan — please fill in details manually.';}
+    return null;
+  }
 }
 
 async function handleNdisUpload(e,txId){
@@ -1362,6 +1541,18 @@ async function handleNdisUpload(e,txId){
       reader.readAsDataURL(file);
     });
 
+    // Try AI scanning to pre-fill fields
+    const scanned=await scanInvoiceWithAI(base64,file.type||'application/pdf',txId);
+    if(scanned){
+      // Pre-fill categorise fields if they exist
+      const provEl=document.getElementById('ndis-provider-'+txId);
+      const invEl=document.getElementById('ndis-invno-'+txId);
+      const dateEl=document.getElementById('ndis-date-'+txId);
+      if(provEl&&scanned.provider&&!provEl.value)provEl.value=scanned.provider;
+      if(invEl&&scanned.invoiceNo&&!invEl.value)invEl.value=scanned.invoiceNo;
+      // Store for later use
+      S.workflowData['ndisScanned_'+txId]=scanned;
+    }
     if(catId){
       // Upload to Drive immediately
       setSyncStatus('syncing');
@@ -1374,9 +1565,12 @@ async function handleNdisUpload(e,txId){
       if(result.success){
         S.workflowData['ndisFile_'+txId]=result.fileName;
         S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
+        // Also save to the ndisTransaction record for persistence
+        const ndisEntry=S.ndisTransactions?.find(t=>S.workflowData['ndisCat_'+txId]&&t.date===tx?.date&&Math.abs(t.amount-(tx?.amount||0))<0.01);
+        if(ndisEntry){ndisEntry.driveFileId=result.fileId;ndisEntry.driveLink=result.webViewLink;ndisEntry.fileName=result.fileName;}
         setSyncStatus('synced');
         markNdisStep(txId,'upload');
-        alert('✅ Invoice uploaded to Google Drive!\n\nFile: '+result.fileName);
+        alert('Invoice uploaded to Google Drive! File: '+result.fileName);
       } else {
         throw new Error(result.error||'Upload failed');
       }
@@ -1751,6 +1945,10 @@ function handleCSV(e){
       const date=parseMyCardDate(rawDate);
       const amt=Math.abs(parseFloat((cols[1]||'0').replace(/[^0-9.-]/g,''))||0);
       if(!amt)continue;
+      // Extract last 4 digits of card
+      const cardCol=cols[2]||'';
+      const cardLast4Match=cardCol.match(/\d{4}$/);
+      const cardLast4=cardLast4Match?cardLast4Match[0]:'';
       const txDetails=cols[5]||'';
       const mcCategory=cols[6]||'';
       const merchantName=cols[7]||txDetails;
@@ -1758,7 +1956,7 @@ function handleCSV(e){
       const cat=autoAssign(description,mcCategory,txDetails);
       const catObj=CATS.find(c=>c.name===cat);
       const subcat=catObj?.subs?autoSubcat(description,catObj.subs,txDetails):'';
-      csvTxs.push({id:'csv_'+Date.now()+'_'+i,date,description,amount:amt,category:cat,subcat,method:'credit',status:'pending',source:'csv',rawDetails:txDetails});
+      csvTxs.push({id:'csv_'+Date.now()+'_'+i,date,description,amount:amt,category:cat,subcat,method:'credit',status:'pending',source:'csv',rawDetails:txDetails,cardLast4});
     }
 
     // Get all unaccepted manual transactions from this fortnight
@@ -1821,7 +2019,7 @@ function openCSVReview(data){
   if(merged.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">✓ Matched — manual entry + credit card (${merged.length})</div>`;
     merged.forEach((m,i)=>{
-      if(m._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${m.csv.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(m.csv.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${m.csv.category} · Matched</span></div>`;return;}
+      if(m._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('m${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${m.csv.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(m.csv.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${m.csv.category} · Matched</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
       const manualDesc=m.action==='merge-split'
         ? m.manualGroup.map(t=>t.description+' ('+fmt(t.amount)+')').join(', ')
         : '"'+m.manual.description+'" · '+m.manual.category;
@@ -1850,16 +2048,19 @@ function openCSVReview(data){
   if(unmatchedCSV.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">New credit card transactions (${unmatchedCSV.length})</div>`;
     unmatchedCSV.forEach((t,i)=>{
-      if(t._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${t.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(t.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${t.category}</span></div>`;return;}
+      if(t._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('c${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${t.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(t.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${t.category}${t.cardLast4?' · ****'+t.cardLast4:''}</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
       html+=`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-          <span style="font-size:13px;font-weight:600">${t.description}</span>
+          <div>
+            <span style="font-size:13px;font-weight:600">${t.description}</span>
+            ${t.cardLast4?`<span style="font-size:11px;color:var(--text2);margin-left:6px">****${t.cardLast4}</span>`:''}
+          </div>
           <span style="font-size:14px;font-weight:700">${fmt(t.amount)}</span>
         </div>
       ${t.isDuplicate?`<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — ${fmt(t.amount)} on ${fmtDate(t.date)} already exists: "${t.duplicateOf?.description}". Check carefully.</div>`:''}
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched')"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option></select></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched')"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option><option value="Money Owed"${t.category==='Money Owed'?' selected':''}>💰 Money owed to you</option></select></div>
         </div>
         <div id="csv-sub-c${i}" style="margin-top:8px">${renderCSVSubcatNamed('c'+i,t.category,t.subcat)}</div>
         <div id="csv-split-c${i}" style="display:none;margin-top:8px">
@@ -1868,6 +2069,7 @@ function openCSVReview(data){
           <button class="btn btn-sm" onclick="addCSVSplitRow('c${i}')" style="margin-top:4px">+ Add split</button>
         </div>
         <div id="csv-desc-c${i}" class="field" style="margin-top:8px;margin-bottom:0"><label>Summary / description</label><input type="text" value="${t.description}" onchange="S.csvPending.unmatchedCSV[${i}].description=this.value" style="width:100%"></div>
+        <div id="csv-owed-c${i}" class="field" style="margin-top:8px;margin-bottom:0;display:${t.category==='Money Owed'?'block':'none'}"><label>Who owes you?</label><input type="text" id="csv-owed-desc-c${i}" placeholder="e.g. John owes for dinner" value="${t.owedDesc||''}" onchange="S.csvPending.unmatchedCSV[${i}].owedDesc=this.value" style="width:100%"></div>
         <button class="btn btn-sm" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('csv',${i})">🗑 Remove</button>
         <button class="btn btn-sm btn-primary" style="margin-top:8px;margin-left:6px;background:var(--green);border-color:var(--gd)" onclick="markCSVReviewed('c${i}',this.closest('.csv-tx-row'))">✓ Reviewed</button>
       </div>`;
@@ -1899,6 +2101,13 @@ function openCSVReview(data){
   openModal('csvReview');
 }
 
+function unmarkCSVReviewed(key){
+  const prefix=key[0];
+  const idx=parseInt(key.slice(1));
+  if(prefix==='c'&&S.csvPending.unmatchedCSV[idx])delete S.csvPending.unmatchedCSV[idx]._reviewed;
+  if(prefix==='m'&&S.csvPending.merged[idx])delete S.csvPending.merged[idx]._reviewed;
+  openCSVReview(S.csvPending);
+}
 function markCSVReviewed(key,rowEl){
   const prefix=key[0];
   const idx=parseInt(key.slice(1));
@@ -1948,15 +2157,18 @@ function toggleCSVSplit(key,catName,idx,section){
   const splitArea=document.getElementById('csv-split-'+key);
   const subcatArea=document.getElementById('csv-sub-'+key);
   const descArea=document.getElementById('csv-desc-'+key);
+  const owedArea=document.getElementById('csv-owed-'+key);
   if(catName==='Split'){
     if(splitArea)splitArea.style.display='block';
     if(subcatArea)subcatArea.style.display='none';
     if(descArea)descArea.style.display='none';
+    if(owedArea)owedArea.style.display='none';
     if(splitArea&&!splitArea.querySelector('.csv-split-row'))addCSVSplitRow(key);
   } else {
     if(splitArea)splitArea.style.display='none';
     if(subcatArea)subcatArea.style.display='block';
     if(descArea)descArea.style.display='block';
+    if(owedArea)owedArea.style.display=catName==='Money Owed'?'block':'none';
   }
 }
 function addCSVSplitRow(key){
@@ -2040,6 +2252,17 @@ function acceptCSVReview(){
     if(splitArea&&splitArea.style.display!=='none'){
       const splits=getCSVSplitRows(splitKey);
       splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
+    } else if(t.category==='Renovations'){
+      S.overall.renovationsBalance=(S.overall.renovationsBalance||0)-t.amount;
+      S.transactions.push({...t,status:'pending'});
+    } else if(t.category==='Money Owed'){
+      // Add to money owed list on dashboard
+      const owedDesc=t.owedDesc||document.getElementById('csv-owed-desc-'+splitKey)?.value||t.description;
+      S.moneyOwedItems=S.moneyOwedItems||[];
+      S.moneyOwedItems.push({id:'ow_'+Date.now()+'_'+i,description:owedDesc,amount:t.amount,date:t.date});
+      S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
+      // Also record as a transaction
+      S.transactions.push({...t,status:'pending'});
     } else {
       S.transactions.push({...t,status:'pending'});
     }
@@ -2048,8 +2271,20 @@ function acceptCSVReview(){
   unmatchedManual.forEach(t=>{
     if(t.keepAction==='remove')S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
   });
+  // Check for Renovations transactions and show reminder
+  const renoTxs=[...merged.map(m=>m.csv),...unmatchedCSV].filter(t=>t.category==='Renovations');
   S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
   saveS();closeModal('csvReview');doneStep(1);
+  if(renoTxs.length){
+    const total=renoTxs.reduce((a,t)=>a+t.amount,0);
+    setTimeout(()=>{
+      const d=document.createElement('div');
+      d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A56A0;color:#fff;padding:14px 18px;border-radius:var(--radius);font-size:13px;z-index:9999;max-width:320px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
+      d.innerHTML='🏗 Renovations: Please transfer <strong>'+fmt(total)+'</strong> from Renovations to Savings.<br><a href="https://banking.racqbank.com.au/#/login" target="_blank" style="color:#fff;font-weight:700;text-decoration:underline;margin-top:6px;display:inline-block">Open RACQ Bank →</a>';
+      document.body.appendChild(d);
+      setTimeout(()=>d.remove(),8000);
+    },300);
+  }
 }
 
 function autoAssign(desc, mcCat, rawDetails){
@@ -2125,6 +2360,7 @@ function openModal(id){
   if(id==='quickTx'){document.getElementById('qt-date').value=new Date().toISOString().split('T')[0];populateQTCats();}
   if(id==='moneyOwedDetail'){renderOwedList();const od=document.getElementById('ow-date');if(od)od.value=new Date().toISOString().split('T')[0];}
   if(id==='recycleBin')renderRecycleBin();
+  if(id==='budgetOverview')renderBudgetOverview();
   if(id==='cycleHistory')renderCycleHistory();
   if(id==='addNdis')openNdisModal();
   document.getElementById('modal-'+id).classList.add('open');
@@ -2134,16 +2370,15 @@ function openActualSavingsDetail(){
   const{actualSavings,ndisOwed,cashSavings,mortgageAhead}=S.overall;
   const cycles=getTithingCycles();
   // Calculate positive budget balances (excluding special cats)
-  const excludeCats=['Tithing','Mortgage','Spending - Benj','Spending - Kasie','Other'];
+  const includeCats=['Food','School','Petrol','House','Presents','Entertainment','Child','Maintenance','Clothing','Medical'];
   let positiveBudgets=0;
   const budgetBreakdown=[];
   for(const cat of CATS){
-    if(cat.noGrid||cat.isSpending||cat.specialAction)continue;
-    if(excludeCats.includes(cat.name))continue;
+    if(!includeCats.includes(cat.name))continue;
     const budgeted=cat.fn*cycles;
     const spent=getCatSpent(cat.name);
     const bal=budgeted-spent;
-    if(bal>0&&spent<=cat.yearly){
+    if(bal>0){
       positiveBudgets+=bal;
       budgetBreakdown.push({name:cat.name,bal});
     }
@@ -2303,7 +2538,12 @@ function saveQuickTx(){
     S.overall.renovationsBalance=(S.overall.renovationsBalance||0)-amount;
     S.transactions.push({id:'tx_'+Date.now(),date,description:desc,amount,category:'Renovations',subcat:'',method,notes,status:'pending',source:'manual'});
     saveS();closeModal('quickTx');
-    setTimeout(()=>alert("Renovations transaction saved. Please transfer "+fmt(amount)+" from Renovations account to Savings."),300);
+    setTimeout(()=>{
+      const d=document.createElement('div');
+      d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A56A0;color:#fff;padding:14px 18px;border-radius:8px;font-size:13px;z-index:9999;max-width:320px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
+      d.innerHTML='🏗 Renovations saved. Please transfer <strong>'+fmt(amount)+'</strong> from Renovations to Savings.<br><a href="https://banking.racqbank.com.au/#/login" target="_blank" style="color:#fff;font-weight:700;text-decoration:underline;margin-top:6px;display:inline-block">Open RACQ Bank →</a>';
+      document.body.appendChild(d);setTimeout(()=>d.remove(),8000);
+    },300);
 
     return;
   }
@@ -2422,7 +2662,14 @@ function exportCSV(){
   const sf=document.getElementById('f-status').value;
   const mf=document.getElementById('f-method').value;
   const pf=document.getElementById('f-period')?.value||'';
-  let txs=[...S.transactions].sort((a,b)=>b.date.localeCompare(a.date));
+  // Include NDIS transactions in the list
+  const ndisTxsForList=(S.ndisTransactions||[]).map(t=>({
+    id:'ndis_view_'+t.id,date:t.date,description:t.provider+(t.invoiceNo?' '+t.invoiceNo:''),
+    amount:t.amount,category:'NDIS',subcat:NDIS_CATS.find(c=>c.id===t.cat)?.name||'',
+    method:'credit',status:t.status==='unpaid'?'pending':'accepted',source:'ndis',
+    _ndisId:t.id
+  }));
+  let txs=[...S.transactions,...ndisTxsForList].sort((a,b)=>b.date.localeCompare(a.date));
   if(cf)txs=txs.filter(t=>t.category===cf);
   if(sf)txs=txs.filter(t=>t.status===sf);
   if(mf)txs=txs.filter(t=>t.method===mf);
@@ -2599,7 +2846,7 @@ function openNdisCatDetail(catId){
           <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
             <div style="font-size:13px;font-weight:700">${fmt(t.amount)}</div>
             <div style="font-size:11px;padding:2px 7px;border-radius:20px;background:${NDIS_STATUS_BG[t.status]};color:${NDIS_STATUS_COLORS[t.status]};font-weight:600">${NDIS_STATUS_LABELS[t.status]}</div>
-            ${S.workflowData?.['ndisFileLink_'+t.id]?`<a href="${S.workflowData['ndisFileLink_'+t.id]}" target="_blank" style="font-size:10px;color:var(--blue)" onclick="event.stopPropagation()">📄 Invoice</a>`:''}
+            ${(S.workflowData?.['ndisFileLink_'+t.id]||t.driveLink)?`<a href="${S.workflowData?.['ndisFileLink_'+t.id]||t.driveLink}" target="_blank" style="font-size:10px;color:var(--blue)" onclick="event.stopPropagation()">📄 Invoice</a>`:''}
           </div>
         </div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No invoices yet</div>'}
     </div>`;
@@ -2639,7 +2886,8 @@ function openNdisTxDetail(id){
     ${t.status==='unpaid'?`<div style="margin-top:12px"><div class="banner banner-err">⚠ This invoice needs to be paid. Check provider bank details on the invoice.</div></div>`:''}`;
 
   document.getElementById('txd-actions').innerHTML=`
-    <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteNdisTx('${t.id}')">🗑 Delete</button>
+    <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="if(confirm('Delete this NDIS invoice?')){deleteNdisTx('${t.id}');closeModal('txDetail');}">🗑 Delete</button>
+    ${(t.driveLink||S.workflowData?.['ndisFileLink_'+t.id])?`<a href="${t.driveLink||S.workflowData?.['ndisFileLink_'+t.id]}" target="_blank" class="btn btn-sm">📄 View invoice</a>`:''}
     <button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   openModal('txDetail');
 }
