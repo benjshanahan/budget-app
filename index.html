@@ -1121,6 +1121,7 @@ function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
 function resetWorkflow(){
   if(confirm('Start a new fortnight?\n\nThis will reset all workflow steps back to the beginning. Your transactions and budget data will not be affected.')){
     S.workflowData={};
+    S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
     saveS();
     renderWorkflow();
   }
@@ -1951,8 +1952,6 @@ function addCSVSplitRow(key){
 }
 
 function autoFillCSVSplit(key){
-  // Find the total amount for this CSV transaction
-  // key is like 'c0', 'c1', 'm0' etc
   const prefix=key[0];
   const idx=parseInt(key.slice(1));
   let totalAmt=0;
@@ -1961,14 +1960,18 @@ function autoFillCSVSplit(key){
   if(!totalAmt)return;
   const rows=document.getElementById('csv-split-rows-'+key)?.querySelectorAll('.csv-split-row');
   if(!rows||rows.length<2)return;
+  // Sum all rows except last
   let used=0;
   for(let i=0;i<rows.length-1;i++){
-    const inputs=rows[i].querySelectorAll('input');
-    used+=parseFloat(inputs[1]?.value)||0;
+    const inputs=rows[i].querySelectorAll('input[type=number]');
+    used+=parseFloat(inputs[0]?.value)||0;
   }
-  const remaining=Math.max(0,parseFloat((totalAmt-used).toFixed(2)));
-  const lastInputs=rows[rows.length-1].querySelectorAll('input');
-  if(lastInputs[1]&&remaining>0)lastInputs[1].value=remaining.toFixed(2);
+  const remaining=parseFloat((totalAmt-used).toFixed(2));
+  const lastInput=rows[rows.length-1].querySelector('input[type=number]');
+  // Only auto-fill last row if it's not focused (user not editing it)
+  if(lastInput&&document.activeElement!==lastInput){
+    lastInput.value=remaining>0?remaining.toFixed(2):'';
+  }
 }
 function getCSVSplitRows(key){
   const rows=document.querySelectorAll('#csv-split-rows-'+key+' .csv-split-row');
@@ -2231,15 +2234,17 @@ function autoFillLastSplit(){
   if(!totalAmt)return;
   const rows=document.getElementById('split-rows')?.querySelectorAll('.split-row');
   if(!rows||rows.length<2)return;
-  // Sum all rows except the last
   let usedAmt=0;
   for(let i=0;i<rows.length-1;i++){
     const amt=parseFloat(rows[i].querySelectorAll('input[type=number]')[0]?.value)||0;
     usedAmt+=amt;
   }
-  const remaining=Math.max(0,parseFloat((totalAmt-usedAmt).toFixed(2)));
+  const remaining=parseFloat((totalAmt-usedAmt).toFixed(2));
   const lastInput=rows[rows.length-1].querySelectorAll('input[type=number]')[0];
-  if(lastInput&&remaining>0)lastInput.value=remaining.toFixed(2);
+  // Only auto-fill if not currently focused
+  if(lastInput&&document.activeElement!==lastInput){
+    lastInput.value=remaining>0?remaining.toFixed(2):'';
+  }
 }
 
 function saveQuickTx(){
