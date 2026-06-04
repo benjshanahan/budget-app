@@ -612,7 +612,9 @@ const fmtS = n => (n<0?'-':'')+fmt(n);
 const getNextMoneyDay = () => MONEY_DAYS.find(d=>d>new Date())||MONEY_DAYS[MONEY_DAYS.length-1];
 const getTithingCycles = () => S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').length;
 const getCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name).reduce((a,t)=>a+(t.amount||0),0);
-const getAppCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name&&t.source!=='import').reduce((a,t)=>a+(t.amount||0),0);
+// Cutoff date: transactions after this are "app" transactions (not pre-existing imports)
+const APP_START_DATE = '2026-05-21';
+const getAppCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name&&t.date>=APP_START_DATE).reduce((a,t)=>a+(t.amount||0),0);
 const getCatBudgeted = name => {
   const cat=CATS.find(c=>c.name===name);
   if(!cat||cat.noGrid||cat.isSpending)return 0;
@@ -916,10 +918,11 @@ function applyPrivateMode(){
     el.classList.toggle('private-blur',privateMode);
     el.style.pointerEvents=privateMode?'none':'';
   });
-  // Also blur all budget category balance amounts
-  document.querySelectorAll('.bc-bal,.bc-meta span:last-child,.stat-value').forEach(el=>{
-    el.classList.toggle('private-blur',privateMode);
-  });
+  // Re-render budget grid and overview to apply blur classes
+  renderBudgetGrid();
+  if(document.getElementById('modal-budgetOverview')?.style.display!=='none'){
+    renderBudgetOverview();
+  }
 }
 function renderBudgetOverview(){
   const el=document.getElementById('budget-overview-body');
@@ -1072,12 +1075,13 @@ function renderBudgetGrid(){
     const fnMarkerPct=Math.min(cycles/26*100,100);
     const el=document.createElement('div');
     el.className='bc';
-    el.innerHTML=`<div class="bc-header"><span class="bc-name">${cat.name}</span><span class="bc-bal ${bc}">${(isOver||bal<0)?'-':''}${fmt(Math.abs(bal))}</span></div>
+    const pvBlur=privateMode?'private-blur':'';
+    el.innerHTML=`<div class="bc-header"><span class="bc-name">${cat.name}</span><span class="bc-bal ${bc} ${pvBlur}">${(isOver||bal<0)?'-':''}${fmt(Math.abs(bal))}</span></div>
       <div class="pbar" style="position:relative">
         <div class="pfill ${fc}" style="width:${yPct.toFixed(1)}%"></div>
         <div style="position:absolute;top:-2px;height:8px;width:2px;background:var(--text2);border-radius:1px;left:${fnMarkerPct.toFixed(1)}%;transform:translateX(-50%)"></div>
       </div>
-      <div class="bc-meta"><span>${cat.isSpending?'Current balance':'Spent '+fmt(spent)}</span><span>${note||Math.round(yPct)+'% of '+fmt(cat.yearly)+' yearly'}</span></div>`;
+      <div class="bc-meta"><span class="${pvBlur}">${cat.isSpending?'Current balance':'Spent '+fmt(spent)}</span><span class="${pvBlur}">${note||Math.round(yPct)+'% of '+fmt(cat.yearly)+' yearly'}</span></div>`;
     el.onclick=()=>openCatDetail(cat.name);
     grid.appendChild(el);
   }
@@ -2535,7 +2539,7 @@ function openActualSavingsDetail(){
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:var(--gl);border-radius:var(--radius-sm);border:1px solid #5DBB99;margin-top:4px">
         <div style="font-size:14px;font-weight:700;color:var(--gd)">Total actual savings</div>
-        <div style="font-size:22px;font-weight:700;color:var(--gd)">${fmt(actualSavings)}</div>
+        <div style="font-size:22px;font-weight:700;color:var(--gd)">${fmt(ndisOwed+cashSavings+Math.max(0,netSavings))}</div>
       </div>
     </div>`;
   document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="openModal('editOverall')">✏️ Edit figures</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
