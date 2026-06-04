@@ -612,9 +612,8 @@ const fmtS = n => (n<0?'-':'')+fmt(n);
 const getNextMoneyDay = () => MONEY_DAYS.find(d=>d>new Date())||MONEY_DAYS[MONEY_DAYS.length-1];
 const getTithingCycles = () => S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').length;
 const getCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name).reduce((a,t)=>a+(t.amount||0),0);
-// Cutoff date: transactions after this are "app" transactions (not pre-existing imports)
-const APP_START_DATE = '2026-05-21';
-const getAppCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name&&t.date>=APP_START_DATE).reduce((a,t)=>a+(t.amount||0),0);
+// App transactions are those NOT from the original import (id doesn't start with 'import_')
+const getAppCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name&&!t.id.startsWith('import_')).reduce((a,t)=>a+(t.amount||0),0);
 const getCatBudgeted = name => {
   const cat=CATS.find(c=>c.name===name);
   if(!cat||cat.noGrid||cat.isSpending)return 0;
