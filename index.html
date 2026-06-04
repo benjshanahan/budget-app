@@ -740,6 +740,8 @@ async function loadFromSheets(){
     setSyncStatus('synced');
     // Repair any split transactions
     repairSplitTransactions();
+    // One-time fix for known split transactions
+    applyKnownSplitFixes();
   } catch(e){
     console.error('Load error:',e);
     setSyncStatus('error');
@@ -792,6 +794,68 @@ function scheduleSave(){
   syncTimeout=setTimeout(()=>saveToSheets(),1500);
 }
 
+function applyKnownSplitFixes(){
+  const fixes=[
+    {
+      oldId:'csv_1780398828859_1',date:'2026-06-02',
+      splits:[
+        {description:'Coles Online - Face moisturiser (Kasie)',amount:20.00,category:'Clothing'},
+        {description:'Coles Online - Toothpaste for kids',amount:7.50,category:'Child'},
+        {description:'Coles Online - Cleaning products & toilet paper',amount:25.70,category:'House'},
+        {description:'Coles Online - Groceries',amount:206.75,category:'Food'},
+      ]
+    },
+    {
+      oldId:'csv_1780398828859_12',date:'2026-05-30',
+      splits:[
+        {description:'Coles Online - Vitamins and medicine',amount:37.26,category:'Medical'},
+        {description:'Coles Online - Groceries',amount:80.81,category:'Food'},
+      ]
+    },
+    {
+      oldId:'csv_1780398828859_21',date:'2026-05-25',
+      splits:[
+        {description:'Coles Online - Dishwasher tablets',amount:6.87,category:'House'},
+        {description:'Coles Online - Groceries',amount:178.38,category:'Food'},
+      ]
+    },
+    {
+      oldId:'csv_1780398828859_10',date:'2026-05-31',
+      splits:[
+        {description:'Woolworths - Groceries',amount:2.80,category:'Food'},
+        {description:'Woolworths - Vitamin C',amount:25.25,category:'Medical'},
+        {description:'Woolworths - Omega 3 gummies (Zeke)',amount:17.50,category:'Other'},
+      ]
+    },
+  ];
+  let changed=false;
+  fixes.forEach(fix=>{
+    const existing=S.transactions.find(t=>t.id===fix.oldId);
+    if(!existing)return; // Already fixed
+    // Check splits don't already exist
+    const alreadyFixed=S.transactions.some(t=>t.id===fix.oldId+'_split_0');
+    if(alreadyFixed)return;
+    // Remove the old Split transaction
+    S.transactions=S.transactions.filter(t=>t.id!==fix.oldId);
+    // Add individual split transactions
+    fix.splits.forEach((sp,i)=>{
+      S.transactions.push({
+        id:fix.oldId+'_split_'+i,
+        date:fix.date,
+        description:sp.description,
+        amount:sp.amount,
+        category:sp.category,
+        subcat:'',
+        method:'credit',
+        status:'accepted',
+        source:'csv'
+      });
+    });
+    changed=true;
+    console.log('Fixed split: '+fix.oldId);
+  });
+  if(changed)saveS();
+}
 function repairSplitTransactions(){
   // Find transactions with category='Split' and flag them for user review
   let fixed=0;
