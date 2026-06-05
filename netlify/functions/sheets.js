@@ -73,6 +73,13 @@ exports.handler = async (event) => {
 
     if (action === 'write') {
       const data = body.data;
+      // Clear each range before writing to remove stale rows
+      await sheets.spreadsheets.values.batchClear({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: {
+          ranges: data.map(d => d.range),
+        },
+      });
       await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: SPREADSHEET_ID,
         requestBody: {
