@@ -815,7 +815,7 @@ async function saveToSheets(){
     data.push({range:'Config!A1',values:Object.entries(S.overall).map(([k,v])=>[k,v])});
     const owRows=[['id','description','amount','date']];
     (S.moneyOwedItems||[]).forEach(o=>owRows.push([o.id,o.description,o.amount,o.date||'']));
-    data.push({range:'MoneyOwed!A1',values:owRows});
+    data.push({range:'MoneyOwed!A1:Z1000',values:owRows});
     data.push({range:'Spending!A1',values:[
       ['benjCurrent',S.spendingBalances?.benj?.current||0],
       ['kasieCurrent',S.spendingBalances?.kasie?.current||0],
