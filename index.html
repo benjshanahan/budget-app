@@ -1437,6 +1437,11 @@ function resetWorkflow(){
   if(confirm('Start a new fortnight?\n\nThis will reset all workflow steps back to the beginning. Any pending transactions from this workflow will be removed.')){
     // Remove all pending transactions (they were added this fn and not yet accepted)
     S.transactions=S.transactions.filter(t=>t.status!=='pending'||t.source==='import');
+    // Remove NDIS transactions added during this workflow (tracked in workflowData)
+    const ndisAddedThisFn=S.workflowData.ndisAddedIds||[];
+    if(ndisAddedThisFn.length){
+      S.ndisTransactions=S.ndisTransactions.filter(t=>!ndisAddedThisFn.includes(t.id));
+    }
     S.workflowData={};
     S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
     S.overall.ndisOwed=0;
@@ -1903,6 +1908,9 @@ async function saveNdisCategorise(txId){
   S.ndisTransactions=S.ndisTransactions||[];
   // Remove existing entry if re-doing this step
   S.ndisTransactions=S.ndisTransactions.filter(t=>t.id!=='ndis_pending_'+txId);
+  // Track this for potential cleanup if workflow is reset
+  S.workflowData.ndisAddedIds=S.workflowData.ndisAddedIds||[];
+  if(!S.workflowData.ndisAddedIds.includes('ndis_pending_'+txId))S.workflowData.ndisAddedIds.push('ndis_pending_'+txId);
   S.ndisTransactions.push({
     id:'ndis_pending_'+txId,cat:catId,num,
     provider:provider||tx?.description||'',
@@ -2867,7 +2875,9 @@ function addSplitRow(){
         <option value="">-- Category --</option>
         ${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}
         <option value="Other">Other</option>
+        <option value="NDIS">🏥 NDIS</option>
         <option value="Renovations">🏗 Renovations</option>
+        <option value="💰 Add to Money Owed">💰 Add to Money Owed</option>
       </select>
       <input type="number" placeholder="Amount $" step="0.01" min="0" oninput="autoFillLastSplit()" style="flex:1;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
       <button class="btn btn-sm" onclick="this.closest('.split-row').remove();autoFillLastSplit()" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button>
@@ -2947,7 +2957,17 @@ function saveQuickTx(){
       const inputs=row.querySelectorAll('input');
       const amt=parseFloat(inputs[0]?.value)||0;
       const splitDesc=inputs[1]?.value||desc||'Split transaction';
-      if(amt)S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date,description:splitDesc,amount:amt,category:cat,subcat:'',method,notes,status:'pending',source:'manual'});
+      if(!amt)return;
+      if(cat==='💰 Add to Money Owed'){
+        // Add directly to money owed dashboard
+        S.moneyOwedItems=S.moneyOwedItems||[];
+        S.moneyOwedItems.push({id:'ow_'+Date.now()+'_'+Math.random(),description:splitDesc,amount:amt,date});
+        S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
+        // Also record as transaction with note
+        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date,description:splitDesc,amount:amt,category:'💰 Add to Money Owed',subcat:'',method,notes:'Added to Money Owed on dashboard',status:'accepted',source:'manual'});
+      } else {
+        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date,description:splitDesc,amount:amt,category:cat,subcat:'',method,notes,status:'pending',source:'manual'});
+      }
     });
   }else{
     const cat=document.getElementById('qt-cat').value,catObj=CATS.find(c=>c.name===cat),subcat=catObj?.subs?document.getElementById('qt-subcat').value:'';
