@@ -637,16 +637,32 @@ const calcSpendingBal = (person,debit) => {
   const prevDebt=prev<0?prev:0;
   return debit+prevDebt-getFNSpending(person)+70;
 };
+const calcActualSavings = () => {
+  const{ndisOwed,cashSavings,mortgageAhead}=S.overall;
+  const cycles=getTithingCycles();
+  const appCycles=Math.max(0,cycles-PRE_APP_CYCLES);
+  let pos=0;
+  for(const cat of CATS){
+    if(cat.noGrid||cat.isSpending||cat.isRenovations)continue;
+    const startBal=STARTING_BALANCES[cat.name]||0;
+    const spent=getAppCatSpent(cat.name);
+    const bal=startBal+(appCycles*cat.fn)-spent;
+    if(bal>0)pos+=bal;
+  }
+  const netSavings=(mortgageAhead||0)-pos;
+  return (ndisOwed||0)+(cashSavings||0)+Math.max(0,netSavings);
+};
 const getNetSavings = () => {
   const {actualSavings,ndisOwed,cashSavings,mortgageAhead,moneyOwed}=S.overall;
   const cycles=getTithingCycles();
+  const appCycles=Math.max(0,cycles-PRE_APP_CYCLES);
   let pos=0;
   for(const cat of CATS){
-    if(cat.noGrid||cat.isSpending)continue;
-    const budgeted=cat.fn*cycles;
-    const spent=getCatSpent(cat.name);
-    const bal=budgeted-spent;
-    if(bal>0&&spent<=cat.yearly)pos+=bal;
+    if(cat.noGrid||cat.isSpending||cat.isRenovations)continue;
+    const startBal=STARTING_BALANCES[cat.name]||0;
+    const spent=getAppCatSpent(cat.name);
+    const bal=startBal+(appCycles*cat.fn)-spent;
+    if(bal>0)pos+=bal;
   }
   return(actualSavings||0)+(ndisOwed||0)+(cashSavings||0)+(mortgageAhead||0)+(moneyOwed||0)-pos;
 };
@@ -1027,7 +1043,7 @@ function renderOverall(){
   const{actualSavings,ndisOwed,cashSavings,mortgageAhead,moneyOwed}=S.overall;
   document.getElementById('overall-stats').innerHTML=`
     <div class="stat private-sensitive"><div class="stat-label">Target</div><div class="stat-value">$10,000</div></div>
-    <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openActualSavingsDetail()"><div class="stat-label">Actual savings ↗</div><div class="stat-value ${(actualSavings||0)>=10000?'pos':'neg'}">${fmt(actualSavings)}</div></div>
+    <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openActualSavingsDetail()"><div class="stat-label">Actual savings ↗</div><div class="stat-value ${calcActualSavings()>=10000?'pos':'neg'}">${fmt(calcActualSavings())}</div></div>
     <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openModal('moneyOwedDetail')"><div class="stat-label">Money owed ↗</div><div class="stat-value pos">${fmt((moneyOwed||0)+getNegativeBudgets().reduce((a,b)=>a+b.amount,0))}</div></div>
     <div class="stat private-sensitive"><div class="stat-label">Renovations</div><div class="stat-value ${(S.overall.renovationsBalance||0)>0?'pos':(S.overall.renovationsBalance||0)<0?'neg':''}">${S.overall.renovationsBalance!=null&&S.overall.renovationsBalance!==undefined?fmt(S.overall.renovationsBalance):'Not set — tap Update figures'}</div></div>
     <div class="stat" style="grid-column:span 2">
