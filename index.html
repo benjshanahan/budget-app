@@ -178,8 +178,10 @@ input[type=file]{display:none}
 @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 .loading-text{font-size:15px;color:var(--text2)}
 
-.private-blur .stat-value{filter:blur(6px);user-select:none;color:var(--text)!important}
+.private-blur .stat-value,.private-blur .bc-bal,.private-blur .bc-meta span,.private-blur td.blurrable{filter:blur(6px);user-select:none;color:var(--text)!important}
 .private-blur{pointer-events:none}
+.blur-val{display:inline-block;transition:filter .2s}
+.blur-active{filter:blur(6px);user-select:none}
 /* Responsive */
 @media(max-width:480px){
   .budget-grid{grid-template-columns:1fr 1fr}
@@ -525,7 +527,7 @@ const CATS = [
 
 // ─── STARTING BALANCES (as at app creation, after 3 fortnights) ──────────────
 const STARTING_BALANCES = {
-  'Bills': 1373.37,
+  'Bills': 1246.97,
   'Food': 412.61,
   'School': 458.24,
   'Petrol': 340.84,
@@ -629,8 +631,9 @@ const getCatBudgeted = name => {
 const getFNSpending = person => {
   const catName='Spending - '+person;
   const dates=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').map(t=>t.date).sort();
-  const last=dates[dates.length-1]||'2026-04-22';
-  return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>last).reduce((a,t)=>a+(t.amount||0),0);
+  // Use second-to-last tithe as cutoff (transactions since last fortnight started)
+  const cutoff=dates.length>=2?dates[dates.length-2]:dates[0]||'2026-04-22';
+  return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>cutoff).reduce((a,t)=>a+(t.amount||0),0);
 };
 const calcSpendingBal = (person,debit) => {
   // Use prevDebt (stored from last fortnight's result), not current (which is this fn's result)
@@ -952,9 +955,13 @@ function applyPrivateMode(){
     el.classList.toggle('private-blur',privateMode);
     el.style.pointerEvents=privateMode?'none':'';
   });
+  // Blur all monetary values in the page
+  document.querySelectorAll('.blur-val').forEach(el=>{
+    el.classList.toggle('blur-active',privateMode);
+  });
   // Re-render budget grid and overview to apply blur classes
   renderBudgetGrid();
-  if(document.getElementById('modal-budgetOverview')?.style.display!=='none'){
+  if(document.getElementById('modal-budgetOverview')?.classList.contains('open')){
     renderBudgetOverview();
   }
 }
