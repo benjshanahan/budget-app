@@ -1143,7 +1143,7 @@ function renderBudgetGrid(){
         <div class="pfill ${fc}" style="width:${yPct.toFixed(1)}%"></div>
         <div style="position:absolute;top:-2px;height:8px;width:2px;background:var(--text2);border-radius:1px;left:${fnMarkerPct.toFixed(1)}%;transform:translateX(-50%)"></div>
       </div>
-      <div class="bc-meta"><span class="${pvBlur}">${cat.isSpending?'Current balance':'Spent '+fmt(spent)}</span><span class="${pvBlur}">${note||Math.round(yPct)+'% of '+fmt(cat.yearly)+' yearly'}</span></div>`;
+      <div class="bc-meta"><span class="${pvBlur}">${cat.isSpending?'Current balance':''}</span><span class="${pvBlur}">${cat.isSpending?'':note||Math.round(yPct)+'% of '+fmt(cat.yearly)+' yearly'}</span></div>`;
     el.onclick=()=>openCatDetail(cat.name);
     grid.appendChild(el);
   }
@@ -2206,10 +2206,13 @@ function openCatDetail(catName){
   if(cat?.isSpending){
     const sb=S.spendingBalances||{};
     const cur=cat.person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
-    headerStats=`<div class="stat"><div class="stat-label">Current balance</div><div class="stat-value ${cur>=0?'pos':'neg'}">${fmtS(cur)}</div></div><div class="stat"><div class="stat-label">F/N spending</div><div class="stat-value">${fmt(getFNSpending(cat.person))}</div></div><div class="stat"><div class="stat-label">Yearly spent</div><div class="stat-value">${fmt(spent)}</div></div>`;
+    headerStats=`<div class="stat"><div class="stat-label">Current balance</div><div class="stat-value ${cur>=0?'pos':'neg'}">${fmtS(cur)}</div></div><div class="stat"><div class="stat-label">F/N spending</div><div class="stat-value">${fmt(getFNSpending(cat.person))}</div></div>`;
   }else{
-    const budgeted=cat?cat.fn*cycles:0,bal=budgeted-spent;
-    headerStats=`<div class="stat"><div class="stat-label">Balance</div><div class="stat-value ${bal>=0?'pos':'neg'}">${fmtS(bal)}</div></div><div class="stat"><div class="stat-label">Spent</div><div class="stat-value">${fmt(spent)}</div></div><div class="stat"><div class="stat-label">Yearly budget</div><div class="stat-value">${fmt(cat?.yearly||0)}</div></div>`;
+    const appCycles=Math.max(0,cycles-PRE_APP_CYCLES);
+    const startBal=STARTING_BALANCES[catName]||0;
+    const appSpent=getAppCatSpent(catName);
+    const bal=startBal+(appCycles*cat.fn)-appSpent;
+    headerStats=`<div class="stat"><div class="stat-label">Balance</div><div class="stat-value ${bal>=0?'pos':'neg'}">${fmtS(bal)}</div></div><div class="stat"><div class="stat-label">Fortnightly budget</div><div class="stat-value">${fmt(cat?.fn||0)}</div></div><div class="stat"><div class="stat-label">Yearly budget</div><div class="stat-value">${fmt(cat?.yearly||0)}</div></div>`;
   }
   document.getElementById('txd-title').textContent=catName;
   document.getElementById('txd-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">${headerStats}</div><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">Transactions (${txs.length})</div><div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}</div>`;
