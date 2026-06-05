@@ -635,9 +635,10 @@ const getFNSpending = person => {
   return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>cutoff).reduce((a,t)=>a+(t.amount||0),0);
 };
 const calcSpendingBal = (person,debit) => {
-  // Use prevDebt (stored from last fortnight's result), not current (which is this fn's result)
-  const prevDebt=person==='Benj'?(S.spendingBalances?.benj?.prevDebt||0):(S.spendingBalances?.kasie?.prevDebt||0);
-  return debit+prevDebt-getFNSpending(person)+70;
+  // Formula: prevBalance - fnSpending + $70
+  // Debit is only used for transfer calculation, not budget balance
+  const prevBal=person==='Benj'?(S.spendingBalances?.benj?.current||0):(S.spendingBalances?.kasie?.current||0);
+  return prevBal-getFNSpending(person)+70;
 };
 const calcActualSavings = () => {
   const{ndisOwed,cashSavings,mortgageAhead}=S.overall;
@@ -1521,8 +1522,16 @@ function calcSpending(person){
   const transferEl=document.getElementById(person.toLowerCase()+'-transfer');
   if(resultEl){resultEl.textContent=(current<0?'-':'')+fmt(Math.abs(current));resultEl.style.color=current<0?'var(--red)':current<20?'var(--amber)':'var(--green)';}
   if(transferEl){
-    if(current>=20){const transferAmt=Math.min(current,70);transferEl.innerHTML=`<div class="transfer-box"><div class="t-label">↗ Transfer to ${person}'s debit account</div><div class="t-amount">${fmt(transferAmt)}</div><div class="t-sub">${transferAmt<current?'Capped at $70 fortnightly limit':'Full balance to debit card'}</div></div>`;}
-    else{const needed=Math.max(0,parseFloat((20-debit).toFixed(2)));if(needed>0)transferEl.innerHTML=`<div class="debt-box"><div class="t-label">⚠ Balance below $20 — top up needed</div><div class="t-amount">Transfer ${fmt(needed)}</div><div class="t-sub">Will bring debit to $20.00</div></div>`;else transferEl.innerHTML=`<div class="transfer-box"><div class="t-label">✓ Balance OK</div><div class="t-amount">${fmt(debit)}</div><div class="t-sub">No transfer needed</div></div>`;}
+    if(current<20){
+      // Balance below $20 — top up to $20
+      const needed=Math.max(0,parseFloat((20-debit).toFixed(2)));
+      if(needed>0)transferEl.innerHTML=`<div class="debt-box"><div class="t-label">⚠ Balance below $20 — top up needed</div><div class="t-amount">Transfer ${fmt(needed)}</div><div class="t-sub">Will bring debit account to $20.00</div></div>`;
+      else transferEl.innerHTML=`<div class="transfer-box"><div class="t-label">✓ Balance OK</div><div class="t-amount">${fmt(debit)}</div><div class="t-sub">No transfer needed</div></div>`;
+    } else {
+      // Transfer balance minus debit, capped at $70
+      const transferAmt=Math.min(Math.max(0,parseFloat((current-debit).toFixed(2))),70);
+      transferEl.innerHTML=`<div class="transfer-box"><div class="t-label">↗ Transfer to ${person}'s debit account</div><div class="t-amount">${fmt(transferAmt)}</div><div class="t-sub">${transferAmt>=70?'Capped at $70 fortnightly limit':'Transfer balance less current debit'}</div></div>`;
+    }
   }
 }
 
@@ -1532,8 +1541,8 @@ function saveSpending(){
   const benjResult=calcSpendingBal('Benj',bD);
   const kasieResult=calcSpendingBal('Kasie',kD);
   S.spendingBalances={
-    benj:{current:benjResult,debit:bD,prevDebt:benjResult<0?benjResult:0},
-    kasie:{current:kasieResult,debit:kD,prevDebt:kasieResult<0?kasieResult:0}
+    benj:{current:benjResult,debit:bD},
+    kasie:{current:kasieResult,debit:kD}
   };
   saveS();closeModal('spending');doneStep(7);
 }
