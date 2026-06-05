@@ -432,30 +432,30 @@ input[type=file]{display:none}
   <div class="modal">
     <button class="mclose" onclick="closeModal('addNdis')">✕</button>
     <div class="modal-title">Add NDIS invoice</div>
+    <div class="upload-zone" onclick="document.getElementById('ndis-add-file').click()" style="padding:10px;margin-bottom:12px;text-align:center">
+      <div style="font-size:20px;margin-bottom:2px">📄</div>
+      <div style="font-size:12px;color:var(--text2)">Click to upload invoice PDF</div>
+      <div style="font-size:11px;color:var(--text2)">AI will scan and auto-fill details below</div>
+    </div>
+    <input type="file" id="ndis-add-file" accept=".pdf,image/*" onchange="handleNdisAddUpload(event)" style="display:none">
+    <div id="ndis-add-scan-status" style="font-size:12px;color:var(--text2);margin-bottom:8px;display:none"></div>
     <div class="field"><label>Category</label>
       <select id="ndis-cat">
-        ${NDIS_CATS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}
+        <option value="">-- Select category --</option>
       </select>
     </div>
     <div class="frow">
       <div class="field"><label>Date</label><input type="date" id="ndis-date"></div>
-      <div class="field"><label>Amount ($)</label><input type="number" id="ndis-amount" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>Amount ($)</label><input type="number" id="ndis-amount" step="0.01" placeholder="0.00" oninput="previewNdisFilename"></div>
     </div>
-    <div class="field"><label>Provider</label><input type="text" id="ndis-provider" placeholder="e.g. Fortify Physiotherapy"></div>
-    <div class="field"><label>Invoice number</label><input type="text" id="ndis-invno" placeholder="e.g. INV017839"></div>
+    <div class="field"><label>Provider</label><input type="text" id="ndis-provider" placeholder="e.g. Fortify Physiotherapy" oninput="previewNdisFilename()"></div>
+    <div class="field"><label>Invoice number</label><input type="text" id="ndis-invno" placeholder="e.g. INV017839" oninput="previewNdisFilename()"></div>
     <div class="field"><label>Comments</label><input type="text" id="ndis-comments" placeholder="e.g. Weekly hydrotherapy"></div>
-    <div class="field"><label>Status</label>
-      <select id="ndis-status">
-        <option value="unpaid">Unpaid</option>
-        <option value="paid">Paid</option>
-        <option value="claimed">Claimed</option>
-        <option value="reimbursed">Reimbursed</option>
-      </select>
-    </div>
-    <div id="ndis-filename-preview" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:1rem;font-size:11px;color:var(--text2);font-family:monospace;word-break:break-all;display:none"></div>
+    <div id="ndis-filename-preview" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;font-size:11px;color:var(--text2);font-family:monospace;word-break:break-all;display:none"></div>
+    <div id="ndis-add-file-status" style="font-size:12px;color:var(--green);margin-bottom:8px;display:none"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('addNdis')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveNdisInvoice()">✓ Add invoice</button>
+      <button class="btn btn-primary" onclick="saveNdisInvoice()">✓ Add invoice & save to Drive</button>
     </div>
   </div>
 </div>
@@ -789,6 +789,8 @@ async function loadFromSheets(){
       })).filter(t=>t.id);
     }
     setSyncStatus('synced');
+    // Migrate imported NDIS transactions into S.ndisTransactions so Drive links persist
+    migrateNdisImports();
     // Repair any split transactions
     repairSplitTransactions();
     // One-time fix for known split transactions
@@ -850,6 +852,22 @@ function scheduleSave(){
   syncTimeout=setTimeout(()=>saveToSheets(),1500);
 }
 
+function migrateNdisImports(){
+  // Move any NDIS_IMPORT entries not yet in S.ndisTransactions
+  const existingIds=new Set((S.ndisTransactions||[]).map(t=>t.id));
+  let migrated=0;
+  NDIS_IMPORT.forEach(t=>{
+    if(!existingIds.has(t.id)){
+      S.ndisTransactions=S.ndisTransactions||[];
+      S.ndisTransactions.push({...t});
+      migrated++;
+    }
+  });
+  if(migrated>0){
+    console.log('Migrated '+migrated+' NDIS import transactions');
+    saveS();
+  }
+}
 function applyKnownSplitFixes(){
   const fixes=[
     {
@@ -1256,14 +1274,7 @@ function renderStepBody(s,done,pending){
         <a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm">🔗 RACQ Bank</a>
         <a href="https://login.my.gov.au/las/mygov-login?execution=e1s1" target="_blank" class="btn btn-sm">🔗 MyGov</a>
       </div>
-      <div class="banner banner-info" style="margin-bottom:12px;flex-direction:column;align-items:flex-start;gap:4px">
-        <div style="font-weight:600;margin-bottom:4px">📋 How this step works</div>
-        <div style="font-size:12px;line-height:1.6">For each NDIS transaction, work through the 4 sub-steps in order:<br>
-        <strong>1. Upload invoice</strong> — AI will scan and auto-fill details<br>
-        <strong>2. Pay invoice</strong> — confirm payment to provider<br>
-        <strong>3. Select NDIS category</strong> — invoice is automatically saved to Google Drive with the correct filename at this step<br>
-        <strong>4. Claim in MyGov</strong> — download the invoice from Drive and upload to MyGov portal</div>
-      </div>
+
     ${pendingNdis.length?`<div class="banner banner-warn" style="margin-bottom:10px">⚠ ${pendingNdis.length} NDIS transaction${pendingNdis.length>1?'s are':' is'} still pending — accept them in Step 4 first</div>`:''}
       ${unprocessed.length?`
         <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Transactions to process (${unprocessed.length})</div>
@@ -1553,7 +1564,7 @@ function openNdisProcessModal(txId){
   const tx=S.transactions.find(t=>t.id===txId);
   if(!tx)return;
   S.workflowData._currentNdisTxId=txId;
-  const steps=['upload','pay','categorise','claim'];
+  const steps=['upload','pay','claim','finalise'];
   const doneSteps=S.workflowData['ndisSteps_'+txId]||[];
 
   document.getElementById('ndis-proc-title').textContent='NDIS: '+tx.description;
@@ -1572,63 +1583,124 @@ function openNdisProcessModal(txId){
 
 function renderNdisProcessSteps(txId,doneSteps){
   const tx=S.transactions.find(t=>t.id===txId);
+  const wf=S.workflowData;
+  const scanned=wf?.['ndisScanned_'+txId]||{};
   const ndisSteps=[
-    {id:'upload',label:'Upload invoice',desc:'Upload the PDF invoice for this transaction'},
-    {id:'pay',label:'Pay invoice',desc:'Confirm payment has been made to the provider'},
-    {id:'categorise',label:'Select NDIS category',desc:'Assign to the correct NDIS budget category'},
-    {id:'claim',label:'Claim in MyGov',desc:'Submit the claim through MyGov NDIS portal'},
+    {id:'upload',label:'Upload invoice & fill details'},
+    {id:'pay',label:'Pay invoice'},
+    {id:'claim',label:'Claim in MyGov'},
+    {id:'finalise',label:'Finalise NDIS transaction'},
   ];
   return ndisSteps.map((s,i)=>{
     const done=doneSteps.includes(s.id);
     const active=!done&&(i===0||doneSteps.includes(ndisSteps[i-1].id));
-    return`<div style="border:1px solid ${done?'var(--green)':active?'var(--blue)':'var(--border)'};border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:${done?'var(--gl)':active?'var(--bl)':'var(--surface2)'}">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:${active&&!done?'10px':'0'}">
-        <div style="width:24px;height:24px;border-radius:50%;background:${done?'var(--green)':active?'var(--blue)':'var(--surface2)'};color:${done||active?'#fff':'var(--text2)'};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${done?'✓':i+1}</div>
-        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:${done?'var(--gd)':active?'var(--blue)':'var(--text2)'}">${s.label}</div><div style="font-size:11px;color:var(--text2)">${s.desc}</div></div>
+    if(done) return`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--green);border-radius:var(--radius-sm);margin-bottom:8px;background:var(--gl);cursor:pointer" onclick="undoNdisStep('${txId}','${s.id}')">
+      <div style="width:22px;height:22px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">✓</div>
+      <div style="flex:1;font-size:13px;font-weight:600;color:var(--gd)">${s.label}</div>
+      <span style="font-size:11px;color:var(--green)">tap to undo</span>
+    </div>`;
+    if(active) return`<div style="border:2px solid var(--blue);border-radius:var(--radius-sm);padding:14px;margin-bottom:8px;background:var(--bl)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${i+1}</div>
+        <div style="font-size:14px;font-weight:700;color:var(--blue)">${s.label}</div>
       </div>
-      ${active&&!done?renderNdisStepAction(s.id,txId):''}
+      ${renderNdisStepAction(s.id,txId)}
+    </div>`;
+    return`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;background:var(--surface2);opacity:0.5">
+      <div style="width:22px;height:22px;border-radius:50%;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--text2);flex-shrink:0">${i+1}</div>
+      <div style="font-size:13px;color:var(--text2)">${s.label}</div>
     </div>`;
   }).join('');
 }
 
+function undoNdisStep(txId,stepId){
+  const key='ndisSteps_'+txId;
+  S.workflowData[key]=(S.workflowData[key]||[]).filter(s=>s!==stepId);
+  saveS();openNdisProcessModal(txId);
+}
+
 function renderNdisStepAction(stepId,txId){
   const tx=S.transactions.find(t=>t.id===txId);
-  if(stepId==='upload')return`
-    <div class="upload-zone" onclick="document.getElementById('ndis-inv-upload-${txId}').click()" style="padding:1rem">
-      <div style="font-size:22px;margin-bottom:4px">📄</div>
-      <div style="font-size:12px;color:var(--text2)">Click to upload invoice PDF</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">AI will scan and auto-fill invoice details</div>
-    </div>
-    <input type="file" id="ndis-inv-upload-${txId}" accept=".pdf,image/*" onchange="handleNdisUpload(event,'${txId}')">
-    <div id="ndis-scan-status-${txId}" style="font-size:12px;color:var(--text2);margin-top:6px;display:none"></div>
-    <button class="btn btn-sm" style="margin-top:6px" onclick="markNdisStep('${txId}','upload')">Skip — no invoice available</button>`;
-  if(stepId==='pay')return`
-    <button class="btn btn-primary btn-sm" onclick="markNdisStep('${txId}','pay')">✓ I have paid this invoice</button>`;
-  if(stepId==='categorise')return`
-    <div class="field" style="margin-bottom:8px">
-      <label>NDIS budget category</label>
-      <select id="ndis-cat-select-${txId}">
-        <option value="">-- Select category --</option>
-        ${NDIS_CATS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}
-      </select>
-    </div>
-    <div class="field" style="margin-bottom:8px">
-      <label>Provider name</label>
-      <input type="text" id="ndis-provider-${txId}" value="${tx?.description||''}" placeholder="Provider name">
-    </div>
-    <div class="field" style="margin-bottom:8px">
-      <label>Invoice number</label>
-      <input type="text" id="ndis-invno-${txId}" placeholder="e.g. INV017839">
-    </div>
-    <div class="field" style="margin-bottom:8px">
-      <label>Comments</label>
-      <input type="text" id="ndis-comments-${txId}" placeholder="e.g. Weekly hydrotherapy">
-    </div>
-    <button class="btn btn-primary btn-sm" onclick="saveNdisCategorise('${txId}')">✓ Save & continue</button>`;
-  if(stepId==='claim')return`
-    <a href="https://login.my.gov.au/las/mygov-login?execution=e1s1" target="_blank" class="btn btn-sm" style="margin-bottom:8px;display:inline-flex">🔗 Open MyGov</a>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">${S.workflowData?.['ndisFileLink_'+txId]?'<a href="'+S.workflowData['ndisFileLink_'+txId]+'" target="_blank" style="color:var(--blue)">📄 Download invoice from Drive to upload to MyGov</a>':'No invoice file linked yet'}</div>
-    <button class="btn btn-primary btn-sm" onclick="markNdisStep('${txId}','claim')">✓ Claimed in MyGov</button>`;
+  const wf=S.workflowData;
+  const scanned=wf?.['ndisScanned_'+txId]||{};
+  const existingEntry=S.ndisTransactions?.find(t=>wf['ndisCat_'+txId]&&t.id.includes(txId.replace('tx_','').replace('csv_','')));
+
+  if(stepId==='upload'){
+    const catVal=wf['ndisCat_'+txId]||'';
+    const provVal=scanned.provider||tx?.description||'';
+    const invVal=scanned.invoiceNo||'';
+    const dateVal=scanned.date||tx?.date||new Date().toISOString().split('T')[0];
+    const amtVal=scanned.amount||tx?.amount||'';
+    return`
+      <div class="upload-zone" onclick="document.getElementById('ndis-inv-upload-${txId}').click()" style="padding:10px;margin-bottom:10px">
+        <div style="font-size:20px;margin-bottom:2px">📄</div>
+        <div style="font-size:12px;color:var(--text2)">Click to upload invoice PDF</div>
+        <div style="font-size:11px;color:var(--text2)">AI will scan and auto-fill details below</div>
+      </div>
+      <input type="file" id="ndis-inv-upload-${txId}" accept=".pdf,image/*" onchange="handleNdisUpload(event,'${txId}')">
+      <div id="ndis-scan-status-${txId}" style="font-size:12px;color:var(--text2);margin-bottom:8px;display:none"></div>
+      <div class="frow" style="margin-bottom:8px">
+        <div class="field" style="margin:0"><label>Category</label>
+          <select id="ndis-cat-select-${txId}">
+            <option value="">-- Select --</option>
+            ${NDIS_CATS.map(c=>`<option value="${c.id}"${c.id===catVal?' selected':''}>${c.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="margin:0"><label>Date</label><input type="date" id="ndis-date-${txId}" value="${dateVal}"></div>
+      </div>
+      <div class="frow" style="margin-bottom:8px">
+        <div class="field" style="margin:0"><label>Amount ($)</label><input type="number" id="ndis-amt-${txId}" value="${amtVal}" step="0.01" placeholder="0.00"></div>
+        <div class="field" style="margin:0"><label>Invoice number</label><input type="text" id="ndis-invno-${txId}" value="${invVal}" placeholder="e.g. INV017839"></div>
+      </div>
+      <div class="field" style="margin-bottom:8px"><label>Provider</label><input type="text" id="ndis-provider-${txId}" value="${provVal}" placeholder="Provider name"></div>
+      <div class="field" style="margin-bottom:10px"><label>Comments</label><input type="text" id="ndis-comments-${txId}" placeholder="e.g. Weekly hydrotherapy"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="saveNdisCategorise('${txId}')">✓ Save & continue</button>
+        <button class="btn btn-sm" onclick="markNdisStep('${txId}','upload')">Skip — no invoice</button>
+      </div>`;
+  }
+
+  if(stepId==='pay'){
+    const comments=wf['ndisComments_'+txId]||'';
+    const invNo=wf['ndisInvNo_'+txId]||'';
+    const driveLink=wf['ndisFileLink_'+txId]||existingEntry?.driveLink||'';
+    return`
+      <div class="banner banner-info" style="margin-bottom:10px;flex-direction:column;align-items:flex-start">
+        <div style="font-weight:600;margin-bottom:4px">💳 Pay this invoice</div>
+        ${invNo?`<div style="font-size:12px">Invoice: <strong>${invNo}</strong></div>`:''}
+        ${comments?`<div style="font-size:12px">For: <strong>${comments}</strong></div>`:''}
+        ${driveLink?`<a href="${driveLink}" target="_blank" style="font-size:12px;color:var(--blue);margin-top:4px">📄 View invoice for bank details</a>`:'<div style="font-size:12px;color:var(--text2)">No invoice uploaded — check provider email for bank details</div>'}
+      </div>
+      <a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 RACQ Bank</a>
+      <button class="btn btn-primary btn-sm" style="display:block" onclick="markNdisStep('${txId}','pay')">✓ Invoice paid</button>`;
+  }
+
+  if(stepId==='claim'){
+    const driveLink=wf['ndisFileLink_'+txId]||existingEntry?.driveLink||'';
+    return`
+      <div class="banner banner-info" style="margin-bottom:10px;flex-direction:column;align-items:flex-start">
+        <div style="font-weight:600;margin-bottom:4px">🏛 Claim in MyGov</div>
+        <div style="font-size:12px">Log in to MyGov, go to NDIS and submit the claim.</div>
+        ${driveLink?`<a href="${driveLink}" target="_blank" style="font-size:12px;color:var(--blue);margin-top:4px">📄 Download invoice to upload to MyGov</a>`:'<div style="font-size:12px;color:var(--text2);margin-top:4px">Tip: upload the invoice you saved in Step 1</div>'}
+      </div>
+      <a href="https://login.my.gov.au/las/mygov-login?execution=e1s1" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 Open MyGov</a>
+      <button class="btn btn-primary btn-sm" style="display:block" onclick="markNdisStep('${txId}','claim')">✓ Claimed in MyGov</button>`;
+  }
+
+  if(stepId==='finalise'){
+    const catId=wf['ndisCat_'+txId];
+    const cat=NDIS_CATS.find(c=>c.id===catId);
+    const amt=parseFloat(wf['ndisAmt_'+txId])||tx?.amount||0;
+    return`
+      <div class="banner banner-info" style="margin-bottom:10px;flex-direction:column;align-items:flex-start">
+        <div style="font-weight:600;margin-bottom:4px">✅ Finalise this transaction</div>
+        <div style="font-size:12px">This will:</div>
+        <div style="font-size:12px">• Save invoice to Google Drive with correct filename</div>
+        <div style="font-size:12px">• Add ${fmt(amt)} to ${cat?.name||'NDIS'} budget</div>
+        <div style="font-size:12px">• Add ${fmt(amt)} to this fortnight's NDIS owed total</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="finaliseNdisTx('${txId}')">✅ Finalise transaction</button>`;
+  }
   return'';
 }
 
@@ -1791,22 +1863,32 @@ async function saveNdisCategorise(txId){
   const provider=document.getElementById('ndis-provider-'+txId)?.value?.trim();
   const invoiceNo=document.getElementById('ndis-invno-'+txId)?.value?.trim();
   const comments=document.getElementById('ndis-comments-'+txId)?.value?.trim();
+  const dateVal=document.getElementById('ndis-date-'+txId)?.value;
+  const amtVal=parseFloat(document.getElementById('ndis-amt-'+txId)?.value)||0;
   const tx=S.transactions.find(t=>t.id===txId);
   if(!catId){alert('Please select a category.');return;}
-  // Add to NDIS transactions
+  // Store all details in workflowData for use in later steps
+  S.workflowData['ndisCat_'+txId]=catId;
+  S.workflowData['ndisProvider_'+txId]=provider||tx?.description||'';
+  S.workflowData['ndisInvNo_'+txId]=invoiceNo||'';
+  S.workflowData['ndisComments_'+txId]=comments||'';
+  S.workflowData['ndisDate_'+txId]=dateVal||tx?.date||new Date().toISOString().split('T')[0];
+  S.workflowData['ndisAmt_'+txId]=amtVal||tx?.amount||0;
+  // Add to NDIS transactions (placeholder, will be finalised in step 4)
   const catTxs=getNdisTransactions().filter(t=>t.cat===catId);
   const num=(catTxs.length>0?Math.max(...catTxs.map(t=>t.num)):0)+1;
   S.ndisTransactions=S.ndisTransactions||[];
+  // Remove existing entry if re-doing this step
+  S.ndisTransactions=S.ndisTransactions.filter(t=>t.id!=='ndis_pending_'+txId);
   S.ndisTransactions.push({
-    id:'ndis_'+Date.now(),cat:catId,num,
+    id:'ndis_pending_'+txId,cat:catId,num,
     provider:provider||tx?.description||'',
     invoiceNo:invoiceNo||'',
-    date:tx?.date||new Date().toISOString().split('T')[0],
-    amount:tx?.amount||0,
+    date:dateVal||tx?.date||new Date().toISOString().split('T')[0],
+    amount:amtVal||tx?.amount||0,
     comments:comments||'',
     status:'paid'
   });
-  S.workflowData['ndisCat_'+txId]=catId;
   // Upload pending file to Drive now that we have the category
   const pendingFile=S.workflowData['ndisFileData_'+txId];
   if(pendingFile){
@@ -1832,9 +1914,42 @@ async function saveNdisCategorise(txId){
       setSyncStatus('error');
     }
   }
-  markNdisStep(txId,'categorise');
+  markNdisStep(txId,'upload');
 }
 
+async function finaliseNdisTx(txId){
+  const wf=S.workflowData;
+  const catId=wf['ndisCat_'+txId];
+  const tx=S.transactions.find(t=>t.id===txId);
+  if(!catId){alert('Please complete Step 1 first.');return;}
+  // Upload to Drive if file was stored
+  const pendingFile=wf['ndisFileData_'+txId];
+  const ndisEntry=S.ndisTransactions?.find(t=>t.id==='ndis_pending_'+txId);
+  if(pendingFile&&ndisEntry){
+    const filename=genNdisFilename(ndisEntry);
+    try{
+      setSyncStatus('syncing');
+      const resp=await fetch('/.netlify/functions/sheets',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'uploadToDrive',catId,filename,fileBase64:pendingFile,mimeType:wf['ndisFileMime_'+txId]||'application/pdf'})
+      });
+      const result=await resp.json();
+      if(result.success){
+        wf['ndisFileLink_'+txId]=result.webViewLink;
+        if(ndisEntry){ndisEntry.driveLink=result.webViewLink;ndisEntry.driveFileId=result.fileId;ndisEntry.fileName=result.fileName;}
+        delete wf['ndisFileData_'+txId];
+        setSyncStatus('synced');
+      }
+    } catch(err){console.error('Drive upload error:',err);setSyncStatus('error');}
+  }
+  // Finalise the ndis entry status
+  if(ndisEntry)ndisEntry.status='claimed';
+  // Add to this fortnight's NDIS owed running total
+  const amt=parseFloat(wf['ndisAmt_'+txId])||tx?.amount||0;
+  wf['ndisRunningTotal']=(parseFloat(wf['ndisRunningTotal'])||0)+amt;
+  // Mark complete
+  markNdisStep(txId,'finalise');
+}
 function completeNdisTx(txId){
   // Mark transaction as processed
   const processed=S.workflowData.ndisProcessed||[];
@@ -1887,7 +2002,51 @@ function previewNdisFilename(){
   const preview=document.getElementById('ndis-filename-preview');
   if(preview){preview.style.display='block';preview.textContent='📄 '+genNdisFilename(fakeTx);}
 }
-function saveNdisInvoice(){
+async function handleNdisAddUpload(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  const statusEl=document.getElementById('ndis-add-scan-status');
+  if(statusEl){statusEl.style.display='block';statusEl.textContent='🔍 Scanning invoice with AI...';}
+  const base64=await new Promise((res,rej)=>{
+    const reader=new FileReader();
+    reader.onload=()=>res(reader.result.split(',')[1]);
+    reader.onerror=rej;
+    reader.readAsDataURL(file);
+  });
+  // Store file data for upload on save
+  window._ndisAddFileBase64=base64;
+  window._ndisAddFileMime=file.type||'application/pdf';
+  window._ndisAddFileName=file.name;
+  // AI scan
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',max_tokens:500,
+        messages:[{role:'user',content:[
+          {type:'document',source:{type:'base64',media_type:file.type||'application/pdf',data:base64}},
+          {type:'text',text:'Extract from this invoice: provider name, invoice number, date (YYYY-MM-DD), and total amount. Respond ONLY with JSON: {"provider":"","invoiceNo":"","date":"","amount":0}'}
+        ]}]
+      })
+    });
+    const data=await resp.json();
+    const text=data.content?.[0]?.text||'';
+    const parsed=JSON.parse(text.replace(/```json|```/g,'').trim());
+    if(parsed.provider&&!document.getElementById('ndis-provider').value)document.getElementById('ndis-provider').value=parsed.provider;
+    if(parsed.invoiceNo&&!document.getElementById('ndis-invno').value)document.getElementById('ndis-invno').value=parsed.invoiceNo;
+    if(parsed.date&&!document.getElementById('ndis-date').value)document.getElementById('ndis-date').value=parsed.date;
+    if(parsed.amount&&!document.getElementById('ndis-amount').value)document.getElementById('ndis-amount').value=parsed.amount;
+    if(statusEl)statusEl.textContent='✅ Invoice scanned — details auto-filled!';
+    previewNdisFilename();
+  } catch(err){
+    if(statusEl)statusEl.textContent='Could not auto-scan — please fill in details manually.';
+  }
+  const fileStatus=document.getElementById('ndis-add-file-status');
+  if(fileStatus){fileStatus.style.display='block';fileStatus.textContent='📄 '+file.name+' ready to upload to Drive';}
+}
+
+async function saveNdisInvoice(){
   const cat=document.getElementById('ndis-cat')?.value;
   const date=document.getElementById('ndis-date')?.value;
   const amount=parseFloat(document.getElementById('ndis-amount')?.value)||0;
@@ -1902,9 +2061,27 @@ function saveNdisInvoice(){
   const tx={id:'ndis_'+Date.now(),cat,num,provider,invoiceNo:invoiceNo||'',date,amount,comments:comments||'',status};
   S.ndisTransactions=S.ndisTransactions||[];
   S.ndisTransactions.push(tx);
-  // If claimed, prompt to add to NDIS owed
-  if(status==='claimed'&&confirm(`Add ${fmt(amount)} to NDIS owed on dashboard?`)){
-    S.overall.ndisOwed=(S.overall.ndisOwed||0)+amount;
+  // Upload file to Drive if one was staged
+  if(window._ndisAddFileBase64){
+    const filename=genNdisFilename(tx);
+    try{
+      setSyncStatus('syncing');
+      const resp=await fetch('/.netlify/functions/sheets',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'uploadToDrive',catId:cat,filename,fileBase64:window._ndisAddFileBase64,mimeType:window._ndisAddFileMime||'application/pdf'})
+      });
+      const result=await resp.json();
+      if(result.success){
+        tx.driveFileId=result.fileId;
+        tx.driveLink=result.webViewLink;
+        tx.fileName=result.fileName;
+        setSyncStatus('synced');
+        alert('✅ Invoice saved to Google Drive: '+result.fileName);
+      }
+    } catch(err){console.error('Drive upload error:',err);setSyncStatus('error');}
+    window._ndisAddFileBase64=null;
+    window._ndisAddFileMime=null;
+    window._ndisAddFileName=null;
   }
   saveS();closeModal('addNdis');renderNDIS();
 }
