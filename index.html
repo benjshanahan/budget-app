@@ -351,11 +351,11 @@ input[type=file]{display:none}
     <button class="mclose" onclick="closeModal('editOverall')">✕</button>
     <div class="modal-title">Update overall figures</div>
     <div class="frow">
-      <div class="field"><label>Actual savings ($)</label><input type="number" id="eo-sav" step="0.01"><div class="field-hint">What you actually have in savings right now</div></div>
-      <div class="field"><label>NDIS owed ($)</label><input type="number" id="eo-ndis" step="0.01"><div class="field-hint">Expected within 2 business days</div></div>
+      <div class="field"><label>NDIS owed ($)</label><input type="number" id="eo-ndis" step="0.01"><div class="field-hint">Total claimed this fortnight</div></div>
+      <div class="field"><label>Cash savings ($)</label><input type="number" id="eo-cash" step="0.01"></div>
     </div>
     <div class="frow">
-      <div class="field"><label>Cash savings ($)</label><input type="number" id="eo-cash" step="0.01"></div>
+      <div class="field"><label>Mortgage ahead ($)</label><input type="number" id="eo-mort" step="0.01"><div class="field-hint">How much ahead on mortgage</div></div>
       <div class="field"><label>Renovations balance ($)</label><input type="number" id="eo-reno" step="0.01"><div class="field-hint">Current balance in Renovations account</div></div>
     </div>
     <div class="modal-actions">
@@ -2542,7 +2542,6 @@ function autoSubcat(desc,subs,rawDetails){
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 function openModal(id){
   if(id==='editOverall'){
-    document.getElementById('eo-sav').value=(S.overall.actualSavings||0).toFixed(2);
     document.getElementById('eo-ndis').value=(S.overall.ndisOwed||0).toFixed(2);
     document.getElementById('eo-cash').value=(S.overall.cashSavings||0).toFixed(2);
     const mortEl=document.getElementById('eo-mort');
@@ -2602,11 +2601,10 @@ function openActualSavingsDetail(){
         <div style="font-size:22px;font-weight:700;color:var(--gd)">${fmt(ndisOwed+cashSavings+Math.max(0,netSavings))}</div>
       </div>
     </div>`;
-  document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="openModal('editOverall')">✏️ Edit figures</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+  document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="closeModal('txDetail');setTimeout(()=>openModal('editOverall'),150)">✏️ Edit figures</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   openModal('txDetail');
 }
 async function saveOverall(){
-  S.overall.actualSavings=parseFloat(document.getElementById('eo-sav')?.value)||0;
   S.overall.ndisOwed=parseFloat(document.getElementById('eo-ndis')?.value)||0;
   S.overall.cashSavings=parseFloat(document.getElementById('eo-cash')?.value)||0;
   const mortInput=document.getElementById('eo-mort');
@@ -2828,7 +2826,7 @@ function renderOwedList(){
   }
 
   // Dashboard figure = manualOwed + negBudgets (same as what dashboard shows)
-  const dashboardFigure=(S.overall.moneyOwed||0)+negTotal;
+  const dashboardFigure=manualTotal+negTotal;
   html+=`<div style="font-size:14px;font-weight:600;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
     <span>Grand total owed to savings</span>
     <span style="font-size:18px;color:${dashboardFigure>0?'var(--green)':'var(--text)'}">${fmt(dashboardFigure)}</span>
