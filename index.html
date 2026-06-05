@@ -612,8 +612,15 @@ const fmtS = n => (n<0?'-':'')+fmt(n);
 const getNextMoneyDay = () => MONEY_DAYS.find(d=>d>new Date())||MONEY_DAYS[MONEY_DAYS.length-1];
 const getTithingCycles = () => S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').length;
 const getCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name).reduce((a,t)=>a+(t.amount||0),0);
-// App transactions are those NOT from the original import (id doesn't start with 'import_')
-const getAppCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name&&!t.id.startsWith('import_')).reduce((a,t)=>a+(t.amount||0),0);
+// App transactions: anything after the last pre-app tithe date (2026-05-19)
+// This correctly excludes all pre-app spending including CSV entries for old transactions
+const getAppCatSpent = name => {
+  const tithes=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').sort((a,b)=>a.date.localeCompare(b.date));
+  const cutoffTithe=tithes[PRE_APP_CYCLES-1];
+  if(!cutoffTithe)return getCatSpent(name);
+  const cutoff=cutoffTithe.date;
+  return S.transactions.filter(t=>t.status==='accepted'&&t.category===name&&t.date>cutoff).reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
+};
 const getCatBudgeted = name => {
   const cat=CATS.find(c=>c.name===name);
   if(!cat||cat.noGrid||cat.isSpending)return 0;
@@ -625,7 +632,11 @@ const getFNSpending = person => {
   const last=dates[dates.length-1]||'2026-04-22';
   return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>last).reduce((a,t)=>a+(t.amount||0),0);
 };
-const calcSpendingBal = (person,debit) => debit - getFNSpending(person) + 70;
+const calcSpendingBal = (person,debit) => {
+  const prev=person==='Benj'?(S.spendingBalances?.benj?.current||0):(S.spendingBalances?.kasie?.current||0);
+  const prevDebt=prev<0?prev:0;
+  return debit+prevDebt-getFNSpending(person)+70;
+};
 const getNetSavings = () => {
   const {actualSavings,ndisOwed,cashSavings,mortgageAhead,moneyOwed}=S.overall;
   const cycles=getTithingCycles();
