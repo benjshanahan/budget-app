@@ -1268,7 +1268,15 @@ function renderStepBody(s,done,pending){
     const ndisTxs=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='accepted');
     const pendingNdis=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='pending');
     const processedIds=S.workflowData.ndisProcessed||[];
-    const unprocessed=ndisTxs.filter(t=>!processedIds.includes(t.id));
+    // Also consider a tx processed if it has a matching ndisTransaction entry (processed in a previous fn)
+    const unprocessed=ndisTxs.filter(t=>{
+      if(processedIds.includes(t.id))return false;
+      // Check if already has a matching ndisTransaction (by date + amount)
+      const alreadyProcessed=S.ndisTransactions?.some(n=>
+        Math.abs(n.amount-t.amount)<0.01&&n.date===t.date&&(n.status==='claimed'||n.status==='paid')
+      );
+      return !alreadyProcessed;
+    });
     return`
       <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
         <a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm">🔗 RACQ Bank</a>
