@@ -869,7 +869,8 @@ function migrateNdisImports(){
   });
   if(migrated>0){
     console.log('Migrated '+migrated+' NDIS import transactions');
-    saveS();
+    // Use scheduleSave to avoid overwriting other saves in progress
+    scheduleSave();
   }
 }
 function applyKnownSplitFixes(){
@@ -932,7 +933,7 @@ function applyKnownSplitFixes(){
     changed=true;
     console.log('Fixed split: '+fix.oldId);
   });
-  if(changed)saveS();
+  if(changed)scheduleSave();
 }
 function repairSplitTransactions(){
   // Find transactions with category='Split' and flag them for user review
@@ -945,7 +946,7 @@ function repairSplitTransactions(){
       fixed++;
     }
   });
-  if(fixed>0){saveS();console.log('Flagged '+fixed+' split transactions for review');}
+  if(fixed>0){scheduleSave();console.log('Flagged '+fixed+' split transactions for review');}
 }
 function saveS(){
   scheduleSave();
@@ -3042,7 +3043,11 @@ async function markOwedPaid(id){
   S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
   closeModal('moneyOwedDetail');
   render();
+  // Save directly and wait for completion
   await saveToSheets();
+  // Reload from sheets to confirm save worked
+  await loadFromSheets();
+  render();
 }
 function addOwedEntry(){const desc=document.getElementById('ow-desc').value.trim(),amt=parseFloat(document.getElementById('ow-amt').value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.moneyOwedItems=S.moneyOwedItems||[];const owDate=document.getElementById('ow-date')?.value||new Date().toISOString().split('T')[0];S.moneyOwedItems.push({id:'ow_'+Date.now(),description:desc,amount:amt,date:owDate});S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);document.getElementById('ow-desc').value='';document.getElementById('ow-amt').value='';saveS();renderOwedList();}
 async function removeOwed(id){
