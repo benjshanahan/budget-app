@@ -178,10 +178,9 @@ input[type=file]{display:none}
 @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 .loading-text{font-size:15px;color:var(--text2)}
 
-.private-blur .stat-value,.private-blur .bc-bal,.private-blur .bc-meta span,.private-blur td.blurrable{filter:blur(6px);user-select:none;color:var(--text)!important}
-.private-blur{pointer-events:none}
+.private-blur{filter:blur(6px)!important;user-select:none;pointer-events:none}
 .blur-val{display:inline-block;transition:filter .2s}
-.blur-active{filter:blur(6px);user-select:none}
+.blur-active{filter:blur(6px)!important;user-select:none;pointer-events:none}
 /* Responsive */
 @media(max-width:480px){
   .budget-grid{grid-template-columns:1fr 1fr}
@@ -527,7 +526,7 @@ const CATS = [
 
 // ─── STARTING BALANCES (as at app creation, after 3 fortnights) ──────────────
 const STARTING_BALANCES = {
-  'Bills': 1246.97,
+  'Bills': 1373.37,
   'Food': 412.61,
   'School': 458.24,
   'Petrol': 340.84,
@@ -951,13 +950,12 @@ function togglePrivate(){
   applyPrivateMode();
 }
 function applyPrivateMode(){
-  document.querySelectorAll('.private-sensitive').forEach(el=>{
+  // Blur stat values in overall section
+  document.querySelectorAll('.private-sensitive .stat-value').forEach(el=>{
     el.classList.toggle('private-blur',privateMode);
-    el.style.pointerEvents=privateMode?'none':'';
   });
-  // Blur all monetary values in the page
-  document.querySelectorAll('.blur-val').forEach(el=>{
-    el.classList.toggle('blur-active',privateMode);
+  document.querySelectorAll('.private-sensitive').forEach(el=>{
+    el.style.pointerEvents=privateMode?'none':'';
   });
   // Re-render budget grid and overview to apply blur classes
   renderBudgetGrid();
