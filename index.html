@@ -3036,6 +3036,8 @@ function renderOwedList(){
 }
 async function markOwedPaid(id){
   if(!confirm('Mark this as paid and remove it?'))return;
+  // Cancel any pending scheduled saves to avoid race condition
+  if(syncTimeout){clearTimeout(syncTimeout);syncTimeout=null;}
   S.moneyOwedItems=(S.moneyOwedItems||[]).filter(o=>o.id!==id);
   S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
   closeModal('moneyOwedDetail');
