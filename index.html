@@ -635,10 +635,13 @@ const getFNSpending = person => {
   return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>cutoff).reduce((a,t)=>a+(t.amount||0),0);
 };
 const calcSpendingBal = (person,debit) => {
-  // Formula: prevBalance - fnSpending + $70
-  // Debit is only used for transfer calculation, not budget balance
+  // Formula: prevBalance - topUpTransfer - fnSpending + $70
   const prevBal=person==='Benj'?(S.spendingBalances?.benj?.current||0):(S.spendingBalances?.kasie?.current||0);
-  return prevBal-getFNSpending(person)+70;
+  const fnSpend=getFNSpending(person);
+  const projectedBal=prevBal-fnSpend+70;
+  // Top-up transfer: if projected balance < $20, transfer ($20 - debit) from budget
+  const topUp=projectedBal<20?Math.max(0,parseFloat((20-debit).toFixed(2))):0;
+  return prevBal-topUp-fnSpend+70;
 };
 const calcActualSavings = () => {
   const{ndisOwed,cashSavings,mortgageAhead}=S.overall;
