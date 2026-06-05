@@ -1253,9 +1253,17 @@ function renderStepBody(s,done,pending){
     const unprocessed=ndisTxs.filter(t=>!processedIds.includes(t.id));
     return`
       <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-      <a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm">🔗 RACQ Bank</a>
-      <a href="https://login.my.gov.au/las/mygov-login?execution=e1s1" target="_blank" class="btn btn-sm">🔗 MyGov</a>
-    </div>
+        <a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm">🔗 RACQ Bank</a>
+        <a href="https://login.my.gov.au/las/mygov-login?execution=e1s1" target="_blank" class="btn btn-sm">🔗 MyGov</a>
+      </div>
+      <div class="banner banner-info" style="margin-bottom:12px;flex-direction:column;align-items:flex-start;gap:4px">
+        <div style="font-weight:600;margin-bottom:4px">📋 How this step works</div>
+        <div style="font-size:12px;line-height:1.6">For each NDIS transaction, work through the 4 sub-steps in order:<br>
+        <strong>1. Upload invoice</strong> — AI will scan and auto-fill details<br>
+        <strong>2. Pay invoice</strong> — confirm payment to provider<br>
+        <strong>3. Select NDIS category</strong> — invoice is automatically saved to Google Drive with the correct filename at this step<br>
+        <strong>4. Claim in MyGov</strong> — download the invoice from Drive and upload to MyGov portal</div>
+      </div>
     ${pendingNdis.length?`<div class="banner banner-warn" style="margin-bottom:10px">⚠ ${pendingNdis.length} NDIS transaction${pendingNdis.length>1?'s are':' is'} still pending — accept them in Step 4 first</div>`:''}
       ${unprocessed.length?`
         <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Transactions to process (${unprocessed.length})</div>
@@ -1405,6 +1413,7 @@ function resetWorkflow(){
   if(confirm('Start a new fortnight?\n\nThis will reset all workflow steps back to the beginning. Your transactions and budget data will not be affected.')){
     S.workflowData={};
     S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
+    S.overall.ndisOwed=0;
     saveS();
     renderWorkflow();
   }
@@ -1840,10 +1849,17 @@ function completeNdisTx(txId){
 }
 
 function finaliseNdisStep(){
-  // Calculate total NDIS owed for this fortnight
+  // Sum all NDIS transactions processed this fortnight (from step 9)
   const processedIds=S.workflowData.ndisProcessed||[];
-  const processedTxs=S.transactions.filter(t=>t.category==='NDIS'&&processedIds.includes(t.id));
-  const totalNdis=processedTxs.reduce((a,t)=>a+(t.amount||0),0);
+  // Also include any ndisTransactions added this fortnight (status paid or claimed, after last tithe)
+  const tithes=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').sort((a,b)=>a.date.localeCompare(b.date));
+  const cutoff=tithes.length>=2?tithes[tithes.length-2].date:tithes[0]?.date||'2026-04-22';
+  // From main transactions (credit card NDIS)
+  const processedTxs=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='accepted'&&processedIds.includes(t.id));
+  const txTotal=processedTxs.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
+  // From ndisTransactions (manually added invoices this fn)
+  const ndisInvoiceTotal=(S.ndisTransactions||[]).filter(t=>t.date>cutoff&&(t.status==='paid'||t.status==='claimed')).reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
+  const totalNdis=txTotal+ndisInvoiceTotal;
   // Replace (not add) NDIS owed figure
   S.overall.ndisOwed=totalNdis;
   saveS();
@@ -2974,13 +2990,27 @@ async function scanDriveFolders(){
         return numMatch&&amtMatch;
       });
       if(match){
-        // Store link against this transaction
-        const wfKey='ndisFileLink_'+tx.id;
-        if(!S.workflowData[wfKey]){
-          S.workflowData[wfKey]=match.webViewLink;
-          S.workflowData['ndisFile_'+tx.id]=match.name;
-          matched++;
+        // Save to ndisTransaction record for persistence
+        const allNdis=getNdisTransactions();
+        const ndisEntry=S.ndisTransactions?.find(t=>t.id===tx.id);
+        if(ndisEntry){
+          if(!ndisEntry.driveLink){
+            ndisEntry.driveLink=match.webViewLink;
+            ndisEntry.driveFileId=match.id||'';
+            ndisEntry.fileName=match.name;
+            matched++;
+          }
+        } else {
+          // For imported NDIS transactions, add to S.ndisTransactions
+          const importedTx=NDIS_IMPORT.find(t=>t.id===tx.id);
+          if(importedTx&&!S.ndisTransactions?.find(t=>t.id===tx.id)){
+            S.ndisTransactions=S.ndisTransactions||[];
+            S.ndisTransactions.push({...importedTx,driveLink:match.webViewLink,driveFileId:match.id||'',fileName:match.name});
+            matched++;
+          }
         }
+        // Also store in workflowData for backward compat
+        S.workflowData['ndisFileLink_'+tx.id]=match.webViewLink;
       }
     }
     if(matched>0){
@@ -3053,7 +3083,16 @@ function openNdisTxDetail(id){
       <div class="stat"><div class="stat-label">Status</div><div class="stat-value" style="font-size:13px;color:${NDIS_STATUS_COLORS[t.status]}">${NDIS_STATUS_LABELS[t.status]}</div></div>
     </div>
     ${t.comments?`<div style="font-size:13px;color:var(--text2);margin-bottom:12px">📝 ${t.comments}</div>`:''}
-    ${S.workflowData?.['ndisFileLink_'+t.id]?`<a href="${S.workflowData['ndisFileLink_'+t.id]}" target="_blank" class="btn btn-sm" style="margin-bottom:12px;display:inline-flex">📄 View invoice in Drive</a>`:''}
+    ${(t.driveLink||S.workflowData?.['ndisFileLink_'+t.id])?
+      `<a href="${t.driveLink||S.workflowData['ndisFileLink_'+t.id]}" target="_blank" class="btn btn-sm" style="margin-bottom:12px;display:inline-flex">📄 View invoice in Drive</a>`:
+      `<div style="margin-bottom:12px">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px">No invoice uploaded yet</div>
+        <div class="upload-zone" onclick="document.getElementById('ndis-retro-up-${t.id}').click()" style="padding:8px 12px;text-align:center">
+          <div style="font-size:12px">📎 Upload invoice to Drive</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">PDF or image</div>
+        </div>
+        <input type="file" id="ndis-retro-up-${t.id}" accept=".pdf,image/*" onchange="handleRetroNdisUpload(event,'${t.id}','${t.cat}')" style="display:none">
+      </div>`}
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px">
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Suggested filename</div>
       <div style="font-size:12px;font-family:monospace;word-break:break-all;color:var(--text)">${filename}</div>
