@@ -1221,7 +1221,7 @@ function renderWorkflow(){
     {n:10,title:'Update mortgage position',desc:'Enter how much you are currently ahead on the mortgage.',action:'mortgage'},
   ];
   const wd=S.workflowData||{};
-  const pending=S.transactions.filter(t=>t.status==='pending').length;
+  const pending=S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').length;
   const allDone=steps.every(s=>!!wd['s'+s.n]);
   document.getElementById('workflow-area').innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -1429,7 +1429,9 @@ function undoStep(n){
 function doneStep(n){S.workflowData['s'+n]=true;saveS();renderWorkflow();}
 function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
 function resetWorkflow(){
-  if(confirm('Start a new fortnight?\n\nThis will reset all workflow steps back to the beginning. Your transactions and budget data will not be affected.')){
+  if(confirm('Start a new fortnight?\n\nThis will reset all workflow steps back to the beginning. Any pending transactions from this workflow will be removed.')){
+    // Remove all pending transactions (they were added this fn and not yet accepted)
+    S.transactions=S.transactions.filter(t=>t.status!=='pending'||t.source==='import');
     S.workflowData={};
     S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
     S.overall.ndisOwed=0;
