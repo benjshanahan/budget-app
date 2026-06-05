@@ -619,7 +619,7 @@ const getAppCatSpent = name => {
   const cutoffTithe=tithes[PRE_APP_CYCLES-1];
   if(!cutoffTithe)return getCatSpent(name);
   const cutoff=cutoffTithe.date;
-  return S.transactions.filter(t=>t.status==='accepted'&&t.category===name&&t.date>cutoff).reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
+  return S.transactions.filter(t=>t.status==='accepted'&&t.category===name&&t.date>=cutoff&&t.source!=='import').reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
 };
 const getCatBudgeted = name => {
   const cat=CATS.find(c=>c.name===name);
@@ -633,8 +633,8 @@ const getFNSpending = person => {
   return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>last).reduce((a,t)=>a+(t.amount||0),0);
 };
 const calcSpendingBal = (person,debit) => {
-  const prev=person==='Benj'?(S.spendingBalances?.benj?.current||0):(S.spendingBalances?.kasie?.current||0);
-  const prevDebt=prev<0?prev:0;
+  // Use prevDebt (stored from last fortnight's result), not current (which is this fn's result)
+  const prevDebt=person==='Benj'?(S.spendingBalances?.benj?.prevDebt||0):(S.spendingBalances?.kasie?.prevDebt||0);
   return debit+prevDebt-getFNSpending(person)+70;
 };
 const calcActualSavings = () => {
@@ -751,7 +751,10 @@ async function loadFromSheets(){
     const sp={};
     (ranges[3].values||[]).forEach(r=>{if(r[0])sp[r[0]]=parseFloat(r[1])||0;});
     if(sp.benjCurrent!==undefined){
-      S.spendingBalances={benj:{current:sp.benjCurrent},kasie:{current:sp.kasieCurrent||0}};
+      S.spendingBalances={
+        benj:{current:sp.benjCurrent,prevDebt:sp.benjPrevDebt||0},
+        kasie:{current:sp.kasieCurrent||0,prevDebt:sp.kasiePrevDebt||0}
+      };
     }
     S.workflowData={};
     (ranges[4].values||[]).forEach(r=>{if(r[0]&&r[1]==='true')S.workflowData[r[0]]=true;});
@@ -805,7 +808,12 @@ async function saveToSheets(){
     const owRows=[['id','description','amount','date']];
     (S.moneyOwedItems||[]).forEach(o=>owRows.push([o.id,o.description,o.amount,o.date||'']));
     data.push({range:'MoneyOwed!A1',values:owRows});
-    data.push({range:'Spending!A1',values:[['benjCurrent',S.spendingBalances?.benj?.current||0],['kasieCurrent',S.spendingBalances?.kasie?.current||0]]});
+    data.push({range:'Spending!A1',values:[
+      ['benjCurrent',S.spendingBalances?.benj?.current||0],
+      ['kasieCurrent',S.spendingBalances?.kasie?.current||0],
+      ['benjPrevDebt',S.spendingBalances?.benj?.prevDebt||0],
+      ['kasiePrevDebt',S.spendingBalances?.kasie?.prevDebt||0]
+    ]});
     const wfRows=Object.entries(S.workflowData).map(([k,v])=>[k,String(v)]);
     data.push({range:'Workflow!A1',values:wfRows.length?wfRows:[['','']]});
     // Save csvPending as JSON in a single cell
@@ -1486,7 +1494,12 @@ function calcSpending(person){
 function saveSpending(){
   const bD=parseFloat(document.getElementById('benj-debit')?.value)||0;
   const kD=parseFloat(document.getElementById('kasie-debit')?.value)||0;
-  S.spendingBalances={benj:{current:calcSpendingBal('Benj',bD),debit:bD},kasie:{current:calcSpendingBal('Kasie',kD),debit:kD}};
+  const benjResult=calcSpendingBal('Benj',bD);
+  const kasieResult=calcSpendingBal('Kasie',kD);
+  S.spendingBalances={
+    benj:{current:benjResult,debit:bD,prevDebt:benjResult<0?benjResult:0},
+    kasie:{current:kasieResult,debit:kD,prevDebt:kasieResult<0?kasieResult:0}
+  };
   saveS();closeModal('spending');doneStep(7);
 }
 
