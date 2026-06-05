@@ -2263,11 +2263,12 @@ function openSubcatDetail(catName, sub){
 
 // ─── CSV HANDLING ─────────────────────────────────────────────────────────────
 function getCSVPeriodLabel(){
-  // Get last completed money day and today
   const now=new Date();
-  const doneDays=MONEY_DAYS.filter(d=>d<=now);
-  const lastDone=doneDays.length>0?doneDays[doneDays.length-1]:new Date('2026-04-22');
-  const fromStr=lastDone.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+  // Use last accepted tithe date as the start (actual last money done date)
+  const titheDates=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').map(t=>t.date).sort();
+  const lastTithe=titheDates[titheDates.length-1];
+  const fromDate=lastTithe?new Date(lastTithe+'T00:00:00'):new Date('2026-04-22');
+  const fromStr=fromDate.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
   const toStr=now.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
   return 'Include transactions from '+fromStr+' to '+toStr;
 }
