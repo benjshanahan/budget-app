@@ -2946,7 +2946,8 @@ function saveQuickTx(){
       const cat=row.querySelector('select').value;
       const inputs=row.querySelectorAll('input');
       const amt=parseFloat(inputs[0]?.value)||0;
-      const splitDesc=inputs[1]?.value||desc||'Split transaction';
+      // inputs[0] = amount, inputs[1] = description text field
+      const splitDesc=inputs[1]?.value?.trim()||desc||row.querySelector('input[type=text]')?.value?.trim()||'Split transaction';
       if(!amt)return;
       if(cat==='💰 Add to Money Owed'){
         // Add directly to money owed dashboard
