@@ -1135,7 +1135,7 @@ function renderBudgetGrid(){
       const totalBudgeted=cat.fn*cycles;
       pct=totalBudgeted>0?Math.min(Math.max(totalSpent/totalBudgeted*100,0),100):0;
       yPct=Math.min(Math.max(totalSpent/cat.yearly*100,0),100);
-      isOver=bal<0;isWarn=bal>=0&&bal<(cat.fn*0.2);
+      isOver=bal<0;isWarn=bal>=0&&bal<cat.fn;
     }
     const bc=isOver?'neg':isWarn?'warn':'pos';
     const fc=isOver?'over':isWarn?'warn':'good';
