@@ -1059,13 +1059,14 @@ function renderBudgetOverview(){
 function renderYearProgress(){
   const cycles=getTithingCycles();
   const totalFn=26; // 26 fortnights in the budget year
-  const pct=Math.min(cycles/totalFn*100,100);
+  const displayCycles=Math.max(0,cycles-1);
+  const pct=Math.min(displayCycles/totalFn*100,100);
   const fill=document.getElementById('year-progress-fill');
   const label=document.getElementById('year-progress-label');
   const meta=document.getElementById('year-progress-meta');
   if(fill)fill.style.width=pct.toFixed(1)+'%';
-  if(label)label.textContent=cycles+' of '+totalFn+' fortnights complete ('+Math.round(pct)+'%)';
-  if(meta)meta.innerHTML=`<span>22 Apr 2026</span><span>${cycles} f/n done · ${totalFn-cycles} remaining</span><span>20 Apr 2027</span>`;
+  if(label)label.textContent=displayCycles+' of '+totalFn+' fortnights complete ('+Math.round(pct)+'%)';
+  if(meta)meta.innerHTML=`<span>22 Apr 2026</span><span>${displayCycles} f/n done · ${totalFn-displayCycles} remaining</span><span>20 Apr 2027</span>`;
 }
 function renderHeader(){
   const next=getNextMoneyDay();
@@ -1085,8 +1086,8 @@ function renderOverall(){
     <div class="stat" style="grid-column:span 2">
       <div class="stat-label">Budget year progress</div>
       <div style="position:relative;height:20px;background:var(--surface2);border-radius:var(--radius-sm);overflow:hidden;margin-top:6px;border:1px solid var(--border)">
-        <div style="height:100%;background:var(--green);width:${Math.min(getTithingCycles()/26*100,100).toFixed(1)}%;border-radius:var(--radius-sm)"></div>
-        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.4)">${getTithingCycles()} of 26 fortnights (${Math.round(getTithingCycles()/26*100)}%)</div>
+        <div style="height:100%;background:var(--green);width:${Math.min(Math.max(0,getTithingCycles()-1)/26*100,100).toFixed(1)}%;border-radius:var(--radius-sm)"></div>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.4)">${Math.max(0,getTithingCycles()-1)} of 26 fortnights (${Math.round(Math.max(0,getTithingCycles()-1)/26*100)}%)</div>
       </div>
     </div>`;
 
@@ -1134,7 +1135,7 @@ function renderBudgetGrid(){
     const bc=isOver?'neg':'pos';
     const fc=isOver?'over':'good';
     // Fortnight progress marker: cycles/26 fortnights in year
-    const fnMarkerPct=Math.min(cycles/26*100,100);
+    const fnMarkerPct=Math.min(Math.max(0,cycles-1)/26*100,100);
     const el=document.createElement('div');
     el.className='bc';
     const pvBlur=privateMode?'private-blur':'';
@@ -2212,7 +2213,7 @@ function openCatDetail(catName){
     const startBal=STARTING_BALANCES[catName]||0;
     const appSpent=getAppCatSpent(catName);
     const bal=startBal+(appCycles*cat.fn)-appSpent;
-    headerStats=`<div class="stat"><div class="stat-label">Balance</div><div class="stat-value ${bal>=0?'pos':'neg'}">${fmtS(bal)}</div></div><div class="stat"><div class="stat-label">Fortnightly budget</div><div class="stat-value">${fmt(cat?.fn||0)}</div></div><div class="stat"><div class="stat-label">Yearly budget</div><div class="stat-value">${fmt(cat?.yearly||0)}</div></div>`;
+    headerStats=`<div class="stat"><div class="stat-label">Balance</div><div class="stat-value ${bal>=0?'pos':'neg'}">${fmtS(bal)}</div></div><div class="stat"><div class="stat-label">Total spent</div><div class="stat-value">${fmt(getCatSpent(catName))}</div></div><div class="stat"><div class="stat-label">Yearly budget</div><div class="stat-value">${fmt(cat?.yearly||0)}</div></div>`;
   }
   document.getElementById('txd-title').textContent=catName;
   document.getElementById('txd-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">${headerStats}</div><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">Transactions (${txs.length})</div><div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}</div>`;
