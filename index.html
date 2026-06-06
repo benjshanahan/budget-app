@@ -435,7 +435,7 @@ input[type=file]{display:none}
     <div class="upload-zone" onclick="document.getElementById('ndis-add-file').click()" style="padding:10px;margin-bottom:12px;text-align:center">
       <div style="font-size:20px;margin-bottom:2px">📄</div>
       <div style="font-size:12px;color:var(--text2)">Click to upload invoice PDF</div>
-      <div style="font-size:11px;color:var(--text2)">AI will scan and auto-fill details below</div>
+      <div style="font-size:11px;color:var(--text2)">Upload then fill in details below</div>
     </div>
     <input type="file" id="ndis-add-file" accept=".pdf,image/*" onchange="handleNdisAddUpload(event)" style="display:none">
     <div id="ndis-add-scan-status" style="font-size:12px;color:var(--text2);margin-bottom:8px;display:none"></div>
@@ -601,7 +601,8 @@ let S = {
   spendingBalances: {benj:{current:-17.91},kasie:{current:-5.66}},
   workflowData: {},
   csvPending: [],
-  ndisTransactions: []
+  ndisTransactions: [],
+  merchantMemory: {}
 };
 let tokenClient, accessToken, gapiInited = false, gisInited = false;
 let syncTimeout = null;
@@ -767,6 +768,8 @@ async function loadFromSheets(){
     // Load csvPending from sheet
     const csvPendingRaw=ranges[8]?.values?.[0]?.[0];
     if(csvPendingRaw){try{S.csvPending=JSON.parse(csvPendingRaw);}catch(e){S.csvPending={};}}
+    const merchantRaw=ranges[8]?.values?.[0]?.[1];
+    if(merchantRaw){try{S.merchantMemory=JSON.parse(merchantRaw);}catch(e){S.merchantMemory={};}}
     const delRows=ranges[5]?.values||[];
     if(delRows.length>1){
       S.deletedTransactions=delRows.slice(1).map(r=>({
@@ -827,6 +830,8 @@ async function saveToSheets(){
     // Save csvPending as JSON in a single cell
     const csvPendingJson=JSON.stringify(S.csvPending||{});
     data.push({range:'CSVPending!A1',values:[[csvPendingJson]]});
+    const merchantJson=JSON.stringify(S.merchantMemory||{});
+    data.push({range:'CSVPending!B1',values:[[merchantJson]]});
     const delRows=[['id','date','description','amount','category','subcat','method','status','source','deletedAt']];
     (S.deletedTransactions||[]).forEach(t=>delRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status||'',t.source||'',t.deletedAt||'']));
     data.push({range:'DeletedTx!A1',values:delRows});
@@ -1664,7 +1669,7 @@ function renderNdisStepAction(stepId,txId){
       <div class="upload-zone" onclick="document.getElementById('ndis-inv-upload-${txId}').click()" style="padding:10px;margin-bottom:10px">
         <div style="font-size:20px;margin-bottom:2px">📄</div>
         <div style="font-size:12px;color:var(--text2)">Click to upload invoice PDF</div>
-        <div style="font-size:11px;color:var(--text2)">AI will scan and auto-fill details below</div>
+        <div style="font-size:11px;color:var(--text2)">Upload then fill in details below</div>
       </div>
       <input type="file" id="ndis-inv-upload-${txId}" accept=".pdf,image/*" onchange="handleNdisUpload(event,'${txId}')">
       <div id="ndis-scan-status-${txId}" style="font-size:12px;color:var(--text2);margin-bottom:8px;display:none"></div>
@@ -1828,18 +1833,7 @@ async function handleNdisUpload(e,txId){
       reader.readAsDataURL(file);
     });
 
-    // Try AI scanning to pre-fill fields
-    const scanned=await scanInvoiceWithAI(base64,file.type||'application/pdf',txId);
-    if(scanned){
-      // Pre-fill categorise fields if they exist
-      const provEl=document.getElementById('ndis-provider-'+txId);
-      const invEl=document.getElementById('ndis-invno-'+txId);
-      const dateEl=document.getElementById('ndis-date-'+txId);
-      if(provEl&&scanned.provider&&!provEl.value)provEl.value=scanned.provider;
-      if(invEl&&scanned.invoiceNo&&!invEl.value)invEl.value=scanned.invoiceNo;
-      // Store for later use
-      S.workflowData['ndisScanned_'+txId]=scanned;
-    }
+
     if(catId){
       // Upload to Drive immediately
       setSyncStatus('syncing');
@@ -2049,31 +2043,8 @@ async function handleNdisAddUpload(e){
   window._ndisAddFileBase64=base64;
   window._ndisAddFileMime=file.type||'application/pdf';
   window._ndisAddFileName=file.name;
-  // AI scan
-  try{
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:500,
-        messages:[{role:'user',content:[
-          {type:'document',source:{type:'base64',media_type:file.type||'application/pdf',data:base64}},
-          {type:'text',text:'Extract from this invoice: provider name, invoice number, date (YYYY-MM-DD), and total amount. Respond ONLY with JSON: {"provider":"","invoiceNo":"","date":"","amount":0}'}
-        ]}]
-      })
-    });
-    const data=await resp.json();
-    const text=data.content?.[0]?.text||'';
-    const parsed=JSON.parse(text.replace(/```json|```/g,'').trim());
-    if(parsed.provider&&!document.getElementById('ndis-provider').value)document.getElementById('ndis-provider').value=parsed.provider;
-    if(parsed.invoiceNo&&!document.getElementById('ndis-invno').value)document.getElementById('ndis-invno').value=parsed.invoiceNo;
-    if(parsed.date&&!document.getElementById('ndis-date').value)document.getElementById('ndis-date').value=parsed.date;
-    if(parsed.amount&&!document.getElementById('ndis-amount').value)document.getElementById('ndis-amount').value=parsed.amount;
-    if(statusEl)statusEl.textContent='✅ Invoice scanned — details auto-filled!';
-    previewNdisFilename();
-  } catch(err){
-    if(statusEl)statusEl.textContent='Could not auto-scan — please fill in details manually.';
-  }
+  if(statusEl){statusEl.textContent='📄 Invoice ready — please fill in the details below.';statusEl.style.display='block';}
+  previewNdisFilename();
   const fileStatus=document.getElementById('ndis-add-file-status');
   if(fileStatus){fileStatus.style.display='block';fileStatus.textContent='📄 '+file.name+' ready to upload to Drive';}
 }
@@ -2466,7 +2437,7 @@ function openCSVReview(data){
       ${t.isDuplicate?`<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — ${fmt(t.amount)} on ${fmtDate(t.date)} already exists: "${t.duplicateOf?.description}". Check carefully.</div>`:''}
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched')"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option><option value="Money Owed"${t.category==='Money Owed'?' selected':''}>💰 Money owed to you</option></select></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option><option value="Money Owed"${t.category==='Money Owed'?' selected':''}>💰 Money owed to you</option></select></div>
         </div>
         <div id="csv-sub-c${i}" style="margin-top:8px">${renderCSVSubcatNamed('c'+i,t.category,t.subcat)}</div>
         <div id="csv-split-c${i}" style="display:none;margin-top:8px">
@@ -2549,6 +2520,14 @@ function renderCSVSubcatNamed(key,catName,selected){
   const cat=CATS.find(c=>c.name===catName);
   if(!cat?.subs)return'';
   return`<div class="field" style="margin:0"><label>Sub-category</label><select onchange="updateSubcatValue('${key}',this.value)">${cat.subs.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('')}</select></div>`;
+}
+function learnMerchant(desc,category){
+  if(!desc||!category||category==='Split')return;
+  const key=getMerchantKey(desc);
+  if(!key)return;
+  S.merchantMemory=S.merchantMemory||{};
+  S.merchantMemory[key]=category;
+  scheduleSave();
 }
 function updateMergedSubcat(key,catName){
   const el=document.getElementById('csv-sub-'+key);
@@ -2693,7 +2672,14 @@ function acceptCSVReview(){
   }
 }
 
+function getMerchantKey(desc){
+  // Normalise merchant name for lookup
+  return (desc||'').toLowerCase().replace(/[^a-z0-9]/g,' ').trim().split(' ').slice(0,3).join(' ');
+}
 function autoAssign(desc, mcCat, rawDetails){
+  // Check merchant memory first
+  const key=getMerchantKey(desc);
+  if(key&&S.merchantMemory?.[key])return S.merchantMemory[key];
   const d=(desc||'').toLowerCase();
   const m=(mcCat||'').toLowerCase();
   const r=(rawDetails||'').toLowerCase();
