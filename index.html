@@ -1137,8 +1137,8 @@ function renderBudgetGrid(){
       yPct=Math.min(Math.max(totalSpent/cat.yearly*100,0),100);
       isOver=bal<0;isWarn=bal>=0&&bal<(cat.fn*0.2);
     }
-    const bc=isOver?'neg':'pos';
-    const fc=isOver?'over':'good';
+    const bc=isOver?'neg':isWarn?'warn':'pos';
+    const fc=isOver?'over':isWarn?'warn':'good';
     // Fortnight progress marker: cycles/26 fortnights in year
     const fnMarkerPct=Math.min(Math.max(0,cycles-1)/26*100,100);
     const el=document.createElement('div');
