@@ -3329,27 +3329,17 @@ async function scanDriveFolders(){
         return numMatch&&amtMatch;
       });
       if(match){
-        // Save to ndisTransaction record for persistence
-        const allNdis=getNdisTransactions();
         const ndisEntry=S.ndisTransactions?.find(t=>t.id===tx.id);
         if(ndisEntry){
+          // Only link if not already linked
           if(!ndisEntry.driveLink){
             ndisEntry.driveLink=match.webViewLink;
             ndisEntry.driveFileId=match.id||'';
             ndisEntry.fileName=match.name;
-            matched++;
-          }
-        } else {
-          // For imported NDIS transactions, add to S.ndisTransactions
-          const importedTx=NDIS_IMPORT.find(t=>t.id===tx.id);
-          if(importedTx&&!S.ndisTransactions?.find(t=>t.id===tx.id)){
-            S.ndisTransactions=S.ndisTransactions||[];
-            S.ndisTransactions.push({...importedTx,driveLink:match.webViewLink,driveFileId:match.id||'',fileName:match.name});
+            S.workflowData['ndisFileLink_'+tx.id]=match.webViewLink;
             matched++;
           }
         }
-        // Also store in workflowData for backward compat
-        S.workflowData['ndisFileLink_'+tx.id]=match.webViewLink;
       }
     }
     if(matched>0){
