@@ -371,7 +371,7 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
     </div>
     <div class="frow">
       <div class="field"><label>Mortgage ahead ($)</label><input type="number" id="eo-mort" step="0.01"><div class="field-hint">How much ahead on mortgage</div></div>
-      <div class="field"><label>Renovations balance ($)</label><input type="number" id="eo-reno" step="0.01"><div class="field-hint">Current balance in Renovations account</div></div>
+
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('editOverall')">Cancel</button>
@@ -483,6 +483,26 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
     <div style="font-size:12px;color:var(--text2);margin-bottom:12px">22 April 2026 – 20 April 2027</div>
     <div id="budget-overview-body"></div>
     <div class="modal-actions"><button class="btn" onclick="closeModal('budgetOverview')">Close</button></div>
+  </div>
+</div>
+
+<!-- Additional Money Modal -->
+<div id="modal-additionalMoney" class="modal-overlay">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('additionalMoney')">✕</button>
+    <div class="modal-title">Additional money</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1.25rem">
+      <div class="stat"><div class="stat-label">Renovations</div><div class="stat-value pos" id="am-reno-display">${fmt(S.overall.renovationsBalance||0)}</div><div style="font-size:11px;color:var(--text2);margin-top:4px">Deducted automatically when Renovations transactions are added</div></div>
+      <div class="stat"><div class="stat-label">Maternity</div><div class="stat-value pos" id="am-mat-display">${fmt(S.overall.maternityBalance||0)}</div></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Renovations balance ($)</label><input type="number" id="am-reno" step="0.01" placeholder="0.00"><div class="field-hint">Auto-deducted when Renovations transactions added</div></div>
+      <div class="field"><label>Maternity balance ($)</label><input type="number" id="am-mat" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('additionalMoney')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAdditionalMoney()">✓ Save</button>
+    </div>
   </div>
 </div>
 
@@ -621,7 +641,7 @@ while(_d <= new Date('2027-04-21')){MONEY_DAYS.push(new Date(_d));_d=new Date(_d
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let S = {
   transactions: [],
-  overall: {actualSavings:4713.11,ndisOwed:393.55,cashSavings:2275,mortgageAhead:9289.45,moneyOwed:44.95,renovationsBalance:null},
+  overall: {actualSavings:4713.11,ndisOwed:393.55,cashSavings:2275,mortgageAhead:9289.45,moneyOwed:44.95,renovationsBalance:null,maternityBalance:0},
   moneyOwedItems: [],
   spendingBalances: {benj:{current:-17.91},kasie:{current:-5.66}},
   workflowData: {},
@@ -774,7 +794,8 @@ async function loadFromSheets(){
         cashSavings:parseFloat(cfg.cashSavings)||0,
         mortgageAhead:parseFloat(cfg.mortgageAhead)||0,
         moneyOwed:parseFloat(cfg.moneyOwed)||0,
-        renovationsBalance:cfg.renovationsBalance!=null&&cfg.renovationsBalance!==''&&cfg.renovationsBalance!=='null'&&cfg.renovationsBalance!=='undefined'?parseFloat(cfg.renovationsBalance):null
+        renovationsBalance:cfg.renovationsBalance!=null&&cfg.renovationsBalance!==''&&cfg.renovationsBalance!=='null'&&cfg.renovationsBalance!=='undefined'?parseFloat(cfg.renovationsBalance):null,
+        maternityBalance:parseFloat(cfg.maternityBalance)||0
       };
     }
     const owedRows=ranges[2].values||[];
@@ -1119,8 +1140,8 @@ function renderOverall(){
     <div class="stat private-sensitive"><div class="stat-label">Target</div><div class="stat-value">$10,000</div></div>
     <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openActualSavingsDetail()"><div class="stat-label">Actual savings ↗</div><div class="stat-value ${calcActualSavings()>=10000?'pos':'neg'}">${fmt(calcActualSavings())}</div></div>
     <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openModal('moneyOwedDetail')"><div class="stat-label">Money owed ↗</div><div class="stat-value pos">${fmt((S.moneyOwedItems||[]).reduce((a,o)=>a+o.amount,0)+getNegativeBudgets().reduce((a,b)=>a+b.amount,0))}</div></div>
-    <div class="stat private-sensitive"><div class="stat-label">Renovations</div><div class="stat-value ${(S.overall.renovationsBalance||0)>0?'pos':(S.overall.renovationsBalance||0)<0?'neg':''}">${S.overall.renovationsBalance!=null&&S.overall.renovationsBalance!==undefined?fmt(S.overall.renovationsBalance):'Not set — tap Update figures'}</div></div>
-    <div class="stat" style="grid-column:span 2">
+    <div class="stat private-sensitive" style="cursor:pointer" onclick="openAdditionalMoneyDetail()"><div class="stat-label">Additional money ↗</div><div class="stat-value pos">${fmt((S.overall.renovationsBalance||0)+(S.overall.maternityBalance||0))}</div></div>
+    <div class="stat" style="grid-column:1/-1">
       <div class="stat-label">Budget year progress</div>
       <div style="position:relative;height:20px;background:var(--surface2);border-radius:var(--radius-sm);overflow:hidden;margin-top:6px;border:1px solid var(--border)">
         <div style="height:100%;background:var(--green);width:${Math.min(Math.max(0,getTithingCycles()-1)/26*100,100).toFixed(1)}%;border-radius:var(--radius-sm)"></div>
@@ -1259,9 +1280,10 @@ function renderWorkflow(){
     {n:5,title:'Pay credit card',desc:'Pay your MyCard balance now.',action:'confirm',ct:'I have paid the credit card ✓'},
     {n:6,title:'Tithe',desc:'Enter gross income — 10% calculated. Records tithing transaction only (budgets update at finalise step).',action:'tithe'},
     {n:7,title:'Benj & Kasie spending balances',desc:'Enter current debit card balances to calculate positions and transfer amounts.',action:'spending'},
-    {n:8,title:'Review & pay bills',desc:'Check emails, mail, and apps for any bills due this fortnight.',action:'confirm',ct:'I have reviewed and paid all bills ✓'},
-    {n:9,title:'Process NDIS',desc:'Process all NDIS transactions for this fortnight — upload invoices, pay, categorise and claim.',action:'ndis'},
-    {n:10,title:'Update mortgage position',desc:'Enter how much you are currently ahead on the mortgage.',action:'mortgage'},
+    {n:8,title:'Money owed to you',desc:'Review people who owe you money and mark any as paid.',action:'moneyowed'},
+    {n:9,title:'Review & pay bills',desc:'Check emails, mail, and apps for any bills due this fortnight.',action:'confirm',ct:'I have reviewed and paid all bills ✓'},
+    {n:10,title:'Process NDIS',desc:'Process all NDIS transactions for this fortnight — upload invoices, pay, categorise and claim.',action:'ndis'},
+    {n:11,title:'Update mortgage position',desc:'Enter how much you are currently ahead on the mortgage.',action:'mortgage'},
   ];
   const wd=S.workflowData||{};
   const pending=S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').length;
@@ -1347,6 +1369,32 @@ function renderStepBody(s,done,pending){
         <button class="btn btn-sm" onclick="openModal('addNdis')">+ Add invoice not yet in transactions</button>
       </div>
       ${unprocessed.length===0?`<button class="btn btn-primary btn-sm" style="margin-top:12px;width:100%" onclick="finaliseNdisStep()">✓ Done — update NDIS owed & continue</button>`:''}`;
+  }
+  if(s.action==='moneyowed'){
+    const items=S.moneyOwedItems||[];
+    const negBudgets=getNegativeBudgets();
+    if(!items.length&&!negBudgets.length){
+      return`<div style="font-size:13px;color:var(--green);margin-bottom:12px">✓ Nobody owes you money right now!</div>
+      <button class="btn btn-primary btn-sm" onclick="doneStep(8)">✓ Done</button>`;
+    }
+    const itemRows=items.map(o=>`
+      <div class="tx accepted" style="cursor:default;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500">${o.description}</div>
+          ${o.date?`<div style="font-size:11px;color:var(--text2)">Added: ${fmtDate(o.date)}</div>`:''}
+        </div>
+        <span style="font-size:14px;font-weight:700;color:var(--green)">${fmt(o.amount)}</span>
+        <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="markOwedPaidFromWorkflow('${o.id}')">✓ Paid</button>
+      </div>`).join('');
+    const negRows=negBudgets.map(b=>`
+      <div class="tx flagged" style="cursor:default;margin-bottom:6px">
+        <div style="flex:1"><div style="font-size:13px;font-weight:500">${b.name} overspent</div></div>
+        <span style="font-size:14px;font-weight:700;color:var(--red)">${fmt(b.amount)}</span>
+      </div>`).join('');
+    return`
+      ${itemRows}
+      ${negBudgets.length?`<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">Overspent budgets</div>${negRows}`:''}
+      <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="doneStep(8)">✓ Done — continue</button>`;
   }
   if(s.action==='cash')return`<div class="field"><label>Cash added to savings ($)</label><input type="number" id="cash-in" step="0.01" placeholder="0.00"><div class="field-hint">Current cash savings: ${fmt(S.overall.cashSavings||0)}</div></div><button class="btn btn-primary btn-sm" onclick="addCash()">✓ Update & done</button>`;
 
@@ -1532,7 +1580,7 @@ function saveMortgage(){
   const a=parseFloat(document.getElementById('mort-in')?.value)||0;
   S.overall.mortgageAhead=a;
   saveS();
-  doneStep(10);
+  doneStep(11);
 }
 function acceptAllPending(){let n=0;S.transactions.filter(t=>t.status==='pending').forEach(t=>{t.status='accepted';n++;});saveS();doneStep(4);alert(n+' transactions accepted.');}
 
@@ -2038,7 +2086,7 @@ function finaliseNdisStep(){
   // Replace (not add) NDIS owed figure
   S.overall.ndisOwed=totalNdis;
   saveS();
-  doneStep(9);
+  doneStep(10);
   alert('NDIS step complete!\nNDIS owed updated to '+fmt(totalNdis)+' for this fortnight.');
 }
 
@@ -2728,6 +2776,20 @@ function acceptCSVReview(){
   }
 }
 
+function openAdditionalMoneyDetail(){
+  document.getElementById('am-reno').value=(S.overall.renovationsBalance||0).toFixed(2);
+  document.getElementById('am-mat').value=(S.overall.maternityBalance||0).toFixed(2);
+  openModal('additionalMoney');
+}
+async function saveAdditionalMoney(){
+  const reno=parseFloat(document.getElementById('am-reno')?.value)||0;
+  const mat=parseFloat(document.getElementById('am-mat')?.value)||0;
+  S.overall.renovationsBalance=reno;
+  S.overall.maternityBalance=mat;
+  closeModal('additionalMoney');
+  render();
+  await saveToSheets();
+}
 function toggleRecurringOptions(){
   const checked=document.getElementById('qt-recurring')?.checked;
   const opts=document.getElementById('qt-recurring-options');
@@ -2806,8 +2868,7 @@ function openModal(id){
     document.getElementById('eo-cash').value=(S.overall.cashSavings||0).toFixed(2);
     const mortEl=document.getElementById('eo-mort');
     if(mortEl)mortEl.value=(S.overall.mortgageAhead||0).toFixed(2);
-    const renoEl=document.getElementById('eo-reno');
-    if(renoEl)renoEl.value=S.overall.renovationsBalance!==undefined?(S.overall.renovationsBalance||0).toFixed(2):'';
+
   }
   if(id==='quickTx'){
     // Reset all fields
@@ -2884,11 +2945,7 @@ async function saveOverall(){
   S.overall.cashSavings=parseFloat(document.getElementById('eo-cash')?.value)||0;
   const mortInput=document.getElementById('eo-mort');
   if(mortInput)S.overall.mortgageAhead=parseFloat(mortInput.value)||0;
-  const renoVal=document.getElementById('eo-reno')?.value;
-  if(renoVal!==''&&renoVal!==null&&renoVal!==undefined){
-    const parsed=parseFloat(renoVal);
-    S.overall.renovationsBalance=isNaN(parsed)?null:parsed;
-  }
+
   closeModal('editOverall');
   render();
   await saveToSheets();
@@ -3172,6 +3229,18 @@ function renderOwedList(){
 
   el.innerHTML=html;
 }
+async function markOwedPaidFromWorkflow(id){
+  if(!confirm('Mark this as paid and remove it?'))return;
+  if(syncTimeout){clearTimeout(syncTimeout);syncTimeout=null;}
+  S.moneyOwedItems=(S.moneyOwedItems||[]).filter(o=>o.id!==id);
+  S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
+  render();
+  await saveToSheets();
+  // Re-render workflow to update the list
+  renderWorkflow();
+  // Re-open step 8
+  setTimeout(()=>document.getElementById('sb8')?.classList.add('open'),100);
+}
 async function markOwedPaid(id){
   if(!confirm('Mark this as paid and remove it?'))return;
   // Cancel any pending scheduled saves to avoid race condition
@@ -3305,7 +3374,7 @@ function renderNDIS(){
       </div>
     </div>
 
-    ${unpaidTxs.length?`<div class="banner banner-err" style="margin-bottom:12px">⚠ ${unpaidTxs.length} unpaid invoice${unpaidTxs.length>1?'s':''} — action required</div>`:''}
+
 
     <div class="card" style="margin-bottom:1rem">
       <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Overview 2026–27</div>
@@ -3335,7 +3404,7 @@ function renderNDIS(){
           <div class="pbar"><div class="pfill ${pct>90?'over':pct>70?'warn':'good'}" style="width:${pct.toFixed(1)}%"></div></div>
           <div class="bc-meta">
             <span>Spent ${fmt(spent)}</span>
-            <span>${unpaid>0?'⚠ '+unpaid+' unpaid':catTxs.length+' invoices'}</span>
+            <span>${catTxs.length} invoice${catTxs.length!==1?'s':''}</span>
           </div>
         </div>`;
       }).join('')}
@@ -3428,7 +3497,7 @@ function openNdisCatDetail(catId){
           </div>
           <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
             <div style="font-size:13px;font-weight:700">${fmt(t.amount)}</div>
-            <div style="font-size:11px;padding:2px 7px;border-radius:20px;background:${NDIS_STATUS_BG[t.status]};color:${NDIS_STATUS_COLORS[t.status]};font-weight:600">${NDIS_STATUS_LABELS[t.status]}</div>
+
             ${(S.workflowData?.['ndisFileLink_'+t.id]||t.driveLink)?`<a href="${S.workflowData?.['ndisFileLink_'+t.id]||t.driveLink}" target="_blank" style="font-size:10px;color:var(--blue)" onclick="event.stopPropagation()">📄 Invoice</a>`:''}
           </div>
         </div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No invoices yet</div>'}
@@ -3453,7 +3522,7 @@ function openNdisTxDetail(id){
       <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(t.amount)}</div></div>
       <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:15px">${fmtDate(t.date)}</div></div>
       <div class="stat"><div class="stat-label">Category</div><div class="stat-value" style="font-size:12px">${cat?.name||''}</div></div>
-      <div class="stat"><div class="stat-label">Status</div><div class="stat-value" style="font-size:13px;color:${NDIS_STATUS_COLORS[t.status]}">${NDIS_STATUS_LABELS[t.status]}</div></div>
+
     </div>
     ${t.comments?`<div style="font-size:13px;color:var(--text2);margin-bottom:12px">📝 ${t.comments}</div>`:''}
     ${(t.driveLink||S.workflowData?.['ndisFileLink_'+t.id])?
@@ -3471,11 +3540,7 @@ function openNdisTxDetail(id){
       <div style="font-size:12px;font-family:monospace;word-break:break-all;color:var(--text)">${filename}</div>
       <button class="btn btn-sm" style="margin-top:8px" onclick="navigator.clipboard.writeText('${filename}').then(()=>alert('Filename copied!'))">📋 Copy filename</button>
     </div>
-    <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Update status</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      ${NDIS_STATUSES.map(s=>`<button class="btn btn-sm" style="background:${s===t.status?NDIS_STATUS_BG[s]:'var(--surface)'};color:${NDIS_STATUS_COLORS[s]};border-color:${NDIS_STATUS_COLORS[s]}" onclick="updateNdisStatus('${t.id}','${s}')">${s===t.status?'✓ ':''} ${NDIS_STATUS_LABELS[s]}</button>`).join('')}
-    </div>
-    ${t.status==='unpaid'?`<div style="margin-top:12px"><div class="banner banner-err">⚠ This invoice needs to be paid. Check provider bank details on the invoice.</div></div>`:''}`;
+`;
 
   document.getElementById('txd-actions').innerHTML=`
     <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="if(confirm('Delete this NDIS invoice?')){deleteNdisTx('${t.id}');closeModal('txDetail');}">🗑 Delete</button>
