@@ -2641,18 +2641,42 @@ function openCSVReview(data){
   if(unmatchedManual.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">⚠ Manual entries — no credit card match found (${unmatchedManual.length})</div>`;
     unmatchedManual.forEach((t,i)=>{
+      if(t._reviewed){
+        html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkManualReviewed(${i})">
+          <span style="color:var(--green);font-size:16px">✓</span>
+          <span style="font-size:13px;font-weight:500;flex:1">${t.description}</span>
+          <span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(t.amount)}</span>
+          <span style="font-size:11px;color:var(--text2);margin-left:8px">${t.category} · Keep</span>
+          <span style="font-size:11px;color:var(--text2)">tap to edit</span>
+        </div>`;
+        return;
+      }
       html+=`<div style="border:1px solid #E8C060;border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--al)">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
           <div>
             <div style="font-size:13px;font-weight:700">${t.description}</div>
-            <div style="font-size:11px;color:var(--amber)">Manually entered · ${t.category}${t.subcat?' · '+t.subcat:''} · ${t.date}</div>
+            <div style="font-size:11px;color:var(--amber)">Manually entered · ${t.category}${t.subcat?' · '+t.subcat:''} · ${fmtDate(t.date)}</div>
           </div>
           <span style="font-size:15px;font-weight:700">${fmt(t.amount)}</span>
         </div>
-        <div style="font-size:12px;color:#7A5A10;margin-bottom:8px">This transaction has no matching credit card entry. Was it paid by cash/debit, or is it still to appear on your statement?</div>
+        <div style="font-size:12px;color:#7A5A10;margin-bottom:10px">No matching credit card entry — was this cash/debit, or still to appear on your statement?</div>
+        <div class="frow" style="margin-bottom:8px">
+          <div class="field" style="margin:0"><label>Category</label>
+            <select onchange="S.csvPending.unmatchedManual[${i}].category=this.value">
+              ${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}
+              <option value="Other"${t.category==='Other'?' selected':''}>Other</option>
+            </select>
+          </div>
+          <div class="field" style="margin:0"><label>Amount ($)</label>
+            <input type="number" value="${t.amount}" step="0.01" onchange="S.csvPending.unmatchedManual[${i}].amount=parseFloat(this.value)||t.amount">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:10px"><label>Description</label>
+          <input type="text" value="${t.description}" onchange="S.csvPending.unmatchedManual[${i}].description=this.value" style="width:100%">
+        </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='keep'">Keep as-is</button>
-          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='remove'">Remove</button>
+          <button class="btn btn-sm btn-primary" style="background:var(--green);border-color:var(--gd)" onclick="markManualReviewed(${i})">✓ Reviewed — keep</button>
+          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='remove';openCSVReview(S.csvPending)">🗑 Remove</button>
         </div>
       </div>`;
     });
@@ -2662,6 +2686,16 @@ function openCSVReview(data){
   openModal('csvReview');
 }
 
+function markManualReviewed(i){
+  S.csvPending.unmatchedManual[i]._reviewed=true;
+  S.csvPending.unmatchedManual[i].keepAction='keep';
+  openCSVReview(S.csvPending);
+}
+function unmarkManualReviewed(i){
+  delete S.csvPending.unmatchedManual[i]._reviewed;
+  delete S.csvPending.unmatchedManual[i].keepAction;
+  openCSVReview(S.csvPending);
+}
 function unmarkCSVReviewed(key){
   const prefix=key[0];
   const idx=parseInt(key.slice(1));
