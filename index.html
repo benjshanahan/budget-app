@@ -826,7 +826,7 @@ async function loadFromSheets(){
     // Check for due recurring transactions
     checkRecurringTransactions();
     // Migrate imported NDIS transactions into S.ndisTransactions so Drive links persist
-    migrateNdisImports();
+    await migrateNdisImports();
     // Repair any split transactions
     repairSplitTransactions();
     // One-time fix for known split transactions
@@ -892,8 +892,9 @@ function scheduleSave(){
   syncTimeout=setTimeout(()=>saveToSheets(),1500);
 }
 
-function migrateNdisImports(){
+async function migrateNdisImports(){
   // Move any NDIS_IMPORT entries not yet in S.ndisTransactions
+  // CRITICAL: never overwrite existing entries - they have driveLink saved
   const existingIds=new Set((S.ndisTransactions||[]).map(t=>t.id));
   let migrated=0;
   NDIS_IMPORT.forEach(t=>{
@@ -905,8 +906,7 @@ function migrateNdisImports(){
   });
   if(migrated>0){
     console.log('Migrated '+migrated+' NDIS import transactions');
-    // Use scheduleSave to avoid overwriting other saves in progress
-    scheduleSave();
+    await saveToSheets();
   }
 }
 function applyKnownSplitFixes(){
@@ -1772,8 +1772,15 @@ function renderNdisStepAction(stepId,txId){
 async function handleRetroNdisUpload(e,ndisId,catId){
   const file=e.target.files[0];
   if(!file)return;
-  const tx=S.ndisTransactions?.find(t=>t.id===ndisId);
-  if(!tx)return;
+  // Find in S.ndisTransactions, or move from NDIS_IMPORT if needed
+  let tx=S.ndisTransactions?.find(t=>t.id===ndisId);
+  if(!tx){
+    const imported=NDIS_IMPORT.find(t=>t.id===ndisId);
+    if(!imported){alert('Transaction not found.');return;}
+    tx={...imported};
+    S.ndisTransactions=S.ndisTransactions||[];
+    S.ndisTransactions.push(tx);
+  }
   const base64=await new Promise((res,rej)=>{
     const reader=new FileReader();
     reader.onload=()=>res(reader.result.split(',')[1]);
@@ -3343,7 +3350,7 @@ async function scanDriveFolders(){
       }
     }
     if(matched>0){
-      saveS();
+      await saveToSheets();
       alert('✅ Linked '+matched+' invoice'+( matched!==1?'s':'')+' to Drive files!\n\nTap any transaction to see the Drive link.');
     } else {
       alert('No new matches found. Files may already be linked, or filenames do not match the expected format.');
