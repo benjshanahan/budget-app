@@ -2644,7 +2644,7 @@ function openCSVReview(data){
       ${t.isDuplicate?`<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — ${fmt(t.amount)} on ${fmtDate(t.date)} already exists: "${t.duplicateOf?.description}". Check carefully.</div>`:''}
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option><option value="Money Owed"${t.category==='Money Owed'?' selected':''}>💰 Money owed to you</option></select></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option><option value="💰 Add to Money Owed"${t.category==='💰 Add to Money Owed'||t.category==='Money Owed'?' selected':''}>💰 Add to Money Owed</option></select></div>
         </div>
         <div id="csv-sub-c${i}" style="margin-top:8px">${renderCSVSubcatNamed('c'+i,t.category,t.subcat)}</div>
         <div id="csv-split-c${i}" style="display:none;margin-top:8px">
@@ -2893,7 +2893,7 @@ function toggleCSVSplit(key,catName,idx,section){
     if(splitArea)splitArea.style.display='none';
     if(subcatArea)subcatArea.style.display='block';
     if(descArea)descArea.style.display='block';
-    if(owedArea)owedArea.style.display=catName==='Money Owed'?'block':'none';
+    if(owedArea)owedArea.style.display=(catName==='Money Owed'||catName==='💰 Add to Money Owed')?'block':'none';
   }
 }
 function addCSVSplitRow(key){
