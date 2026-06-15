@@ -2684,19 +2684,30 @@ function openCSVReview(data){
         </div>
         <div style="font-size:12px;color:#7A5A10;margin-bottom:10px">No matching credit card entry — was this cash/debit, or still to appear?</div>
         ${isSplit?`
-        <div style="border:1px solid #E8C060;border-radius:var(--radius-sm);overflow:hidden;margin-bottom:10px">
+        <div style="margin-bottom:10px">
           ${txs.map((t,j)=>`
-          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #E8C060;background:rgba(255,255,255,0.4)${j===txs.length-1?';border-bottom:none':''}">
-            <div style="flex:1;min-width:0">
-              <div style="font-size:12px;font-weight:600">${t.description}</div>
-              <div style="font-size:11px;color:var(--amber)">${t.category||'No category'}</div>
+          <div style="border:1px solid #E8C060;border-radius:var(--radius-sm);padding:10px;margin-bottom:6px;background:rgba(255,255,255,0.4)">
+            <div class="frow" style="margin-bottom:6px">
+              <div class="field" style="margin:0"><label>Category</label>
+                <select onchange="S.csvPending.unmatchedManual[${indices[j]}].category=this.value">
+                  ${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}
+                  <option value="Other"${t.category==='Other'?' selected':''}>Other</option>
+                  <option value="💰 Add to Money Owed"${t.category==='💰 Add to Money Owed'?' selected':''}>💰 Money Owed</option>
+                </select>
+              </div>
+              <div class="field" style="margin:0"><label>Amount ($)</label>
+                <input type="number" value="${t.amount}" step="0.01" onchange="S.csvPending.unmatchedManual[${indices[j]}].amount=parseFloat(this.value)||0">
+              </div>
             </div>
-            <span style="font-size:13px;font-weight:600">${fmt(t.amount)}</span>
+            <div class="field" style="margin:0"><label>Description</label>
+              <input type="text" value="${t.description}" onchange="S.csvPending.unmatchedManual[${indices[j]}].description=this.value" style="width:100%">
+            </div>
           </div>`).join('')}
         </div>`:`
         <div class="frow" style="margin-bottom:8px">
           <div class="field" style="margin:0"><label>Category</label>
-            <select onchange="S.csvPending.unmatchedManual[${indices[0]}].category=this.value">
+            <select id="manual-cat-${gi}" onchange="toggleManualSplit('${gi}',this.value,${indices[0]})">
+              <option value="Split">⇄ Split transaction</option>
               ${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===txs[0].category?' selected':''}>${n}</option>`).join('')}
               <option value="Other"${txs[0].category==='Other'?' selected':''}>Other</option>
             </select>
@@ -2705,8 +2716,13 @@ function openCSVReview(data){
             <input type="number" value="${txs[0].amount}" step="0.01" onchange="S.csvPending.unmatchedManual[${indices[0]}].amount=parseFloat(this.value)||0">
           </div>
         </div>
-        <div class="field" style="margin-bottom:10px"><label>Description</label>
+        <div class="field" style="margin-bottom:8px"><label>Description</label>
           <input type="text" value="${txs[0].description}" onchange="S.csvPending.unmatchedManual[${indices[0]}].description=this.value" style="width:100%">
+        </div>
+        <div id="manual-split-area-${gi}" style="display:none;margin-bottom:8px">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Split amounts</div>
+          <div id="manual-split-rows-${gi}"></div>
+          <button class="btn btn-sm" onclick="addManualSplitRow('${gi}',${indices[0]})" style="margin-top:4px">+ Add split</button>
         </div>`}
         <div style="display:flex;gap:8px">
           <button class="btn btn-sm btn-primary" style="background:var(--green);border-color:var(--gd)" onclick="markManualGroupReviewed(${JSON.stringify(indices)})">✓ Reviewed — keep</button>
@@ -2729,6 +2745,35 @@ function unmarkManualReviewed(i){
   delete S.csvPending.unmatchedManual[i]._reviewed;
   delete S.csvPending.unmatchedManual[i].keepAction;
   openCSVReview(S.csvPending);
+}
+function toggleManualSplit(gi,catVal,idx){
+  const splitArea=document.getElementById('manual-split-area-'+gi);
+  if(catVal==='Split'){
+    if(splitArea)splitArea.style.display='block';
+    if(!document.getElementById('manual-split-rows-'+gi).children.length)addManualSplitRow(gi,idx);
+  } else {
+    if(splitArea)splitArea.style.display='none';
+    S.csvPending.unmatchedManual[idx].category=catVal;
+  }
+}
+function addManualSplitRow(gi,parentIdx){
+  const container=document.getElementById('manual-split-rows-'+gi);
+  if(!container)return;
+  const div=document.createElement('div');
+  div.className='split-row';
+  div.style.cssText='display:flex;flex-direction:column;gap:6px;margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
+  const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
+  div.innerHTML=`<div style="display:flex;gap:6px;align-items:center">
+    <select style="flex:2;font-size:13px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+      <option value="">-- Category --</option>
+      ${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}
+      <option value="Other">Other</option>
+    </select>
+    <input type="number" placeholder="Amount" step="0.01" min="0" style="flex:1;font-size:13px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+    <button class="btn btn-sm" onclick="this.closest('.split-row').remove()" style="color:var(--red);border-color:var(--red)">✕</button>
+  </div>
+  <input type="text" placeholder="Description" style="width:100%;font-size:13px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">`;
+  container.appendChild(div);
 }
 function markManualGroupReviewed(indices){
   indices.forEach(i=>{
@@ -2921,8 +2966,22 @@ function acceptCSVReview(){
     }
   });
   // Handle unmatched manual
+  const processedManualIds=new Set();
   unmatchedManual.forEach(t=>{
-    if(t.keepAction==='remove')S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
+    if(processedManualIds.has(t.id))return;
+    processedManualIds.add(t.id);
+    if(t.keepAction==='remove'){
+      S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
+    } else {
+      // Update the transaction with any edits
+      const existing=S.transactions.find(tx=>tx.id===t.id);
+      if(existing){
+        existing.description=t.description;
+        existing.category=t.category;
+        existing.amount=t.amount;
+        existing.status='accepted';
+      }
+    }
   });
   // Check for Renovations transactions and show reminder
   const renoTxs=[...merged.map(m=>m.csv),...unmatchedCSV].filter(t=>t.category==='Renovations');
