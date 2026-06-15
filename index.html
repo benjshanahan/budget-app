@@ -1571,8 +1571,13 @@ function doneStep(n){S.workflowData['s'+n]=true;saveS();renderWorkflow();}
 function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
 function resetWorkflow(){
   if(confirm('Start a new fortnight?\n\nThis will reset all workflow steps back to the beginning. Any pending transactions from this workflow will be removed.')){
-    // Remove all pending transactions (they were added this fn and not yet accepted)
-    S.transactions=S.transactions.filter(t=>t.status!=='pending'||t.source==='import');
+    // Remove pending CSV transactions but keep manually entered ones
+    S.transactions=S.transactions.filter(t=>
+      t.status!=='pending'||
+      t.source==='import'||
+      t.source==='manual'||
+      t.source==='recurring'
+    );
     // Remove NDIS transactions added during this workflow (tracked in workflowData)
     const ndisAddedThisFn=S.workflowData.ndisAddedIds||[];
     if(ndisAddedThisFn.length){
@@ -2502,19 +2507,31 @@ function handleCSV(e){
 
     for(const csv of csvTxs){
       // First try exact amount match on single transaction
-      const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<0.01&&m.date===csv.date);
+      const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<2&&m.date===csv.date);
       if(manualMatch){
         matchedManualIds.add(manualMatch.id);
         merged.push({csv,manual:manualMatch,action:'merge'});
       } else {
         // Try matching split transactions — find all pending txs on same date that sum to CSV amount
         const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&m.date===csv.date);
-        // Group by checking if any subset sums to csv.amount
-        // Simple approach: find all same-date pending that were split (same source group)
-        // Check if total of same-date transactions matches
-        const sameDateTotal=sameDatePending.reduce((a,t)=>a+t.amount,0);
-        if(sameDatePending.length>1&&Math.abs(sameDateTotal-csv.amount)<0.01){
-          // All same-date pending transactions together match this CSV entry
+        // Also include same-date accepted manual transactions (e.g. Money Owed splits)
+        const sameDateAccepted=S.transactions.filter(t=>
+          t.status==='accepted'&&t.source==='manual'&&t.date===csv.date&&
+          !matchedManualIds.has(t.id)&&
+          (t.category==='💰 Add to Money Owed'||t.notes==='Added to Money Owed on dashboard')
+        );
+        const sameDateAll=[...sameDatePending,...sameDateAccepted];
+        // Check if total of same-date transactions matches CSV amount
+        const sameDateTotal=sameDateAll.reduce((a,t)=>a+t.amount,0);
+        if(sameDateAll.length>1&&Math.abs(sameDateTotal-csv.amount)<2){
+          // All same-date transactions together match this CSV entry
+          sameDateAll.forEach(m=>matchedManualIds.add(m.id));
+          merged.push({csv,manualGroup:sameDatePending,action:'merge-split'});
+          continue;
+        }
+        // Also try just pending
+        const sameDatePendingTotal=sameDatePending.reduce((a,t)=>a+t.amount,0);
+        if(sameDatePending.length>1&&Math.abs(sameDatePendingTotal-csv.amount)<2){
           sameDatePending.forEach(m=>matchedManualIds.add(m.id));
           merged.push({csv,manualGroup:sameDatePending,action:'merge-split'});
           continue;
@@ -2523,7 +2540,8 @@ function handleCSV(e){
         const dupMatch=S.transactions.find(t=>
           t.status==='accepted'&&
           Math.abs(t.amount-csv.amount)<0.01&&
-          t.date===csv.date
+          t.date===csv.date&&
+          t.source!=='manual'
         );
         if(dupMatch){
           csv.isDuplicate=true;
@@ -2568,7 +2586,7 @@ function openCSVReview(data){
         </div>
         <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)}</div>
         <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value" style="width:100%"></div>
-        <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: manual entry will be removed and replaced with this credit card transaction</div>
+        <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: credit card transaction matched — manual entry will be kept as-is</div>
         <button class="btn btn-sm" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('merged',${i})">🗑 Remove</button>
         <button class="btn btn-sm btn-primary" style="margin-top:8px;margin-left:6px;background:var(--green);border-color:var(--gd)" onclick="markCSVReviewed('m${i}',this.closest('.csv-tx-row'))">✓ Reviewed</button>
       </div>`;
@@ -2762,25 +2780,21 @@ function updateCSVSubcat(i,catName){const el=document.getElementById('csv-sub-'+
 
 function acceptCSVReview(){
   const{merged,unmatchedCSV,unmatchedManual}=S.csvPending;
-  // Process merged matches
+  // Process merged matches - keep manual transactions, discard raw CSV
   merged.forEach((m,i)=>{
     if(m.action==='merge-split'){
-      // Split group match - remove manual entries, add them back as credit
-      const groupIds=new Set((m.manualGroup||[]).map(t=>t.id));
-      S.transactions=S.transactions.filter(t=>!groupIds.has(t.id));
+      // Split group match - keep manual entries, just mark them as credit method
       (m.manualGroup||[]).forEach(mt=>{
-        S.transactions.push({...mt,method:'credit',status:'pending',source:'csv',date:m.csv.date});
+        const tx=S.transactions.find(t=>t.id===mt.id);
+        if(tx){tx.method='credit';tx.status='accepted';tx.source='csv';}
       });
     } else {
-      // Single match - remove manual, add CSV version
-      S.transactions=S.transactions.filter(t=>t.id!==m.manual?.id);
-      const splitKey='m'+i;
-      const splitArea=document.getElementById('csv-split-'+splitKey);
-      if(splitArea&&splitArea.style.display!=='none'){
-        const splits=getCSVSplitRows(splitKey);
-        splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:m.csv.date,description:sp.description||m.csv.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
-      } else {
-        S.transactions.push({...m.csv,status:'pending'});
+      // Single match - keep manual transaction, update method to credit, mark accepted
+      const manualTx=S.transactions.find(t=>t.id===m.manual?.id);
+      if(manualTx){
+        manualTx.method='credit';
+        manualTx.status='accepted';
+        manualTx.source='csv';
       }
     }
   });
