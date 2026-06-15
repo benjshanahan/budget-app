@@ -189,6 +189,7 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
   .main{padding:.75rem}
 }
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -1788,24 +1789,19 @@ async function handleRetroNdisUpload(e,ndisId,catId){
     reader.readAsDataURL(file);
   });
   const filename=genNdisFilename(tx);
+  const NDIS_FOLDER_IDS={core:'1upqz4gwIM0q7klvfkTIAhNkS3ecgs4US',idls:'1GVmWlO4dSzhvPZnzG4hhiHaZA9-d2yKj',sc:'1cKzi9eZ6hLtmbAsgYQKWTqTmCII2pPa0',at:'1T4TRV-23F87jVO6b2gIqKyiWiypxTmTM'};
+  const folderId=NDIS_FOLDER_IDS[catId];
   try{
     setSyncStatus('syncing');
-    const resp=await fetch('/.netlify/functions/sheets',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'uploadToDrive',catId,filename,fileBase64:base64,mimeType:file.type||'application/pdf'})
-    });
-    const result=await resp.json();
-    if(result.success){
-      tx.driveFileId=result.fileId;
-      tx.driveLink=result.webViewLink;
-      tx.fileName=result.fileName;
-      setSyncStatus('synced');
-      saveS();
-      closeModal('txDetail');
-      setTimeout(()=>openNdisTxDetail(ndisId),100);
-      alert('Invoice uploaded to Drive: '+result.fileName);
-    }
+    const result=await uploadFileToDriveFolder(folderId,filename,base64,file.type||'application/pdf');
+    tx.driveFileId=result.id;
+    tx.driveLink=result.webViewLink;
+    tx.fileName=result.name;
+    setSyncStatus('synced');
+    await saveToSheets();
+    closeModal('txDetail');
+    setTimeout(()=>openNdisTxDetail(ndisId),100);
+    alert('✅ Invoice uploaded to Drive: '+result.name);
   } catch(err){
     console.error('Upload error:',err);
     setSyncStatus('error');
@@ -3242,6 +3238,47 @@ function getNdisSpent(catId){
   return getNdisTransactions().filter(t=>t.cat===catId).reduce((a,t)=>a+t.amount,0);
 }
 
+async function uploadFileToDriveFolder(folderId,filename,base64Data,mimeType){
+  async function doUpload(token){
+    const boundary='-------314159265358979323846';
+    const binary=atob(base64Data);
+    const bytes=new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+    const meta=JSON.stringify({name:filename,parents:[folderId]});
+    const enc=new TextEncoder();
+    const p1=enc.encode('--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+meta+'\r\n');
+    const p2=enc.encode('--'+boundary+'\r\nContent-Type: '+mimeType+'\r\n\r\n');
+    const p3=enc.encode('\r\n--'+boundary+'--');
+    const body=new Uint8Array(p1.length+p2.length+bytes.length+p3.length);
+    body.set(p1,0);body.set(p2,p1.length);body.set(bytes,p1.length+p2.length);body.set(p3,p1.length+p2.length+bytes.length);
+    const resp=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'multipart/related; boundary="'+boundary+'"'},
+      body
+    });
+    if(!resp.ok){
+      const err=await resp.json();
+      if(resp.status===401)window._googleDriveToken=null;
+      throw new Error(err.error?.message||'Upload failed');
+    }
+    return resp.json();
+  }
+  if(window._googleDriveToken){
+    try{return await doUpload(window._googleDriveToken);}catch(e){if(!e.message.includes('401'))throw e;}
+  }
+  return new Promise((resolve,reject)=>{
+    const tc=google.accounts.oauth2.initTokenClient({
+      client_id:CLIENT_ID,
+      scope:'https://www.googleapis.com/auth/drive.file',
+      callback:async(tr)=>{
+        if(tr.error){reject(new Error(tr.error));return;}
+        window._googleDriveToken=tr.access_token;
+        try{resolve(await doUpload(tr.access_token));}catch(e){reject(e);}
+      }
+    });
+    tc.requestAccessToken({prompt:''});
+  });
+}
 function genNdisFilename(t){
   const d=t.date.split('-');
   const dateStr=d[2]+'_'+d[1]+'_'+d[0];
