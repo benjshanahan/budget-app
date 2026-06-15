@@ -2602,6 +2602,7 @@ function openCSVReview(data){
               <div class="field" style="margin:0"><label>Category</label>
                 <select onchange="S.csvPending.merged[${i}].manualGroup[${j}].category=this.value">
                   <option value="">-- Category --</option>
+                  <option value="Split">⇄ Split transaction</option>
                   ${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}
                   <option value="Other"${t.category==='Other'?' selected':''}>Other</option>
                   <option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option>
@@ -2717,6 +2718,7 @@ function openCSVReview(data){
               <div class="field" style="margin:0"><label>Category</label>
                 <select onchange="S.csvPending.unmatchedManual[${indices[j]}].category=this.value">
                   <option value="">-- Category --</option>
+                  <option value="Split">⇄ Split transaction</option>
                   ${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}
                   <option value="Other"${t.category==='Other'?' selected':''}>Other</option>
                   <option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option>
