@@ -1,0 +1,11 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="80" fill="#1A56A0"/>
+  <circle cx="256" cy="220" r="160" fill="white" fill-opacity="0.1"/>
+  <polygon points="256,100 120,210 392,210" fill="white" fill-opacity="0.95"/>
+  <rect x="160" y="210" width="192" height="150" rx="8" fill="white" fill-opacity="0.95"/>
+  <rect x="204" y="248" width="42" height="75" rx="6" fill="#1A56A0"/>
+  <rect x="266" y="248" width="42" height="75" rx="6" fill="#1D9E75"/>
+  <text x="256" y="185" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="80" font-weight="700" fill="white" opacity="0.9">$</text>
+  <text x="256" y="430" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="52" font-weight="700" fill="white" letter-spacing="2">SHANAHAN</text>
+  <text x="256" y="478" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="28" font-weight="400" fill="white" opacity="0.7" letter-spacing="6">BUDGET</text>
+</svg>
