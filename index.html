@@ -2738,10 +2738,10 @@ function openCSVReview(data){
             <div class="field" style="margin:0"><label>Description</label>
               <input type="text" value="${t.description}" onchange="S.csvPending.unmatchedManual[${indices[j]}].description=this.value" style="width:100%">
             </div>
-            <div id="merged-subsplit-area-${i}-${j}" style="display:none;margin-top:6px;padding:6px;border:1px solid #5DBB99;border-radius:var(--radius-sm);background:rgba(255,255,255,0.3)">
+            <div id="manual-subsplit-area-${gi}-${j}" style="display:none;margin-top:6px;padding:6px;border:1px solid #5DBB99;border-radius:var(--radius-sm);background:rgba(255,255,255,0.3)">
               <div style="font-size:11px;font-weight:600;color:var(--gd);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Sub-splits</div>
-              <div id="merged-subsplit-rows-${i}-${j}"></div>
-              <button class="btn btn-sm" onclick="addMergedSubSplitRow(${i},${j})" style="margin-top:4px">+ Add split</button>
+              <div id="manual-subsplit-rows-${gi}-${j}"></div>
+              <button class="btn btn-sm" onclick="addManualSubSplitRow('${gi}',${j})" style="margin-top:4px">+ Add split</button>
             </div>
           </div>`).join('')}
         </div>`:`
