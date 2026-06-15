@@ -159,7 +159,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .upload-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:2rem;text-align:center;cursor:pointer;transition:all .15s}
 .upload-zone:hover{border-color:var(--green);background:var(--gl)}
 .upload-icon{font-size:36px;margin-bottom:8px;opacity:.4}
-input[type=file]{display:none}
+input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:none}
 
 /* Split rows */
 .split-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
@@ -3427,7 +3427,7 @@ function openNdisTxDetail(id){
           <div style="font-size:12px">📎 Upload invoice to Drive</div>
           <div style="font-size:11px;color:var(--text2);margin-top:2px">PDF or image</div>
         </div>
-        <input type="file" id="ndis-retro-up-${t.id}" accept=".pdf,image/*" onchange="handleRetroNdisUpload(event,'${t.id}','${t.cat}')" style="display:none">
+        <input type="file" id="ndis-retro-up-${t.id}" accept=".pdf,image/*" onchange="handleRetroNdisUpload(event,'${t.id}','${t.cat}')" style="opacity:0;position:absolute;width:0;height:0">
       </div>`}
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px">
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Suggested filename</div>
