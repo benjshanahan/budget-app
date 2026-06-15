@@ -2517,26 +2517,33 @@ function handleCSV(e){
       } else {
         // Try matching split transactions — find all pending txs on same date that sum to CSV amount
         const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&m.date===csv.date);
-        // Also include same-date accepted manual transactions (e.g. Money Owed splits)
+        // Also include same-date accepted manual Money Owed transactions
         const sameDateAccepted=S.transactions.filter(t=>
           t.status==='accepted'&&t.source==='manual'&&t.date===csv.date&&
           !matchedManualIds.has(t.id)&&
           (t.category==='💰 Add to Money Owed'||t.notes==='Added to Money Owed on dashboard')
         );
         const sameDateAll=[...sameDatePending,...sameDateAccepted];
-        // Check if total of same-date transactions matches CSV amount
-        const sameDateTotal=sameDateAll.reduce((a,t)=>a+t.amount,0);
-        if(sameDateAll.length>1&&Math.abs(sameDateTotal-csv.amount)<2){
-          // All same-date transactions together match this CSV entry
-          sameDateAll.forEach(m=>matchedManualIds.add(m.id));
-          merged.push({csv,manualGroup:sameDatePending,action:'merge-split'});
-          continue;
+        // Try all subsets of same-date transactions to find one that sums to CSV amount
+        function findMatchingSubset(txs,target,tolerance=2){
+          // Try full set first
+          const total=txs.reduce((a,t)=>a+t.amount,0);
+          if(Math.abs(total-target)<tolerance)return txs;
+          // Try subsets (up to 8 items for performance)
+          const n=Math.min(txs.length,8);
+          for(let mask=1;mask<(1<<n);mask++){
+            const subset=txs.filter((_,i)=>mask&(1<<i));
+            if(subset.length<2)continue;
+            const sum=subset.reduce((a,t)=>a+t.amount,0);
+            if(Math.abs(sum-target)<tolerance)return subset;
+          }
+          return null;
         }
-        // Also try just pending
-        const sameDatePendingTotal=sameDatePending.reduce((a,t)=>a+t.amount,0);
-        if(sameDatePending.length>1&&Math.abs(sameDatePendingTotal-csv.amount)<2){
-          sameDatePending.forEach(m=>matchedManualIds.add(m.id));
-          merged.push({csv,manualGroup:sameDatePending,action:'merge-split'});
+        const matchedSubset=findMatchingSubset(sameDateAll,csv.amount);
+        if(matchedSubset){
+          matchedSubset.forEach(m=>matchedManualIds.add(m.id));
+          const pendingInSubset=matchedSubset.filter(m=>m.status==='pending');
+          merged.push({csv,manualGroup:pendingInSubset,action:'merge-split'});
           continue;
         }
         // Check for duplicate in previous accepted transactions (same date + amount)
