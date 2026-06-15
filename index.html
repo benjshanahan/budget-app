@@ -2584,21 +2584,44 @@ function openCSVReview(data){
       const manualDesc=m.action==='merge-split'
         ? m.manualGroup.map(t=>t.description+' ('+fmt(t.amount)+')').join(', ')
         : '"'+m.manual.description+'" · '+m.manual.category;
+      const isMergeSplit=m.action==='merge-split';
       html+=`<div style="border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--gl)">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
           <div>
             <div style="font-size:13px;font-weight:700;color:var(--gd)">${m.csv.description}</div>
-            <div style="font-size:11px;color:var(--green)">${m.action==='merge-split'?'Split match: ':' Manual entry: '}${manualDesc}</div>
+            <div style="font-size:11px;color:var(--green)">${isMergeSplit?'Split match: ':' Manual entry: '}${manualDesc}</div>
           </div>
           <span style="font-size:15px;font-weight:700;color:var(--gd)">${fmt(m.csv.amount)}</span>
         </div>
-        <div class="frow">
+        ${isMergeSplit?`
+        <div style="font-size:11px;font-weight:600;color:var(--gd);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Edit manual split items</div>
+        <div style="margin-bottom:10px">
+          ${m.manualGroup.map((t,j)=>`
+          <div style="border:1px solid #5DBB99;border-radius:var(--radius-sm);padding:10px;margin-bottom:6px;background:rgba(255,255,255,0.5)">
+            <div class="frow" style="margin-bottom:6px">
+              <div class="field" style="margin:0"><label>Category</label>
+                <select onchange="S.csvPending.merged[${i}].manualGroup[${j}].category=this.value">
+                  ${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}
+                  <option value="Other"${t.category==='Other'?' selected':''}>Other</option>
+                  <option value="💰 Add to Money Owed"${t.category==='💰 Add to Money Owed'?' selected':''}>💰 Money Owed</option>
+                </select>
+              </div>
+              <div class="field" style="margin:0"><label>Amount ($)</label>
+                <input type="number" value="${t.amount}" step="0.01" onchange="S.csvPending.merged[${i}].manualGroup[${j}].amount=parseFloat(this.value)||0">
+              </div>
+            </div>
+            <div class="field" style="margin:0"><label>Description</label>
+              <input type="text" value="${t.description}" onchange="S.csvPending.merged[${i}].manualGroup[${j}].description=this.value" style="width:100%">
+            </div>
+          </div>`).join('')}
+        </div>`:`
+        <div class="frow" style="margin-bottom:8px">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${m.csv.date}" onchange="S.csvPending.merged[${i}].csv.date=this.value"></div>
           <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].csv.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.map(c=>`<option value="${c.name}"${c.name===m.csv.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option></select></div>
         </div>
         <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)}</div>
-        <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value" style="width:100%"></div>
-        <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: credit card transaction matched — manual entry will be kept as-is</div>
+        <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value" style="width:100%"></div>`}
+        <div style="font-size:11px;color:var(--green);margin-top:4px">✓ Credit card matched — manual entry will be kept</div>
         <button class="btn btn-sm" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('merged',${i})">🗑 Remove</button>
         <button class="btn btn-sm btn-primary" style="margin-top:8px;margin-left:6px;background:var(--green);border-color:var(--gd)" onclick="markCSVReviewed('m${i}',this.closest('.csv-tx-row'))">✓ Reviewed</button>
       </div>`;
