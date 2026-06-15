@@ -121,6 +121,10 @@ exports.handler = async (event) => {
       const drive = google.drive({ version: 'v3', auth });
       const buffer = Buffer.from(fileBase64, 'base64');
 
+      const { PassThrough } = require('stream');
+      const stream = new PassThrough();
+      stream.end(buffer);
+
       const response = await drive.files.create({
         requestBody: {
           name: filename,
@@ -128,7 +132,7 @@ exports.handler = async (event) => {
         },
         media: {
           mimeType: mimeType || 'application/pdf',
-          body: require('stream').Readable.from(buffer),
+          body: stream,
         },
         fields: 'id, name, webViewLink',
       });
