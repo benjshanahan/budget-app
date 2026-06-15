@@ -2631,7 +2631,18 @@ function openCSVReview(data){
   if(unmatchedCSV.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">New credit card transactions (${unmatchedCSV.length})</div>`;
     unmatchedCSV.forEach((t,i)=>{
-      if(t._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('c${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${t.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(t.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${t.category}${t.cardLast4?' · ****'+t.cardLast4:''}</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
+      if(t._reviewed){
+        const splitSummary=t._splits&&t._splits.length>0?t._splits.map(s=>s.description+' ('+fmt(s.amount)+')').join(', '):'';
+        html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('c${i}')">
+          <span style="color:var(--green);font-size:16px">✓</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500">${t.description}</div>
+            ${splitSummary?`<div style="font-size:11px;color:var(--gd)">${splitSummary}</div>`:''}
+          </div>
+          <span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(t.amount)}</span>
+          <span style="font-size:11px;color:var(--text2)">tap to edit</span>
+        </div>`;return;
+      }
       html+=`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;margin-bottom:8px">
           <div>
@@ -2976,7 +2987,31 @@ function markCSVReviewed(key,rowEl){
     }
     S.csvPending.merged[idx]._reviewed=true;
   }
-  if(prefix==='c'&&S.csvPending.unmatchedCSV[idx])S.csvPending.unmatchedCSV[idx]._reviewed=true;
+  if(prefix==='c'&&S.csvPending.unmatchedCSV[idx]){
+    const t=S.csvPending.unmatchedCSV[idx];
+    // Save split rows if split transaction was selected
+    const splitArea=document.getElementById('csv-split-c'+idx);
+    if(splitArea&&splitArea.style.display!=='none'){
+      const splitRows=splitArea.querySelectorAll('.csv-split-row');
+      if(splitRows.length>0){
+        const splits=[];
+        splitRows.forEach(row=>{
+          const inputs=row.querySelectorAll('input,select');
+          // Structure: select(cat), input(desc), input(amount)
+          const cat=row.querySelector('select')?.value||'';
+          const textInputs=row.querySelectorAll('input[type=text],input:not([type=number])');
+          const numInputs=row.querySelectorAll('input[type=number],input[step]');
+          const desc=textInputs[0]?.value?.trim()||t.description;
+          const amt=parseFloat(numInputs[0]?.value)||0;
+          const subcatSel=row.querySelector('.csvsr-subcat select,div[id$="-subcat"] select');
+          const subcat=subcatSel?.value||'';
+          if(cat&&amt)splits.push({category:cat,description:desc,amount:amt,subcat});
+        });
+        if(splits.length>0)t._splits=splits;
+      }
+    }
+    t._reviewed=true;
+  }
   saveS();
   openCSVReview(S.csvPending);
 }
@@ -3152,13 +3187,19 @@ function acceptCSVReview(){
     } else if(t.category==='Renovations'){
       S.overall.renovationsBalance=(S.overall.renovationsBalance||0)-t.amount;
       S.transactions.push({...t,status:'pending'});
-    } else if(t.category==='Money Owed'){
-      // Add to money owed list on dashboard
+    } else if(t._splits&&t._splits.length>0){
+      // Use saved splits
+      t._splits.forEach(sp=>S.transactions.push({
+        id:'csv_split_'+Date.now()+'_'+Math.random(),
+        date:t.date,description:sp.description||t.description,
+        amount:sp.amount,category:sp.category,subcat:sp.subcat||'',
+        method:'credit',status:'pending',source:'csv'
+      }));
+    } else if(t.category==='💰 Add to Money Owed'||t.category==='Money Owed'){
       const owedDesc=t.owedDesc||document.getElementById('csv-owed-desc-'+splitKey)?.value||t.description;
       S.moneyOwedItems=S.moneyOwedItems||[];
       S.moneyOwedItems.push({id:'ow_'+Date.now()+'_'+i,description:owedDesc,amount:t.amount,date:t.date});
       S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
-      // Also record as a transaction
       S.transactions.push({...t,status:'pending'});
     } else {
       S.transactions.push({...t,status:'pending'});
