@@ -55,8 +55,8 @@ exports.handler = async (event) => {
         'Workflow!A:B',
         'DeletedTx!A:K',
         'Cycles!A:F',
-        'NDIS!A:I',
-        'CSVPending!A:A',
+        'NDIS!A:L',
+        'CSVPending!A:C',
       ];
 
       const response = await sheets.spreadsheets.values.batchGet({
@@ -174,11 +174,11 @@ exports.handler = async (event) => {
     };
 
   } catch (err) {
-    console.error('Sheets error:', err);
+    console.error('Sheets error:', err.message, err.stack);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: err.message }),
+      body: JSON.stringify({ error: err.message, stack: err.stack?.substring(0, 500) }),
     };
   }
 };
