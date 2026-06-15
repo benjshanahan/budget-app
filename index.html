@@ -2896,6 +2896,8 @@ function markManualGroupRemove(indices){
   indices.forEach(i=>{
     S.csvPending.unmatchedManual[i].keepAction='remove';
   });
+  // Remove them from the array so they disappear from view
+  S.csvPending.unmatchedManual=S.csvPending.unmatchedManual.filter(t=>t.keepAction!=='remove');
   openCSVReview(S.csvPending);
 }
 function unmarkCSVReviewed(key){
@@ -2981,11 +2983,39 @@ function addCSVSplitRow(key){
   if(!container)return;
   const div=document.createElement('div');
   div.className='csv-split-row split-row';
-  div.style.marginBottom='6px';
+  div.style.cssText='margin-bottom:6px;display:flex;flex-direction:column;gap:4px';
   const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
-  div.innerHTML=`<select onchange="autoFillCSVSplit('${key}')" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}<option value="Other">Other</option><option value="NDIS">🏥 NDIS</option><option value="Renovations">🏗 Renovations</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option></select><input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" oninput="autoFillCSVSplit('${key}')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit('${key}')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button>`;
+  const rowId='csvsr-'+Date.now()+'_'+Math.random();
+  div.innerHTML=`<div style="display:flex;gap:6px;align-items:center">
+    <select onchange="autoFillCSVSplit('${key}');updateCSVSplitSubcat(this,'${rowId}')" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+      <option value="">-- Category --</option>${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}
+      <option value="Other">Other</option><option value="NDIS">🏥 NDIS</option>
+      <option value="Renovations">🏗 Renovations</option>
+      <option value="💰 Add to Money Owed">💰 Add to Money Owed</option>
+    </select>
+    <input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+    <input type="number" placeholder="Amount" step="0.01" min="0" oninput="autoFillCSVSplit('${key}')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+    <button class="btn btn-sm" onclick="this.closest('.split-row').remove();autoFillCSVSplit('${key}')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button>
+  </div>
+  <div id="${rowId}-subcat" style="display:none">
+    <select style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"></select>
+  </div>`;
   container.appendChild(div);
   autoFillCSVSplit(key);
+}
+
+function updateCSVSplitSubcat(sel,rowId){
+  const catName=sel.value;
+  const cat=CATS.find(c=>c.name===catName);
+  const wrap=document.getElementById(rowId+'-subcat');
+  if(!wrap)return;
+  if(cat?.subs&&(catName==='Bills'||catName==='Presents')){
+    wrap.style.display='block';
+    const subcatSel=wrap.querySelector('select');
+    subcatSel.innerHTML='<option value="">-- Sub-category --</option>'+cat.subs.map(s=>`<option value="${s}">${s}</option>`).join('');
+  } else {
+    wrap.style.display='none';
+  }
 }
 
 function autoFillCSVSplit(key){
@@ -3320,9 +3350,10 @@ function addSplitRow(){
   div.className='split-row';
   div.style.cssText='display:flex;flex-direction:column;gap:6px;margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
   const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
+  const rowId='split-row-'+Date.now()+'_'+Math.random();
   div.innerHTML=`
     <div style="display:flex;gap:6px;align-items:center">
-      <select onchange="autoFillLastSplit()" style="flex:2;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+      <select onchange="autoFillLastSplit();updateSplitRowSubcat(this,'${rowId}')" style="flex:2;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
         <option value="">-- Category --</option>
         ${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}
         <option value="Other">Other</option>
@@ -3333,9 +3364,26 @@ function addSplitRow(){
       <input type="number" placeholder="Amount $" step="0.01" min="0" oninput="autoFillLastSplit()" style="flex:1;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
       <button class="btn btn-sm" onclick="this.closest('.split-row').remove();autoFillLastSplit()" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button>
     </div>
+    <div id="${rowId}-subcat" style="display:none">
+      <select style="width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit;margin-top:2px"></select>
+    </div>
     <input type="text" placeholder="Description for this split" style="width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">`;
   document.getElementById('split-rows').appendChild(div);
   autoFillLastSplit();
+}
+
+function updateSplitRowSubcat(sel, rowId){
+  const catName=sel.value;
+  const cat=CATS.find(c=>c.name===catName);
+  const wrap=document.getElementById(rowId+'-subcat');
+  if(!wrap)return;
+  if(cat?.subs&&(catName==='Bills'||catName==='Presents')){
+    wrap.style.display='block';
+    const subcatSel=wrap.querySelector('select');
+    subcatSel.innerHTML='<option value="">-- Sub-category --</option>'+cat.subs.map(s=>`<option value="${s}">${s}</option>`).join('');
+  } else {
+    wrap.style.display='none';
+  }
 }
 
 function autoFillLastSplit(){
