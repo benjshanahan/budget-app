@@ -887,6 +887,9 @@ async function loadFromSheets(){
       })).filter(t=>t.id);
     }
     setSyncStatus('synced');
+    // Deduplicate transactions by id
+    const seenIds=new Set();
+    S.transactions=S.transactions.filter(t=>{if(seenIds.has(t.id))return false;seenIds.add(t.id);return true;});
     // Check for due recurring transactions
     checkRecurringTransactions();
     // Migrate imported NDIS transactions into S.ndisTransactions so Drive links persist
@@ -3156,7 +3159,7 @@ function saveQuickTx(){
         // Also record as transaction with note
         S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date,description:splitDesc,amount:amt,category:'💰 Add to Money Owed',subcat:'',method,notes:'Added to Money Owed on dashboard',status:'accepted',source:'manual'});
       } else {
-        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date,description:splitDesc,amount:amt,category:cat,subcat:'',method,notes,status:'pending',source:'manual'});
+        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random()+'_'+amt,date,description:splitDesc,amount:amt,category:cat,subcat:'',method,notes,status:'pending',source:'manual'});
       }
     });
   }else{
