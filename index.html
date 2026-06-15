@@ -2594,35 +2594,25 @@ function openCSVReview(data){
           <span style="font-size:15px;font-weight:700;color:var(--gd)">${fmt(m.csv.amount)}</span>
         </div>
         ${isMergeSplit?`
-        <div style="font-size:11px;font-weight:600;color:var(--gd);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Edit manual split items</div>
         <div style="margin-bottom:10px">
-          ${m.manualGroup.map((t,j)=>`
-          <div style="border:1px solid #5DBB99;border-radius:var(--radius-sm);padding:10px;margin-bottom:6px;background:rgba(255,255,255,0.5)">
-            <div class="frow" style="margin-bottom:6px">
-              <div class="field" style="margin:0"><label>Category</label>
-                <select onchange="S.csvPending.merged[${i}].manualGroup[${j}].category=this.value;toggleMergedSplitItem(${i},${j},this.value)">
-                  <option value="">-- Category --</option>
-                  <option value="Split">⇄ Split transaction</option>
-                  ${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}
-                  <option value="Other"${t.category==='Other'?' selected':''}>Other</option>
-                  <option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option>
-                  <option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option>
-                  <option value="💰 Add to Money Owed"${t.category==='💰 Add to Money Owed'?' selected':''}>💰 Add to Money Owed</option>
-                </select>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="font-size:11px;font-weight:600;color:var(--gd);text-transform:uppercase;letter-spacing:.04em">Manual split items</div>
+            <button class="btn btn-sm" onclick="toggleMergedResplit(${i},${m.csv.amount})" id="merged-resplit-btn-${i}" style="font-size:11px">⇄ Re-split</button>
+          </div>
+          <div id="merged-resplit-area-${i}" style="display:none;margin-bottom:10px">
+            <div id="merged-resplit-rows-${i}"></div>
+            <button class="btn btn-sm" onclick="addMergedResplitRow(${i},${m.csv.amount})" style="margin-top:6px">+ Add split</button>
+          </div>
+          <div id="merged-original-items-${i}">
+            ${m.manualGroup.map((t,j)=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid #5DBB99;border-radius:var(--radius-sm);margin-bottom:6px;background:rgba(255,255,255,0.5)">
+              <div style="min-width:0">
+                <div style="font-size:13px;font-weight:500">${t.description}</div>
+                <div style="font-size:11px;color:var(--gd)">${t.category}</div>
               </div>
-              <div class="field" style="margin:0"><label>Amount ($)</label>
-                <input type="number" value="${t.amount}" step="0.01" onchange="S.csvPending.merged[${i}].manualGroup[${j}].amount=parseFloat(this.value)||0">
-              </div>
-            </div>
-            <div class="field" style="margin:0"><label>Description</label>
-              <input type="text" value="${t.description}" onchange="S.csvPending.merged[${i}].manualGroup[${j}].description=this.value" style="width:100%">
-            </div>
-            <div id="merged-subsplit-area-${i}-${j}" style="display:none;margin-top:6px;padding:6px;border:1px solid #5DBB99;border-radius:var(--radius-sm);background:rgba(255,255,255,0.3)">
-              <div style="font-size:11px;font-weight:600;color:var(--gd);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Sub-splits</div>
-              <div id="merged-subsplit-rows-${i}-${j}"></div>
-              <button class="btn btn-sm" onclick="addMergedSubSplitRow(${i},${j})" style="margin-top:4px">+ Add split</button>
-            </div>
-          </div>`).join('')}
+              <span style="font-size:13px;font-weight:700;color:var(--gd);flex-shrink:0;margin-left:12px">${fmt(t.amount)}</span>
+            </div>`).join('')}
+          </div>
         </div>`:`
         <div class="frow" style="margin-bottom:8px">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${m.csv.date}" onchange="S.csvPending.merged[${i}].csv.date=this.value"></div>
@@ -2818,6 +2808,64 @@ function addManualSubSplitRow(gi,j){
   <input type="text" placeholder="Description" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">`;
   container.appendChild(div);
 }
+function toggleMergedResplit(i,totalAmt){
+  const area=document.getElementById('merged-resplit-area-'+i);
+  const origItems=document.getElementById('merged-original-items-'+i);
+  const btn=document.getElementById('merged-resplit-btn-'+i);
+  const isOpen=area.style.display!=='none';
+  if(isOpen){
+    area.style.display='none';
+    if(origItems)origItems.style.display='block';
+    if(btn)btn.textContent='⇄ Re-split';
+  } else {
+    area.style.display='block';
+    if(origItems)origItems.style.display='none';
+    if(btn)btn.textContent='↩ Cancel re-split';
+    // Pre-populate with existing split items if empty
+    const rows=document.getElementById('merged-resplit-rows-'+i);
+    if(rows&&!rows.children.length){
+      const m=S.csvPending.merged[i];
+      if(m?.manualGroup){
+        m.manualGroup.forEach(t=>addMergedResplitRow(i,totalAmt,t));
+      }
+    }
+  }
+}
+function addMergedResplitRow(i,totalAmt,prefill){
+  const container=document.getElementById('merged-resplit-rows-'+i);
+  if(!container)return;
+  const div=document.createElement('div');
+  div.className='split-row';
+  div.style.cssText='display:flex;flex-direction:column;gap:6px;margin-bottom:8px;padding:10px;border:1px solid #5DBB99;border-radius:var(--radius-sm);background:rgba(255,255,255,0.4)';
+  const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
+  const rowId='mr-'+Date.now()+'_'+Math.random();
+  div.innerHTML=`<div style="display:flex;gap:6px;align-items:center">
+    <select style="flex:2;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit" onchange="autoFillMergedResplit(${i},${totalAmt})">
+      <option value="">-- Category --</option>
+      ${sortedCats.map(n=>`<option value="${n}"${prefill?.category===n?' selected':''}>${n}</option>`).join('')}
+      <option value="Other"${prefill?.category==='Other'?' selected':''}>Other</option>
+      <option value="NDIS"${prefill?.category==='NDIS'?' selected':''}>🏥 NDIS</option>
+      <option value="Renovations"${prefill?.category==='Renovations'?' selected':''}>🏗 Renovations</option>
+      <option value="💰 Add to Money Owed"${prefill?.category==='💰 Add to Money Owed'?' selected':''}>💰 Add to Money Owed</option>
+    </select>
+    <input type="number" placeholder="Amount $" step="0.01" min="0" value="${prefill?.amount||''}" oninput="autoFillMergedResplit(${i},${totalAmt})" style="flex:1;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+    <button class="btn btn-sm" onclick="this.closest('.split-row').remove();autoFillMergedResplit(${i},${totalAmt})" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button>
+  </div>
+  <input type="text" placeholder="Description" value="${prefill?.description||''}" style="width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">`;
+  container.appendChild(div);
+  autoFillMergedResplit(i,totalAmt);
+}
+function autoFillMergedResplit(i,totalAmt){
+  const rows=document.getElementById('merged-resplit-rows-'+i)?.querySelectorAll('.split-row');
+  if(!rows||rows.length<2)return;
+  let used=0;
+  for(let r=0;r<rows.length-1;r++){
+    used+=parseFloat(rows[r].querySelector('input[type=number]')?.value)||0;
+  }
+  const remaining=parseFloat((totalAmt-used).toFixed(2));
+  const lastInput=rows[rows.length-1].querySelector('input[type=number]');
+  if(lastInput&&document.activeElement!==lastInput&&remaining>=0)lastInput.value=remaining.toFixed(2);
+}
 function toggleMergedSplitItem(i,j,catVal){
   const area=document.getElementById('merged-subsplit-area-'+i+'-'+j);
   if(catVal==='Split'){
@@ -2910,8 +2958,26 @@ function unmarkCSVReviewed(key){
 function markCSVReviewed(key,rowEl){
   const prefix=key[0];
   const idx=parseInt(key.slice(1));
+  if(prefix==='m'&&S.csvPending.merged[idx]){
+    const m=S.csvPending.merged[idx];
+    // Check if user did a re-split
+    const resplitRows=document.querySelectorAll('#merged-resplit-rows-'+idx+' .split-row');
+    const resplitArea=document.getElementById('merged-resplit-area-'+idx);
+    if(resplitArea&&resplitArea.style.display!=='none'&&resplitRows.length>0){
+      const newGroup=[];
+      resplitRows.forEach(row=>{
+        const sel=row.querySelector('select');
+        const inputs=row.querySelectorAll('input');
+        const amt=parseFloat(inputs[0]?.value)||0;
+        const desc=inputs[1]?.value?.trim()||m.csv.description;
+        if(sel?.value&&amt)newGroup.push({id:'tx_'+Date.now()+'_'+Math.random(),date:m.csv.date,description:desc,amount:amt,category:sel.value,subcat:'',method:'credit',status:'pending',source:'manual'});
+      });
+      if(newGroup.length>0)m.manualGroup=newGroup;
+    }
+    S.csvPending.merged[idx]._reviewed=true;
+  }
   if(prefix==='c'&&S.csvPending.unmatchedCSV[idx])S.csvPending.unmatchedCSV[idx]._reviewed=true;
-  if(prefix==='m'&&S.csvPending.merged[idx])S.csvPending.merged[idx]._reviewed=true;
+  saveS();
   openCSVReview(S.csvPending);
 }
 function deleteFromCSVReview(type, idx){
