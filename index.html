@@ -2508,6 +2508,8 @@ function handleCSV(e){
     const prevCycleIds=new Set((S.completedCycles||[]).flatMap(c=>c.transactionIds||[]));
     const prevTxs=S.transactions.filter(t=>t.status==='accepted'&&prevCycleIds.has(t.id));
 
+    // Sort by amount descending so largest transactions match first
+    csvTxs.sort((a,b)=>b.amount-a.amount);
     for(const csv of csvTxs){
       // First try exact amount match on single transaction
       const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<2&&m.date===csv.date);
