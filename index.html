@@ -494,7 +494,7 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
       <div style="font-size:12px;color:var(--text2)">Click to upload invoice PDF</div>
       <div style="font-size:11px;color:var(--text2)">Upload then fill in details below</div>
     </label>
-    <input type="file" id="ndis-add-file" accept=".pdf,image/*" onchange="handleNdisAddUpload(event)" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
+    <input type="file" id="ndis-add-file" accept=".pdf,image/*" onchange="handleNdisAddUpload(event)" style="position:absolute;width:0;height:0;opacity:0">
     <div id="ndis-add-scan-status" style="font-size:12px;color:var(--text2);margin-bottom:8px;display:none"></div>
     <div class="field"><label>Category</label>
       <select id="ndis-cat">
@@ -1366,7 +1366,7 @@ function renderStepBody(s,done,pending){
     const hasPending=S.csvPending&&(S.csvPending.merged?.length||S.csvPending.unmatchedCSV?.length||S.csvPending.unmatchedManual?.length);
     return`<a href="https://secure.mycard.com.au/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 Open MyCard</a>
       <label for="csv-up" class="upload-zone" style="display:block;cursor:pointer"><div class="upload-icon">📄</div><div style="font-size:13px;font-weight:600;color:var(--text)">Click to upload MyCard CSV</div><div style="font-size:11px;color:var(--text2);margin-top:4px">${getCSVPeriodLabel()}</div></label>
-      <input type="file" id="csv-up" accept=".csv" onchange="handleCSV(event)" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
+      <input type="file" id="csv-up" accept=".csv" onchange="handleCSV(event)" style="position:absolute;width:0;height:0;opacity:0">
       ${hasPending?'<div class="banner banner-warn" style="margin-top:10px">📋 You have an unfinished review — <button class="btn btn-sm" onclick="openCSVReview(S.csvPending)" style="margin-left:4px">Resume review</button></div>':''}
       <button class="btn btn-sm" style="margin-top:10px" onclick="doneStep(1)">Skip — no statement this fortnight</button>`;
   }
@@ -1809,7 +1809,7 @@ function renderNdisStepAction(stepId,txId){
         <div style="font-size:12px;color:var(--text2)">Click to upload invoice PDF</div>
         <div style="font-size:11px;color:var(--text2)">Upload then fill in details below</div>
       </label>
-      <input type="file" id="ndis-inv-upload-${txId}" accept=".pdf,image/*" onchange="handleNdisUpload(event,'${txId}')" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
+      <input type="file" id="ndis-inv-upload-${txId}" accept=".pdf,image/*" onchange="handleNdisUpload(event,'${txId}')" style="position:absolute;width:0;height:0;opacity:0">
       <div id="ndis-scan-status-${txId}" style="font-size:12px;color:var(--text2);margin-bottom:8px;display:none"></div>
       <div class="frow" style="margin-bottom:8px">
         <div class="field" style="margin:0"><label>Category</label>
@@ -2617,10 +2617,10 @@ function openCSVReview(data){
             <div class="field" style="margin:0"><label>Description</label>
               <input type="text" value="${t.description}" onchange="S.csvPending.merged[${i}].manualGroup[${j}].description=this.value" style="width:100%">
             </div>
-            <div id="merged-split-area-${i}-${j}" style="display:none;margin-top:6px;padding:6px;border:1px solid #5DBB99;border-radius:var(--radius-sm);background:rgba(255,255,255,0.3)">
+            <div id="manual-subsplit-area-${gi}-${j}" style="display:none;margin-top:6px;padding:6px;border:1px solid #5DBB99;border-radius:var(--radius-sm);background:rgba(255,255,255,0.3)">
               <div style="font-size:11px;font-weight:600;color:var(--gd);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Sub-splits</div>
-              <div id="merged-split-rows-${i}-${j}"></div>
-              <button class="btn btn-sm" onclick="addMergedSubSplitRow(${i},${j})" style="margin-top:4px">+ Add split</button>
+              <div id="manual-subsplit-rows-${gi}-${j}"></div>
+              <button class="btn btn-sm" onclick="addManualSubSplitRow('${gi}',${j})" style="margin-top:4px">+ Add split</button>
             </div>
           </div>`).join('')}
         </div>`:`
@@ -2721,7 +2721,7 @@ function openCSVReview(data){
           <div style="border:1px solid #E8C060;border-radius:var(--radius-sm);padding:10px;margin-bottom:6px;background:rgba(255,255,255,0.4)">
             <div class="frow" style="margin-bottom:6px">
               <div class="field" style="margin:0"><label>Category</label>
-                <select onchange="S.csvPending.unmatchedManual[${indices[j]}].category=this.value">
+                <select onchange="S.csvPending.unmatchedManual[${indices[j]}].category=this.value;toggleManualSubSplit('${gi}',${j},this.value)">
                   <option value="">-- Category --</option>
                   <option value="Split">⇄ Split transaction</option>
                   ${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}
@@ -2738,10 +2738,10 @@ function openCSVReview(data){
             <div class="field" style="margin:0"><label>Description</label>
               <input type="text" value="${t.description}" onchange="S.csvPending.unmatchedManual[${indices[j]}].description=this.value" style="width:100%">
             </div>
-            <div id="merged-split-area-${i}-${j}" style="display:none;margin-top:6px;padding:6px;border:1px solid #5DBB99;border-radius:var(--radius-sm);background:rgba(255,255,255,0.3)">
+            <div id="manual-subsplit-area-${gi}-${j}" style="display:none;margin-top:6px;padding:6px;border:1px solid #5DBB99;border-radius:var(--radius-sm);background:rgba(255,255,255,0.3)">
               <div style="font-size:11px;font-weight:600;color:var(--gd);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Sub-splits</div>
-              <div id="merged-split-rows-${i}-${j}"></div>
-              <button class="btn btn-sm" onclick="addMergedSubSplitRow(${i},${j})" style="margin-top:4px">+ Add split</button>
+              <div id="manual-subsplit-rows-${gi}-${j}"></div>
+              <button class="btn btn-sm" onclick="addManualSubSplitRow('${gi}',${j})" style="margin-top:4px">+ Add split</button>
             </div>
           </div>`).join('')}
         </div>`:`
@@ -2786,6 +2786,37 @@ function unmarkManualReviewed(i){
   delete S.csvPending.unmatchedManual[i]._reviewed;
   delete S.csvPending.unmatchedManual[i].keepAction;
   openCSVReview(S.csvPending);
+}
+function toggleManualSubSplit(gi,j,catVal){
+  const area=document.getElementById('manual-subsplit-area-'+gi+'-'+j);
+  if(catVal==='Split'){
+    if(area)area.style.display='block';
+    if(area&&!document.getElementById('manual-subsplit-rows-'+gi+'-'+j).children.length)addManualSubSplitRow(gi,j);
+  } else {
+    if(area)area.style.display='none';
+  }
+}
+function addManualSubSplitRow(gi,j){
+  const container=document.getElementById('manual-subsplit-rows-'+gi+'-'+j);
+  if(!container)return;
+  const div=document.createElement('div');
+  div.className='split-row';
+  div.style.cssText='display:flex;flex-direction:column;gap:6px;margin-bottom:6px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
+  const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
+  div.innerHTML=`<div style="display:flex;gap:6px;align-items:center">
+    <select style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+      <option value="">-- Category --</option>
+      ${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}
+      <option value="Other">Other</option>
+      <option value="NDIS">🏥 NDIS</option>
+      <option value="Renovations">🏗 Renovations</option>
+      <option value="💰 Add to Money Owed">💰 Add to Money Owed</option>
+    </select>
+    <input type="number" placeholder="Amount" step="0.01" min="0" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+    <button class="btn btn-sm" onclick="this.closest('.split-row').remove()" style="color:var(--red);border-color:var(--red)">✕</button>
+  </div>
+  <input type="text" placeholder="Description" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">`;
+  container.appendChild(div);
 }
 function toggleMergedSplitItem(key,catVal,i,j){
   const area=document.getElementById('merged-split-area-'+i+'-'+j);
@@ -3830,7 +3861,7 @@ function openNdisTxDetail(id){
           <div style="font-size:12px">📎 Upload invoice to Drive</div>
           <div style="font-size:11px;color:var(--text2);margin-top:2px">PDF or image</div>
         </label>
-        <input type="file" id="ndis-retro-up-${t.id}" accept=".pdf,image/*" onchange="handleRetroNdisUpload(event,'${t.id}','${t.cat}')" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
+        <input type="file" id="ndis-retro-up-${t.id}" accept=".pdf,image/*" onchange="handleRetroNdisUpload(event,'${t.id}','${t.cat}')" style="position:absolute;width:0;height:0;opacity:0">
       </div>`}
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px">
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Suggested filename</div>
