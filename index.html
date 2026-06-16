@@ -719,9 +719,9 @@ const getCatBudgeted = name => {
 const getFNSpending = person => {
   const catName='Spending - '+person;
   const dates=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').map(t=>t.date).sort();
-  // Use second-to-last tithe as cutoff (transactions since last fortnight started)
-  const cutoff=dates.length>=2?dates[dates.length-2]:dates[0]||'2026-04-22';
-  return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>cutoff).reduce((a,t)=>a+(t.amount||0),0);
+  // Use last tithe as cutoff - only count spending since most recent tithe
+  const cutoff=dates.length>0?dates[dates.length-1]:APP_CUTOFF;
+  return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>=cutoff).reduce((a,t)=>a+(t.amount||0),0);
 };
 const calcSpendingBal = (person,debit) => {
   // Formula: prevBalance - topUpTransfer - fnSpending + $70
@@ -1975,26 +1975,19 @@ async function handleNdisUpload(e,txId){
 
 
     if(catId){
-      // Upload to Drive immediately
+      // Upload directly to Drive using browser OAuth
       setSyncStatus('syncing');
-      const resp=await fetch('/.netlify/functions/sheets',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:'uploadToDrive',catId,filename,fileBase64:base64,mimeType:file.type||'application/pdf'})
-      });
-      const result=await resp.json();
-      if(result.success){
-        S.workflowData['ndisFile_'+txId]=result.fileName;
-        S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
-        // Also save to the ndisTransaction record for persistence
-        const ndisEntry=S.ndisTransactions?.find(t=>S.workflowData['ndisCat_'+txId]&&t.date===tx?.date&&Math.abs(t.amount-(tx?.amount||0))<0.01);
-        if(ndisEntry){ndisEntry.driveFileId=result.fileId;ndisEntry.driveLink=result.webViewLink;ndisEntry.fileName=result.fileName;}
-        setSyncStatus('synced');
-        markNdisStep(txId,'upload');
-        alert('Invoice uploaded to Google Drive! File: '+result.fileName);
-      } else {
-        throw new Error(result.error||'Upload failed');
-      }
+      const NDIS_FOLDER_IDS={core:'1upqz4gwIM0q7klvfkTIAhNkS3ecgs4US',idls:'1GVmWlO4dSzhvPZnzG4hhiHaZA9-d2yKj',sc:'1cKzi9eZ6hLtmbAsgYQKWTqTmCII2pPa0',at:'1T4TRV-23F87jVO6b2gIqKyiWiypxTmTM'};
+      const folderId=NDIS_FOLDER_IDS[catId];
+      const result=await uploadFileToDriveFolder(folderId,filename,base64,file.type||'application/pdf');
+      S.workflowData['ndisFile_'+txId]=result.name;
+      S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
+      const ndisEntry=S.ndisTransactions?.find(t=>t.date===tx?.date&&Math.abs(t.amount-(tx?.amount||0))<0.01);
+      if(ndisEntry){ndisEntry.driveFileId=result.id;ndisEntry.driveLink=result.webViewLink;ndisEntry.fileName=result.name;}
+      setSyncStatus('synced');
+      markNdisStep(txId,'upload');
+      await saveToSheets();
+      alert('Invoice uploaded to Google Drive! File: '+result.name);
     } else {
       // Store for later upload after categorisation
       S.workflowData['ndisFileData_'+txId]=base64;
@@ -2139,7 +2132,7 @@ function finaliseNdisStep(){
   const processedTxs=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='accepted'&&processedIds.includes(t.id));
   const txTotal=processedTxs.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
   // From ndisTransactions (manually added invoices this fn)
-  const ndisInvoiceTotal=(S.ndisTransactions||[]).filter(t=>t.date>cutoff&&(t.status==='paid'||t.status==='claimed')).reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
+  const ndisInvoiceTotal=(S.ndisTransactions||[]).filter(t=>t.date>cutoff).reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
   const totalNdis=txTotal+ndisInvoiceTotal;
   // Replace (not add) NDIS owed figure
   S.overall.ndisOwed=totalNdis;
@@ -2654,7 +2647,7 @@ function openCSVReview(data){
       ${t.isDuplicate?`<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — ${fmt(t.amount)} on ${fmtDate(t.date)} already exists: "${t.duplicateOf?.description}". Check carefully.</div>`:''}
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="">-- Select category --</option><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS (process in Step 9)</option><option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option><option value="💰 Add to Money Owed"${t.category==='💰 Add to Money Owed'||t.category==='Money Owed'?' selected':''}>💰 Add to Money Owed</option></select></div>
+          <div class="field" style="margin:0"><label>Category</label><select id="csv-cat-sel-c${i}" onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="">-- Select category --</option><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS (process in Step 9)</option><option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option><option value="💰 Add to Money Owed"${t.category==='💰 Add to Money Owed'||t.category==='Money Owed'?' selected':''}>💰 Add to Money Owed</option></select></div>
         </div>
         <div id="csv-sub-c${i}" style="margin-top:8px">${renderCSVSubcatNamed('c'+i,t.category,t.subcat)}</div>
         <div id="csv-split-c${i}" style="display:none;margin-top:8px">
@@ -2965,6 +2958,37 @@ function unmarkCSVReviewed(key){
   if(prefix==='c'&&S.csvPending.unmatchedCSV[idx])delete S.csvPending.unmatchedCSV[idx]._reviewed;
   if(prefix==='m'&&S.csvPending.merged[idx])delete S.csvPending.merged[idx]._reviewed;
   openCSVReview(S.csvPending);
+  // Restore split rows after render
+  if(prefix==='c'){
+    const t=S.csvPending.unmatchedCSV[idx];
+    if(t?._splits&&t._splits.length>0){
+      setTimeout(()=>{
+        // Find the category select for this transaction
+        const splitKey='c'+idx;
+        const catSel=document.getElementById('csv-cat-sel-'+splitKey);
+        if(catSel){
+          catSel.value='Split';
+          toggleCSVSplit(splitKey,'Split',idx,'unmatched');
+        }
+        const container=document.getElementById('csv-split-rows-'+splitKey);
+        if(container){
+          container.innerHTML='';
+          t._splits.forEach(sp=>{
+            addCSVSplitRow(splitKey);
+            const rows=container.querySelectorAll('.csv-split-row');
+            const lastRow=rows[rows.length-1];
+            if(lastRow){
+              const sel=lastRow.querySelector('select');
+              const inputs=lastRow.querySelectorAll('input');
+              if(sel)sel.value=sp.category;
+              if(inputs[0])inputs[0].value=sp.description||'';
+              if(inputs[1])inputs[1].value=sp.amount||'';
+            }
+          });
+        }
+      },50);
+    }
+  }
 }
 function markCSVReviewed(key,rowEl){
   const prefix=key[0];
