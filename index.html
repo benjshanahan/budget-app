@@ -1771,7 +1771,21 @@ function renderNdisProcessSteps(txId,doneSteps){
       <div style="flex:1;font-size:13px;font-weight:600;color:var(--gd)">${s.label}</div>
       <span style="font-size:11px;color:var(--green)">tap to undo</span>
     </div>`;
-    if(active) return`<div style="border:2px solid var(--blue);border-radius:var(--radius-sm);padding:14px;margin-bottom:8px;background:var(--bl)">
+    // Auto-skip pay step for credit card transactions
+  if(active&&s.id==='pay'&&tx?.method==='credit'){
+    if(!doneSteps.includes('pay')){
+      setTimeout(()=>{
+        S.workflowData['ndisSteps_'+txId]=[...(S.workflowData['ndisSteps_'+txId]||[]),'pay'];
+        saveS();openNdisProcessModal(txId);
+      },100);
+    }
+    return`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--green);border-radius:var(--radius-sm);margin-bottom:8px;background:var(--gl)">
+      <div style="width:22px;height:22px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">✓</div>
+      <div style="flex:1;font-size:13px;font-weight:600;color:var(--gd)">${s.label}</div>
+      <span style="font-size:11px;color:var(--green)">Auto — paid by credit card</span>
+    </div>`;
+  }
+  if(active) return`<div style="border:2px solid var(--blue);border-radius:var(--radius-sm);padding:14px;margin-bottom:8px;background:var(--bl)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
         <div style="width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${i+1}</div>
         <div style="font-size:14px;font-weight:700;color:var(--blue)">${s.label}</div>
@@ -2081,33 +2095,34 @@ async function finaliseNdisTx(txId){
   const catId=wf['ndisCat_'+txId];
   const tx=S.transactions.find(t=>t.id===txId);
   if(!catId){alert('Please complete Step 1 first.');return;}
-  // Upload to Drive if file was stored
-  const pendingFile=wf['ndisFileData_'+txId];
+  const NDIS_FOLDER_IDS={core:'1upqz4gwIM0q7klvfkTIAhNkS3ecgs4US',idls:'1GVmWlO4dSzhvPZnzG4hhiHaZA9-d2yKj',sc:'1cKzi9eZ6hLtmbAsgYQKWTqTmCII2pPa0',at:'1T4TRV-23F87jVO6b2gIqKyiWiypxTmTM'};
   const ndisEntry=S.ndisTransactions?.find(t=>t.id==='ndis_pending_'+txId);
-  if(pendingFile&&ndisEntry){
-    const filename=genNdisFilename(ndisEntry);
+  // Upload to Drive if file was stored but not yet uploaded
+  const pendingFile=wf['ndisFileData_'+txId];
+  if(pendingFile&&ndisEntry&&!wf['ndisFileLink_'+txId]){
     try{
       setSyncStatus('syncing');
-      const resp=await fetch('/.netlify/functions/sheets',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:'uploadToDrive',catId,filename,fileBase64:pendingFile,mimeType:wf['ndisFileMime_'+txId]||'application/pdf'})
-      });
-      const result=await resp.json();
-      if(result.success){
-        wf['ndisFileLink_'+txId]=result.webViewLink;
-        if(ndisEntry){ndisEntry.driveLink=result.webViewLink;ndisEntry.driveFileId=result.fileId;ndisEntry.fileName=result.fileName;}
-        delete wf['ndisFileData_'+txId];
-        setSyncStatus('synced');
-      }
-    } catch(err){console.error('Drive upload error:',err);setSyncStatus('error');}
+      const filename=genNdisFilename(ndisEntry);
+      const folderId=NDIS_FOLDER_IDS[catId];
+      const result=await uploadFileToDriveFolder(folderId,filename,pendingFile,wf['ndisFileMime_'+txId]||'application/pdf');
+      wf['ndisFileLink_'+txId]=result.webViewLink;
+      if(ndisEntry){ndisEntry.driveLink=result.webViewLink;ndisEntry.driveFileId=result.id;ndisEntry.fileName=result.name;}
+      delete wf['ndisFileData_'+txId];
+      setSyncStatus('synced');
+    } catch(err){
+      console.error('Drive upload error:',err);
+      setSyncStatus('error');
+      alert('Drive upload failed: '+err.message+'. You can upload the invoice manually from the NDIS tab.');
+    }
   }
-  // Finalise the ndis entry status
-  if(ndisEntry)ndisEntry.status='claimed';
   // Add to this fortnight's NDIS owed running total
   const amt=parseFloat(wf['ndisAmt_'+txId])||tx?.amount||0;
   wf['ndisRunningTotal']=(parseFloat(wf['ndisRunningTotal'])||0)+amt;
+  // Update S.overall.ndisOwed immediately
+  S.overall.ndisOwed=(S.overall.ndisOwed||0)+amt;
   // Mark complete
   markNdisStep(txId,'finalise');
+  await saveToSheets();
 }
 function completeNdisTx(txId){
   // Mark transaction as processed
