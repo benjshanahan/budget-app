@@ -2891,7 +2891,7 @@ function renderAmCategories(){
   const rows=[];
   if(renoVal!==0){
     rows.push(`<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)">
-      <div style="flex:1"><div style="font-size:13px;font-weight:600">Renovations</div><div style="font-size:11px;color:var(--text2);margin-top:2px">Auto-deducted when Additional Money (Renovations) transactions added</div></div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600">Renovations</div></div>
       <input type="number" step="0.01" value="${renoVal.toFixed(2)}" id="am-reno" style="width:100px;padding:6px 8px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;text-align:right" onchange="document.getElementById('am-total-display').textContent=fmt(getAdditionalTotal())">
     </div>`);
   } else {
