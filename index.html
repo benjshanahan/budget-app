@@ -2661,19 +2661,21 @@ function openCSVReview(data){
   if(unmatchedManual.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">⚠ Manual entries — no credit card match found (${unmatchedManual.length})</div>`;
     unmatchedManual.forEach((t,i)=>{
+      if(t._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('u${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${t.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(t.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${t.category}</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
       html+=`<div style="border:1px solid #E8C060;border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--al)">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
-          <div>
-            <div style="font-size:13px;font-weight:700">${t.description}</div>
-            <div style="font-size:11px;color:var(--amber)">Manually entered · ${t.category}${t.subcat?' · '+t.subcat:''} · ${t.date}</div>
-          </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+          <span style="font-size:13px;font-weight:700">${t.description}</span>
           <span style="font-size:15px;font-weight:700">${fmt(t.amount)}</span>
         </div>
-        <div style="font-size:12px;color:#7A5A10;margin-bottom:8px">This transaction has no matching credit card entry. Was it paid by cash/debit, or is it still to appear on your statement?</div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='keep'">Keep as-is</button>
-          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='remove'">Remove</button>
+        <div style="font-size:11px;color:#7A5A10;margin-bottom:8px">No matching credit card entry — paid by cash/debit, or still to appear on your statement?</div>
+        <div class="frow">
+          <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedManual[${i}].date=this.value"></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedManual[${i}].category=this.value;updateMergedSubcat('u${i}',this.value)">${CATS.filter(c=>!c.isAdditional).map(c=>`<option value="${c.name}"${c.name===t.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="💳 Additional Money"${t.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option></select></div>
         </div>
+        <div id="csv-sub-u${i}" style="margin-top:8px">${renderCSVSubcatNamed('u'+i,t.category,t.subcat)}</div>
+        <div id="csv-desc-u${i}" class="field" style="margin-top:8px;margin-bottom:0"><label>Summary / description</label><input type="text" value="${t.description}" onchange="S.csvPending.unmatchedManual[${i}].description=this.value" style="width:100%"></div>
+        <button class="btn btn-sm" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('manual',${i})">🗑 Remove</button>
+        <button class="btn btn-sm btn-primary" style="margin-top:8px;margin-left:6px;background:var(--green);border-color:var(--gd)" onclick="markCSVReviewed('u${i}',this.closest('.csv-tx-row'))">✓ Reviewed</button>
       </div>`;
     });
   }
@@ -2697,6 +2699,7 @@ function unmarkCSVReviewed(key){
   const idx=parseInt(key.slice(1));
   if(prefix==='c'&&S.csvPending.unmatchedCSV[idx])delete S.csvPending.unmatchedCSV[idx]._reviewed;
   if(prefix==='m'&&S.csvPending.merged[idx])delete S.csvPending.merged[idx]._reviewed;
+  if(prefix==='u'&&S.csvPending.unmatchedManual[idx])delete S.csvPending.unmatchedManual[idx]._reviewed;
   openCSVReview(S.csvPending);
 }
 function markCSVReviewed(key,rowEl){
@@ -2704,6 +2707,7 @@ function markCSVReviewed(key,rowEl){
   const idx=parseInt(key.slice(1));
   if(prefix==='c'&&S.csvPending.unmatchedCSV[idx])S.csvPending.unmatchedCSV[idx]._reviewed=true;
   if(prefix==='m'&&S.csvPending.merged[idx])S.csvPending.merged[idx]._reviewed=true;
+  if(prefix==='u'&&S.csvPending.unmatchedManual[idx])S.csvPending.unmatchedManual[idx]._reviewed=true;
   openCSVReview(S.csvPending);
 }
 function deleteFromCSVReview(type, idx){
@@ -2725,6 +2729,13 @@ function deleteFromCSVReview(type, idx){
       if(m.manual)m.manual.status='pending';
       if(m.manualGroup)m.manualGroup.forEach(t=>t.status='pending');
       pending.merged.splice(idx,1);
+    }
+  } else if(type==='manual'){
+    const t=pending.unmatchedManual[idx];
+    if(t){
+      // Remove the manual transaction entirely (mirrors "Remove" keepAction)
+      S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
+      pending.unmatchedManual.splice(idx,1);
     }
   }
   // Re-render the review
@@ -2756,6 +2767,7 @@ function updateSubcatValue(key,val){
   const prefix=key[0];const i=parseInt(key.slice(1));
   if(prefix==='m')S.csvPending.merged[i].manual.subcat=val;
   else if(prefix==='c')S.csvPending.unmatchedCSV[i].subcat=val;
+  else if(prefix==='u')S.csvPending.unmatchedManual[i].subcat=val;
 }
 function toggleCSVSplit(key,catName,idx,section){
   const splitArea=document.getElementById('csv-split-'+key);
@@ -2914,9 +2926,20 @@ function acceptCSVReview(){
       S.transactions.push({...t,status:'pending'});
     }
   });
-  // Handle unmatched manual
+  // Handle unmatched manual — apply any edits made, mark as accepted
   unmatchedManual.forEach(t=>{
-    if(t.keepAction==='remove')S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
+    const tx=S.transactions.find(x=>x.id===t.id);
+    if(!tx)return;
+    const wasAdditional=tx.category!=='💳 Additional Money'&&t.category==='💳 Additional Money';
+    tx.date=t.date;
+    tx.category=t.category;
+    tx.subcat=t.subcat||'';
+    tx.description=t.description;
+    tx.status='accepted';
+    if(wasAdditional&&tx.subcat){
+      deductAdditionalBalance(tx.subcat,tx.amount);
+      showAdditionalReminder(tx.subcat,tx.amount);
+    }
   });
   // Check for Additional Money transactions and show reminder
   const mergedAddl=merged.filter(m=>m.action!=='merge-split'&&m.manual?.category==='💳 Additional Money').map(m=>({subcat:m.manual.subcat,amount:m.manual.amount}));
