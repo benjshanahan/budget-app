@@ -637,6 +637,12 @@ function localISODate(d){
   const day=String(d.getDate()).padStart(2,'0');
   return y+'-'+m+'-'+day;
 }
+function datesWithinDays(d1,d2,days){
+  const a=new Date(d1+'T00:00:00');
+  const b=new Date(d2+'T00:00:00');
+  const diff=Math.abs(a.getTime()-b.getTime())/(1000*60*60*24);
+  return diff<=days;
+}
 
 // ─── NDIS DATA ────────────────────────────────────────────────────────────────
 const NDIS_CATS = [
@@ -2525,22 +2531,35 @@ function handleCSV(e){
     const prevTxs=S.transactions.filter(t=>t.status==='accepted'&&prevCycleIds.has(t.id));
 
     for(const csv of csvTxs){
-      // First try exact amount match on single transaction
-      const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<2&&m.date===csv.date);
+      // Find best single-transaction match: closest amount first, then closest date (within tolerance)
+      const candidates=manualPending.filter(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<2&&datesWithinDays(m.date,csv.date,2));
+      let manualMatch=null;
+      if(candidates.length){
+        manualMatch=candidates.reduce((best,m)=>{
+          const mAmtDiff=Math.abs(m.amount-csv.amount);
+          const bAmtDiff=Math.abs(best.amount-csv.amount);
+          if(mAmtDiff<bAmtDiff-0.0001)return m;
+          if(mAmtDiff>bAmtDiff+0.0001)return best;
+          // Amount diff tied (within rounding) — fall back to closest date
+          const mDateDiff=Math.abs(new Date(m.date+'T00:00:00')-new Date(csv.date+'T00:00:00'));
+          const bDateDiff=Math.abs(new Date(best.date+'T00:00:00')-new Date(csv.date+'T00:00:00'));
+          return mDateDiff<bDateDiff?m:best;
+        },candidates[0]);
+      }
       if(manualMatch){
         matchedManualIds.add(manualMatch.id);
         merged.push({csv,manual:manualMatch,action:'merge'});
       } else {
-        // Try matching split transactions — find all pending txs on same date that sum to CSV amount
-        const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&m.date===csv.date);
-        // Also include same-date accepted manual Money Owed transactions
+        // Try matching split transactions — find all pending txs within 2 days that sum to CSV amount
+        const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&datesWithinDays(m.date,csv.date,2));
+        // Also include nearby-date accepted manual Money Owed transactions
         const sameDateAccepted=S.transactions.filter(t=>
-          t.status==='accepted'&&t.source==='manual'&&t.date===csv.date&&
+          t.status==='accepted'&&t.source==='manual'&&datesWithinDays(t.date,csv.date,2)&&
           !matchedManualIds.has(t.id)&&
           (t.category==='💰 Add to Money Owed'||t.notes==='Added to Money Owed on dashboard')
         );
         const sameDateAll=[...sameDatePending,...sameDateAccepted];
-        // Try all subsets of same-date transactions to find one that sums to CSV amount
+        // Try all subsets of nearby-date transactions to find one that sums to CSV amount
         function findMatchingSubset(txs,target,tolerance=2){
           // Try full set first
           const total=txs.reduce((a,t)=>a+t.amount,0);
@@ -2562,11 +2581,11 @@ function handleCSV(e){
           merged.push({csv,manualGroup:pendingInSubset,action:'merge-split'});
           continue;
         }
-        // Check for duplicate in previous accepted transactions (same date + amount)
+        // Check for duplicate in previous accepted transactions (date within 2 days + same amount)
         const dupMatch=S.transactions.find(t=>
           t.status==='accepted'&&
           Math.abs(t.amount-csv.amount)<0.01&&
-          t.date===csv.date&&
+          datesWithinDays(t.date,csv.date,2)&&
           t.source!=='manual'
         );
         if(dupMatch){
