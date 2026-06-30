@@ -630,6 +630,13 @@ const STARTING_BALANCES = {
 };
 // Number of fortnights already completed before app was created
 const PRE_APP_CYCLES = 3;
+function localISODate(d){
+  d=d||new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+day;
+}
 
 // ─── NDIS DATA ────────────────────────────────────────────────────────────────
 const NDIS_CATS = [
@@ -1267,7 +1274,7 @@ function renderBudgetGrid(){
 
 function getPeriodDates(period){
   const now=new Date();
-  const today=now.toISOString().split('T')[0];
+  const today=localISODate(now);
   const budgetStart='2026-04-22';
   // Find current fortnight
   const fnIdx=MONEY_DAYS.findIndex(d=>d>now);
@@ -1275,11 +1282,11 @@ function getPeriodDates(period){
   const fnEnd=fnIdx>=0?MONEY_DAYS[fnIdx]:new Date('2027-04-21');
   const prevFnStart=fnIdx>1?MONEY_DAYS[fnIdx-2]:MONEY_DAYS[0];
   // Month
-  const monthStart=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
-  const lastMonthStart=new Date(now.getFullYear(),now.getMonth()-1,1).toISOString().split('T')[0];
-  const lastMonthEnd=new Date(now.getFullYear(),now.getMonth(),0).toISOString().split('T')[0];
-  if(period==='this-fn')return{from:fnStart.toISOString().split('T')[0],to:today};
-  if(period==='last-fn')return{from:prevFnStart.toISOString().split('T')[0],to:fnStart.toISOString().split('T')[0]};
+  const monthStart=localISODate(new Date(now.getFullYear(),now.getMonth(),1));
+  const lastMonthStart=localISODate(new Date(now.getFullYear(),now.getMonth()-1,1));
+  const lastMonthEnd=localISODate(new Date(now.getFullYear(),now.getMonth(),0));
+  if(period==='this-fn')return{from:localISODate(fnStart),to:today};
+  if(period==='last-fn')return{from:localISODate(prevFnStart),to:localISODate(fnStart)};
   if(period==='this-month')return{from:monthStart,to:today};
   if(period==='last-month')return{from:lastMonthStart,to:lastMonthEnd};
   if(period==='this-year')return{from:budgetStart,to:today};
@@ -1535,7 +1542,7 @@ function revertCycle(id){
 }
 function finaliseWorkflow(){
   if(!confirm('Finalise this fortnight? This will:\n• Accept the tithe transaction\n• Add one fortnightly allocation to all budgets\n\nThis cannot be undone (except by reverting the whole fortnight).'))return;
-  const today=S.workflowData.currentDate||new Date().toISOString().split('T')[0];
+  const today=S.workflowData.currentDate||localISODate();
   // Accept the pending tithe transaction
   S.transactions.filter(t=>t.source==='tithe-pending').forEach(t=>{t.status='accepted';t.source='tithe';});
   // Record this workflow as a completed fortnight
@@ -1617,7 +1624,7 @@ function saveTithe(){
   const c=parseFloat(document.getElementById('tc')?.value)||0;
   if(!b&&!k&&!c){alert('Please enter at least one income figure.');return;}
   const t=b+k+c,ti=parseFloat((t*.1).toFixed(2));
-  const today=new Date().toISOString().split('T')[0];
+  const today=localISODate();
   // Store tithe amount for ZCM transfer prompt and finalise step
   S.workflowData.currentTithe=ti;
   S.workflowData.currentGross=t;
@@ -1636,7 +1643,7 @@ function showZCMTransfer(){
 }
 function saveNDIS(){const a=parseFloat(document.getElementById('ndis-in')?.value)||0;S.overall.ndisOwed=(S.overall.ndisOwed||0)+a;saveS();doneStep(9);}
 function addCash(){const a=parseFloat(document.getElementById('cash-in')?.value)||0;S.overall.cashSavings=(S.overall.cashSavings||0)+a;saveS();doneStep(10);}
-function addOther(){const desc=document.getElementById('oth-desc')?.value.trim(),amt=parseFloat(document.getElementById('oth-amt')?.value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.transactions.push({id:'oth_'+Date.now(),date:new Date().toISOString().split('T')[0],description:desc,amount:amt,category:'Other',method:'other',status:'accepted',source:'manual'});if(document.getElementById('oth-desc'))document.getElementById('oth-desc').value='';if(document.getElementById('oth-amt'))document.getElementById('oth-amt').value='';saveS();alert('Added!');}
+function addOther(){const desc=document.getElementById('oth-desc')?.value.trim(),amt=parseFloat(document.getElementById('oth-amt')?.value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.transactions.push({id:'oth_'+Date.now(),date:localISODate(),description:desc,amount:amt,category:'Other',method:'other',status:'accepted',source:'manual'});if(document.getElementById('oth-desc'))document.getElementById('oth-desc').value='';if(document.getElementById('oth-amt'))document.getElementById('oth-amt').value='';saveS();alert('Added!');}
 function saveMoneyOwed(){const a=parseFloat(document.getElementById('ow-total-in')?.value)||0;S.overall.moneyOwed=a;saveS();doneStep(12);}
 function saveMortgage(){
   const a=parseFloat(document.getElementById('mort-in')?.value)||0;
@@ -1805,7 +1812,7 @@ function renderNdisStepAction(stepId,txId){
     const catVal=wf['ndisCat_'+txId]||'';
     const provVal=scanned.provider||tx?.description||'';
     const invVal=scanned.invoiceNo||'';
-    const dateVal=scanned.date||tx?.date||new Date().toISOString().split('T')[0];
+    const dateVal=scanned.date||tx?.date||localISODate();
     const amtVal=scanned.amount||tx?.amount||'';
     return`
       <label for="ndis-inv-upload-${txId}" class="upload-zone" style="padding:10px;margin-bottom:10px;display:block;cursor:pointer;text-align:center">
@@ -1958,7 +1965,7 @@ async function handleNdisUpload(e,txId){
   // Generate filename
   const provider=document.getElementById('ndis-provider-'+txId)?.value||tx?.description||'Provider';
   const invNo=document.getElementById('ndis-invno-'+txId)?.value||'';
-  const date=tx?.date||new Date().toISOString().split('T')[0];
+  const date=tx?.date||localISODate();
   const amount=tx?.amount||0;
   const num=ndisEntry?.num||'N';
   const fakeTx={num,provider,invoiceNo:invNo,date,amount};
@@ -2039,7 +2046,7 @@ async function saveNdisCategorise(txId){
   S.workflowData['ndisProvider_'+txId]=provider||tx?.description||'';
   S.workflowData['ndisInvNo_'+txId]=invoiceNo||'';
   S.workflowData['ndisComments_'+txId]=comments||'';
-  S.workflowData['ndisDate_'+txId]=dateVal||tx?.date||new Date().toISOString().split('T')[0];
+  S.workflowData['ndisDate_'+txId]=dateVal||tx?.date||localISODate();
   S.workflowData['ndisAmt_'+txId]=amtVal||tx?.amount||0;
   // Add to NDIS transactions (placeholder, will be finalised in step 4)
   const catTxs=getNdisTransactions().filter(t=>t.cat===catId);
@@ -2054,7 +2061,7 @@ async function saveNdisCategorise(txId){
     id:'ndis_pending_'+txId,cat:catId,num,
     provider:provider||tx?.description||'',
     invoiceNo:invoiceNo||'',
-    date:dateVal||tx?.date||new Date().toISOString().split('T')[0],
+    date:dateVal||tx?.date||localISODate(),
     amount:amtVal||tx?.amount||0,
     comments:comments||'',
     status:'paid'
@@ -2153,7 +2160,7 @@ function finaliseNdisStep(){
 }
 
 function openNdisModal(){
-  document.getElementById('ndis-date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('ndis-date').value=localISODate();
   // Populate category select
   const sel=document.getElementById('ndis-cat');
   sel.innerHTML=NDIS_CATS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
@@ -2591,21 +2598,27 @@ function openCSVReview(data){
       const manualDesc=m.action==='merge-split'
         ? m.manualGroup.map(t=>t.description+' ('+fmt(t.amount)+')').join(', ')
         : '"'+m.manual.description+'" · '+m.manual.category;
+      const isSplit=m.action==='merge-split';
       html+=`<div style="border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--gl)">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
           <div>
             <div style="font-size:13px;font-weight:700;color:var(--gd)">${m.csv.description}</div>
-            <div style="font-size:11px;color:var(--green)">${m.action==='merge-split'?'Split match: ':' Manual entry: '}${manualDesc}</div>
+            <div style="font-size:11px;color:var(--green)">${isSplit?'Split match: ':' Manual entry: '}${manualDesc}</div>
           </div>
           <span style="font-size:15px;font-weight:700;color:var(--gd)">${fmt(m.csv.amount)}</span>
         </div>
+        ${isSplit?`
+        <div style="font-size:11px;color:var(--green);margin-top:4px;margin-bottom:8px">Matched to ${m.manualGroup.length} manual entries totalling ${fmt(m.csv.amount)}. Edit the categories/amounts below — they must still sum to ${fmt(m.csv.amount)}.</div>
+        <div id="csv-split-rows-m${i}"></div>
+        <button class="btn btn-sm" style="margin-top:4px" onclick="addCSVSplitRow('m${i}')">+ Add row</button>
+        `:`
         <div class="frow">
-          <div class="field" style="margin:0"><label>Date</label><input type="date" value="${m.csv.date}" onchange="S.csvPending.merged[${i}].csv.date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].csv.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.filter(c=>!c.isAdditional).map(c=>`<option value="${c.name}"${c.name===m.csv.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option><option value="💳 Additional Money"${m.csv.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option></select></div>
+          <div class="field" style="margin:0"><label>Date</label><input type="date" value="${m.manual.date}" onchange="S.csvPending.merged[${i}].manual.date=this.value"></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].manual.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.filter(c=>!c.isAdditional).map(c=>`<option value="${c.name}"${c.name===m.manual.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other"${m.manual.category==='Other'?' selected':''}>Other</option><option value="💳 Additional Money"${m.manual.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option></select></div>
         </div>
-        <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)}</div>
-        <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value" style="width:100%"></div>
-        <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: credit card transaction matched — manual entry will be kept as-is</div>
+        <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.manual.category,m.manual.subcat)}</div>
+        <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.manual.description}" onchange="S.csvPending.merged[${i}].manual.description=this.value" style="width:100%"></div>
+        <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: credit card transaction matched — editing here updates your manual entry</div>`}
         <button class="btn btn-sm" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('merged',${i})">🗑 Remove</button>
         <button class="btn btn-sm btn-primary" style="margin-top:8px;margin-left:6px;background:var(--green);border-color:var(--gd)" onclick="markCSVReviewed('m${i}',this.closest('.csv-tx-row'))">✓ Reviewed</button>
       </div>`;
@@ -2666,6 +2679,16 @@ function openCSVReview(data){
   }
 
   document.getElementById('csv-review-body').innerHTML=html;
+  // Pre-fill split rows for merge-split matches with their existing manual entries
+  merged.forEach((m,i)=>{
+    if(m.action==='merge-split'&&!m._reviewed){
+      const container=document.getElementById('csv-split-rows-m'+i);
+      if(container&&!container.children.length){
+        m.manualGroup.forEach(t=>addCSVSplitRowPrefilled('m'+i,t.category,t.description,t.amount));
+        autoFillCSVSplit('m'+i);
+      }
+    }
+  });
   openModal('csvReview');
 }
 
@@ -2731,7 +2754,7 @@ function updateMergedSubcat(key,catName){
 }
 function updateSubcatValue(key,val){
   const prefix=key[0];const i=parseInt(key.slice(1));
-  if(prefix==='m')S.csvPending.merged[i].csv.subcat=val;
+  if(prefix==='m')S.csvPending.merged[i].manual.subcat=val;
   else if(prefix==='c')S.csvPending.unmatchedCSV[i].subcat=val;
 }
 function toggleCSVSplit(key,catName,idx,section){
@@ -2752,6 +2775,17 @@ function toggleCSVSplit(key,catName,idx,section){
     if(owedArea)owedArea.style.display=catName==='Money Owed'?'block':'none';
   }
 }
+function addCSVSplitRowPrefilled(key,category,description,amount,subcat){
+  const container=document.getElementById('csv-split-rows-'+key);
+  if(!container)return;
+  const div=document.createElement('div');
+  div.className='csv-split-row split-row';
+  div.style.marginBottom='6px';
+  const sortedCats2=CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isAdditional).map(c=>c.name).sort();
+  const isAdditional=category==='💳 Additional Money';
+  div.innerHTML=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><select class="csv-split-cat" onchange="autoFillCSVSplit('${key}');toggleSplitRowSubcat(this)" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>${sortedCats2.map(n=>`<option value="${n}"${n===category?' selected':''}>${n}</option>`).join('')}<option value="Other"${category==='Other'?' selected':''}>Other</option><option value="💳 Additional Money"${isAdditional?' selected':''}>💳 Additional Money</option></select><input type="text" placeholder="Summary" value="${(description||'').replace(/"/g,'&quot;')}" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" value="${amount!=null?amount.toFixed(2):''}" oninput="autoFillCSVSplit('${key}')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit('${key}')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button><select class="csv-split-subcat" style="display:${isAdditional?'inline-block':'none'};flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Sub-category --</option>${getAdditionalSubcats().map(s=>`<option value="${s}"${s===subcat?' selected':''}>${s}</option>`).join('')}</select></div>`;
+  container.appendChild(div);
+}
 function addCSVSplitRow(key){
   const container=document.getElementById('csv-split-rows-'+key);
   if(!container)return;
@@ -2759,9 +2793,14 @@ function addCSVSplitRow(key){
   div.className='csv-split-row split-row';
   div.style.marginBottom='6px';
   const sortedCats2=CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isAdditional).map(c=>c.name).sort();
-  div.innerHTML=`<select onchange="autoFillCSVSplit('${key}')" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>${sortedCats2.map(n=>`<option value="${n}">${n}</option>`).join('')}<option value="Other">Other</option><option value="💳 Additional Money">💳 Additional Money</option></select><input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" oninput="autoFillCSVSplit('${key}')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit('${key}')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button>`;
+  div.innerHTML=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><select class="csv-split-cat" onchange="autoFillCSVSplit('${key}');toggleSplitRowSubcat(this)" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>${sortedCats2.map(n=>`<option value="${n}">${n}</option>`).join('')}<option value="Other">Other</option><option value="💳 Additional Money">💳 Additional Money</option></select><input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" oninput="autoFillCSVSplit('${key}')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit('${key}')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button><select class="csv-split-subcat" style="display:none;flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Sub-category --</option>${getAdditionalSubcats().map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>`;
   container.appendChild(div);
   autoFillCSVSplit(key);
+}
+function toggleSplitRowSubcat(selectEl){
+  const row=selectEl.closest('.csv-split-row');
+  const subcatSel=row?.querySelector('.csv-split-subcat');
+  if(subcatSel)subcatSel.style.display=selectEl.value==='💳 Additional Money'?'inline-block':'none';
 }
 
 function autoFillCSVSplit(key){
@@ -2793,9 +2832,10 @@ function getCSVSplitRows(key){
     const selects=row.querySelectorAll('select');
     const inputs=row.querySelectorAll('input');
     const cat=selects[0]?.value||'';
+    const subcat=selects[1]?.value||'';
     const desc=inputs[0]?.value||'';
     const amt=parseFloat(inputs[1]?.value)||0;
-    if(cat&&amt)splits.push({category:cat,description:desc,amount:amt});
+    if(cat&&amt)splits.push({category:cat,subcat,description:desc,amount:amt});
   });
   return splits;
 }
@@ -2807,18 +2847,41 @@ function acceptCSVReview(){
   // Process merged matches - keep manual transactions, discard raw CSV
   merged.forEach((m,i)=>{
     if(m.action==='merge-split'){
-      // Split group match - keep manual entries, just mark them as credit method
-      (m.manualGroup||[]).forEach(mt=>{
-        const tx=S.transactions.find(t=>t.id===mt.id);
-        if(tx){tx.method='credit';tx.status='accepted';tx.source='csv';}
-      });
+      const splitKey='m'+i;
+      const splits=getCSVSplitRows(splitKey);
+      if(splits.length){
+        // Remove the original manual entries that were matched, replace with edited split rows
+        const origIds=new Set((m.manualGroup||[]).map(t=>t.id));
+        S.transactions=S.transactions.filter(t=>!origIds.has(t.id));
+        splits.forEach(sp=>{
+          if(sp.category==='💳 Additional Money'&&sp.subcat){
+            deductAdditionalBalance(sp.subcat,sp.amount);
+            showAdditionalReminder(sp.subcat,sp.amount);
+          }
+          S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:m.csv.date,description:sp.description||m.csv.description,amount:sp.amount,category:sp.category,subcat:sp.subcat||'',method:'credit',status:'accepted',source:'csv'});
+        });
+      } else {
+        // No edits made — keep manual entries as-is, just mark them as credit method
+        (m.manualGroup||[]).forEach(mt=>{
+          const tx=S.transactions.find(t=>t.id===mt.id);
+          if(tx){tx.method='credit';tx.status='accepted';tx.source='csv';}
+        });
+      }
     } else {
-      // Single match - keep manual transaction, update method to credit, mark accepted
+      // Single match - apply any edits made to the manual entry, update method to credit, mark accepted
       const manualTx=S.transactions.find(t=>t.id===m.manual?.id);
       if(manualTx){
+        const wasAdditional=manualTx.category!=='💳 Additional Money'&&m.manual.category==='💳 Additional Money';
+        manualTx.date=m.manual.date;
+        manualTx.category=m.manual.category;
+        manualTx.subcat=m.manual.subcat||'';
+        manualTx.description=m.manual.description;
         manualTx.method='credit';
         manualTx.status='accepted';
         manualTx.source='csv';
+        if(wasAdditional&&manualTx.subcat){
+          deductAdditionalBalance(manualTx.subcat,manualTx.amount);
+        }
       }
     }
   });
@@ -2828,7 +2891,13 @@ function acceptCSVReview(){
     const splitArea=document.getElementById('csv-split-'+splitKey);
     if(splitArea&&splitArea.style.display!=='none'){
       const splits=getCSVSplitRows(splitKey);
-      splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
+      splits.forEach(sp=>{
+        if(sp.category==='💳 Additional Money'&&sp.subcat){
+          deductAdditionalBalance(sp.subcat,sp.amount);
+          showAdditionalReminder(sp.subcat,sp.amount);
+        }
+        S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:sp.subcat||'',method:'credit',status:'pending',source:'csv'});
+      });
     } else if(t.category==='💳 Additional Money'){
       const subcat=t.subcat||'';
       deductAdditionalBalance(subcat,t.amount);
@@ -2850,11 +2919,15 @@ function acceptCSVReview(){
     if(t.keepAction==='remove')S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
   });
   // Check for Additional Money transactions and show reminder
+  const mergedAddl=merged.filter(m=>m.action!=='merge-split'&&m.manual?.category==='💳 Additional Money').map(m=>({subcat:m.manual.subcat,amount:m.manual.amount}));
   const addlTxs=[...merged.map(m=>m.csv),...unmatchedCSV].filter(t=>t.category==='💳 Additional Money');
   S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
   saveS();closeModal('csvReview');doneStep(1);
   if(addlTxs.length){
     addlTxs.forEach(t=>showAdditionalReminder(t.subcat||'',t.amount));
+  }
+  if(mergedAddl.length){
+    mergedAddl.forEach(t=>showAdditionalReminder(t.subcat||'',t.amount));
   }
 }
 
@@ -3037,7 +3110,7 @@ function openModal(id){
   }
   if(id==='quickTx'){
     // Reset all fields
-    document.getElementById('qt-date').value=new Date().toISOString().split('T')[0];
+    document.getElementById('qt-date').value=localISODate();
     document.getElementById('qt-amount').value='';
     document.getElementById('qt-desc').value='';
     document.getElementById('qt-notes').value='';
@@ -3050,7 +3123,7 @@ function openModal(id){
     document.getElementById('qt-desc-wrap').style.display='block';
     populateQTCats();
   }
-  if(id==='moneyOwedDetail'){renderOwedList();const od=document.getElementById('ow-date');if(od)od.value=new Date().toISOString().split('T')[0];}
+  if(id==='moneyOwedDetail'){renderOwedList();const od=document.getElementById('ow-date');if(od)od.value=localISODate();}
   if(id==='recycleBin')renderRecycleBin();
   if(id==='budgetOverview')renderBudgetOverview();
   if(id==='recurringList')renderRecurringList();
@@ -3281,11 +3354,11 @@ function getNextRecurringDate(fromDate,freq){
   const d=new Date(fromDate+'T00:00:00');
   if(freq==='fortnightly'){d.setDate(d.getDate()+14);}
   else if(freq==='monthly'){d.setMonth(d.getMonth()+1);}
-  return d.toISOString().split('T')[0];
+  return localISODate(d);
 }
 
 function checkRecurringTransactions(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=localISODate();
   let added=0;
   (S.recurringTemplates||[]).forEach(tmpl=>{
     if(tmpl.nextDue<=today){
@@ -3420,7 +3493,7 @@ async function markOwedPaid(id){
   await loadFromSheets();
   render();
 }
-function addOwedEntry(){const desc=document.getElementById('ow-desc').value.trim(),amt=parseFloat(document.getElementById('ow-amt').value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.moneyOwedItems=S.moneyOwedItems||[];const owDate=document.getElementById('ow-date')?.value||new Date().toISOString().split('T')[0];S.moneyOwedItems.push({id:'ow_'+Date.now(),description:desc,amount:amt,date:owDate});S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);document.getElementById('ow-desc').value='';document.getElementById('ow-amt').value='';saveS();renderOwedList();}
+function addOwedEntry(){const desc=document.getElementById('ow-desc').value.trim(),amt=parseFloat(document.getElementById('ow-amt').value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.moneyOwedItems=S.moneyOwedItems||[];const owDate=document.getElementById('ow-date')?.value||localISODate();S.moneyOwedItems.push({id:'ow_'+Date.now(),description:desc,amount:amt,date:owDate});S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);document.getElementById('ow-desc').value='';document.getElementById('ow-amt').value='';saveS();renderOwedList();}
 async function removeOwed(id){
   S.moneyOwedItems=S.moneyOwedItems.filter(o=>o.id!==id);
   S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
@@ -3454,7 +3527,7 @@ function exportCSV(){
   const a=document.createElement('a');
   a.href=url;
   const filterDesc=[cf||'all-categories',sf||'all-status',mf||'all-methods'].filter(f=>!f.startsWith('all')).join('-')||'all';
-  a.download='budget-transactions-'+filterDesc+'-'+new Date().toISOString().split('T')[0]+'.csv';
+  a.download='budget-transactions-'+filterDesc+'-'+localISODate()+'.csv';
   a.click();
   URL.revokeObjectURL(url);
 }
