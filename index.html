@@ -2626,7 +2626,7 @@ function handleCSV(e){
 
     for(const csv of csvTxs){
       // Find best single-transaction match: closest amount first, then closest date (within tolerance)
-      const candidates=manualPending.filter(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<2&&datesWithinDays(m.date,csv.date,2));
+      const candidates=manualPending.filter(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<0.50&&datesWithinDays(m.date,csv.date,1));
       let manualMatch=null;
       if(candidates.length){
         manualMatch=candidates.reduce((best,m)=>{
