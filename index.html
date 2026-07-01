@@ -365,7 +365,7 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
     <div class="modal-title">Add transaction</div>
     <div class="frow">
       <div class="field"><label>Date</label><input type="date" id="qt-date"></div>
-      <div class="field"><label>Amount ($)</label><input type="number" id="qt-amount" placeholder="0.00" step="0.01" min="0" oninput="autoFillLastSplit()"></div>
+      <div class="field"><label>Amount ($) <span style="font-size:11px;color:var(--text2)">— use negative for refunds</span></label><input type="number" id="qt-amount" placeholder="0.00" step="0.01" oninput="autoFillLastSplit()"></div>
     </div>
     <div id="qt-desc-wrap" class="field"><label>Description</label><input type="text" id="qt-desc" placeholder="What was this for?"></div>
     <div class="field"><label>Category</label><select id="qt-cat" onchange="updateQTSubcat()"></select></div>
@@ -1366,9 +1366,7 @@ function renderTxList(){
 
 function renderWorkflow(){
   const steps=[
-    {n:1,title:'Upload credit card statement',desc:'Upload your MyCard CSV statement for this fortnight.',action:'upload'},
-    {n:2,title:'Review & assign transactions',desc:'Check auto-assigned categories and sub-categories. Edit as needed.',action:'review'},
-    {n:3,title:'Add manual transactions',desc:'Add any cash or non-credit-card expenses for this fortnight.',action:'manual'},
+    {n:1,title:'Review transactions',desc:'Upload your MyCard CSV statement, review and categorise all transactions, and add any cash or non-credit-card expenses for this fortnight.',action:'upload'},
     {n:4,title:'Accept all transactions',desc:'Post all pending transactions to your budgets.',action:'accept'},
     {n:5,title:'Pay credit card',desc:'Pay your MyCard balance now.',action:'confirm',ct:'I have paid the credit card ✓'},
     {n:6,title:'Tithe',desc:'Enter gross income — 10% calculated. Records tithing transaction only (budgets update at finalise step).',action:'tithe'},
@@ -1400,6 +1398,19 @@ function renderWorkflow(){
     </div>`:''}`;
 }
 
+function renderNdisInvoiceSummary(fnCutoff){
+  const manualInvoices=(S.ndisTransactions||[]).filter(t=>
+    t.date>=fnCutoff&&(t.status==='claimed'||t.status==='paid')&&
+    !S.transactions.some(tx=>tx.category==='NDIS'&&Math.abs(tx.amount-t.amount)<0.01&&tx.date===t.date)
+  );
+  if(!manualInvoices.length)return'';
+  return'<div style="margin-top:10px;font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Saved this fortnight ('+manualInvoices.length+')</div>'+
+    manualInvoices.map(t=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--gl);border:1px solid #5DBB99;border-radius:var(--radius-sm);margin-bottom:6px;font-size:12px">'+
+      '<div><div style="font-weight:600;color:var(--gd)">'+t.provider+'</div>'+
+      '<div style="color:var(--text2)">'+fmtDate(t.date)+(t.invoiceNo?' · '+t.invoiceNo:'')+(t.driveLink?' · <a href="'+t.driveLink+'" target="_blank" style="color:var(--green)">📄 Drive</a>':'')+'</div></div>'+
+      '<div style="font-weight:700;color:var(--gd)">'+fmt(t.amount)+'</div></div>'
+    ).join('');
+}
 function renderStepBody(s,done,pending){
   if(done)return`<button class="btn btn-sm" onclick="undoStep(${s.n})">↩ Mark undone</button>`;
   if(s.action==='upload'){
@@ -1408,10 +1419,11 @@ function renderStepBody(s,done,pending){
       <label for="csv-up" class="upload-zone" style="display:block;cursor:pointer"><div class="upload-icon">📄</div><div style="font-size:13px;font-weight:600;color:var(--text)">Click to upload MyCard CSV</div><div style="font-size:11px;color:var(--text2);margin-top:4px">${getCSVPeriodLabel()}</div></label>
       <input type="file" id="csv-up" accept=".csv" onchange="handleCSV(event)" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
       ${hasPending?'<div class="banner banner-warn" style="margin-top:10px">📋 You have an unfinished review — <button class="btn btn-sm" onclick="openCSVReview(S.csvPending)" style="margin-left:4px">Resume review</button></div>':''}
-      <button class="btn btn-sm" style="margin-top:10px" onclick="doneStep(1)">Skip — no statement this fortnight</button>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-sm" onclick="openModal('quickTx')">+ Add transaction</button>
+        <button class="btn btn-sm" onclick="doneStep(1)">Skip — no statement this fortnight</button>
+      </div>`;
   }
-  if(s.action==='review')return`${pending>0?'<div class="banner banner-warn" style="margin-bottom:10px">👁 '+pending+' transactions to review</div>':''}<button class="btn btn-primary btn-sm" onclick="reviewWorkflowTransactions()">👁 Review transactions</button><button class="btn btn-sm" style="margin-left:8px" onclick="doneStep(2)">✓ Done reviewing</button>`;
-  if(s.action==='manual')return`<button class="btn btn-primary btn-sm" onclick="openModal(\'quickTx\')">+ Add manual transaction</button><button class="btn btn-sm" style="margin-left:8px" onclick="doneStep(3)">Done adding</button>`;
   if(s.action==='accept'){const p=S.transactions.filter(t=>t.status==='pending').length;return`${p>0?'<div class="banner banner-warn" style="margin-bottom:10px">'+p+' pending transactions</div>':''}<button class="btn btn-primary btn-sm" onclick="acceptAllPending()">✓ Accept all (${p})</button>`;}
   if(s.action==='confirm'){
     const racqLink='<a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 RACQ Bank</a>';
@@ -1461,6 +1473,7 @@ function renderStepBody(s,done,pending){
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
         <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Add new invoice</div>
         <button class="btn btn-sm" onclick="openModal('addNdis')">+ Add invoice not yet in transactions</button>
+        ${renderNdisInvoiceSummary(fnCutoff)}
       </div>
       ${unprocessed.length===0?`<button class="btn btn-primary btn-sm" style="margin-top:12px;width:100%" onclick="finaliseNdisStep()">✓ Done — update NDIS owed & continue</button>`:''}`;
   }
@@ -1621,7 +1634,6 @@ function undoStep(n){
   saveS();renderWorkflow();
 }
 function doneStep(n){S.workflowData['s'+n]=true;saveS();renderWorkflow();}
-function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
 function resetWorkflow(){
   if(confirm('Start a new fortnight?\n\nThis will reset all workflow steps back to the beginning. Any pending transactions from this workflow will be removed.')){
     // Remove pending CSV transactions but keep manually entered ones
@@ -2273,6 +2285,35 @@ async function handleNdisAddUpload(e){
   if(fileStatus){fileStatus.style.display='block';fileStatus.textContent='📄 '+file.name+' ready to upload to Drive';}
 }
 
+function showNdisNextStepsPopup(provider,amount){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px';
+  const box=document.createElement('div');
+  box.style.cssText='background:var(--surface);border-radius:var(--radius);padding:24px;max-width:340px;width:100%;box-shadow:0 8px 24px rgba(0,0,0,0.3)';
+  box.innerHTML=`
+    <div style="font-size:16px;font-weight:700;color:var(--gd);margin-bottom:4px">✅ Invoice saved!</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:16px">${provider} · ${fmt(amount)}</div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">Next steps:</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer">
+        <input type="checkbox" id="ndis-popup-pay" style="width:18px;height:18px;flex-shrink:0">
+        <span>Pay the invoice <span style="font-size:12px;color:var(--text2)">(if not already paid)</span></span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer">
+        <input type="checkbox" id="ndis-popup-claim" style="width:18px;height:18px;flex-shrink:0">
+        <span>Submit NDIS claim in <a href="https://login.my.gov.au/las/mygov-login?execution=e1s1" target="_blank" style="color:var(--green)">MyGov</a></span>
+      </label>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="ndis-popup-another" class="btn btn-sm" style="flex:1">+ Add another invoice</button>
+      <button id="ndis-popup-done" class="btn btn-primary btn-sm" style="flex:1">Done</button>
+    </div>`;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  document.getElementById('ndis-popup-done').onclick=()=>overlay.remove();
+  document.getElementById('ndis-popup-another').onclick=()=>{overlay.remove();openModal('addNdis');};
+  overlay.onclick=e=>{if(e.target===overlay)overlay.remove();};
+}
 async function saveNdisInvoice(){
   const cat=document.getElementById('ndis-cat')?.value;
   const date=document.getElementById('ndis-date')?.value;
@@ -2284,18 +2325,16 @@ async function saveNdisInvoice(){
   // Get next number for this category
   const catTxs=getNdisTransactions().filter(t=>t.cat===cat);
   const num=(catTxs.length>0?Math.max(...catTxs.map(t=>t.num)):0)+1;
-  // Manually-added invoices are 'claimed' (already processed outside credit card) so they
-  // show as accepted (green) and correctly count toward NDIS owed total.
   const tx={id:'ndis_'+Date.now(),cat,num,provider,invoiceNo:invoiceNo||'',date,amount,comments:comments||'',status:'claimed'};
   S.ndisTransactions=S.ndisTransactions||[];
+  // Guard against duplicates — check for same provider+date+amount in last 10 seconds
+  const recentDupe=S.ndisTransactions.find(t=>t.provider===provider&&t.date===date&&Math.abs(t.amount-amount)<0.01&&(Date.now()-parseInt(t.id.replace('ndis_','')))<10000);
+  if(recentDupe){alert('This invoice appears to have already been saved. Please check the list below.');return;}
   S.ndisTransactions.push(tx);
-  // Save data first so the invoice is never lost even if Drive upload fails
-  await saveToSheets();
-  renderWorkflow();
-  // Show next-steps panel
+  // Show next-steps panel immediately
   const nextSteps=document.getElementById('ndis-add-next-steps');
   if(nextSteps)nextSteps.style.display='block';
-  // Upload file to Drive if one was staged
+  // Upload file to Drive first, then save everything together
   if(window._ndisAddFileBase64){
     const filename=genNdisFilename(tx);
     const fileStatus=document.getElementById('ndis-add-file-status');
@@ -2311,23 +2350,24 @@ async function saveNdisInvoice(){
         tx.driveFileId=result.fileId;
         tx.driveLink=result.webViewLink;
         tx.fileName=result.fileName;
-        setSyncStatus('synced');
         if(fileStatus){fileStatus.textContent='✅ Saved to Google Drive: '+result.fileName;}
-        await saveToSheets();
       } else {
         if(fileStatus){fileStatus.style.color='var(--red)';fileStatus.textContent='⚠ Drive upload failed — invoice data saved, file not uploaded';}
-        setSyncStatus('error');
       }
     } catch(err){
       console.error('Drive upload error:',err);
       if(fileStatus){fileStatus.style.color='var(--red)';fileStatus.textContent='⚠ Drive upload error — invoice data saved';}
-      setSyncStatus('error');
     }
     window._ndisAddFileBase64=null;
     window._ndisAddFileMime=null;
     window._ndisAddFileName=null;
   }
-}
+  // Save data (including Drive link if upload succeeded)
+  saveS();
+  closeModal('addNdis');
+  renderWorkflow();
+  // Show next-steps popup
+  showNdisNextStepsPopup(provider,amount);
 function renderRecurringList(){
   const el=document.getElementById('recurring-list-body');
   const templates=S.recurringTemplates||[];
@@ -2773,8 +2813,9 @@ function openCSVReview(data){
       ${t.isDuplicate?`<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — ${fmt(t.amount)} on ${fmtDate(t.date)} already exists: "${t.duplicateOf?.description}". Check carefully.</div>`:''}
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isAdditional).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="💳 Additional Money"${t.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option><option value="💰 Add to Money Owed"${t.category==='💰 Add to Money Owed'?' selected':''}>💰 Add to Money Owed</option></select></div>
+          <div class="field" style="margin:0"><label>Amount ($)</label><input type="number" step="0.01" value="${t.amount.toFixed(2)}" onchange="S.csvPending.unmatchedCSV[${i}].amount=parseFloat(this.value)||0"></div>
         </div>
+        <div class="field" style="margin-top:8px;margin-bottom:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isAdditional).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="💳 Additional Money"${t.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option><option value="💰 Add to Money Owed"${t.category==='💰 Add to Money Owed'?' selected':''}>💰 Add to Money Owed</option></select></div>
         <div id="csv-sub-c${i}" style="margin-top:8px">${renderCSVSubcatNamed('c'+i,t.category,t.subcat)}</div>
         <div id="csv-split-c${i}" style="display:none;margin-top:8px">
           <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Split amounts</div>
@@ -3042,22 +3083,20 @@ function acceptCSVReview(){
           deductAdditionalBalance(sp.subcat,sp.amount);
           showAdditionalReminder(sp.subcat,sp.amount);
         }
-        S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:sp.subcat||'',method:'credit',status:'pending',source:'csv',_additionalDeducted:sp.category==='💳 Additional Money'&&!!sp.subcat});
+        S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:sp.subcat||'',method:'credit',status:'accepted',source:'csv',_additionalDeducted:sp.category==='💳 Additional Money'&&!!sp.subcat});
       });
     } else if(t.category==='💳 Additional Money'){
       const subcat=t.subcat||'';
       deductAdditionalBalance(subcat,t.amount);
-      S.transactions.push({...t,status:'pending',_additionalDeducted:true});
+      S.transactions.push({...t,status:'accepted',_additionalDeducted:true});
     } else if(t.category==='💰 Add to Money Owed'){
-      // Add to money owed list on dashboard
       const owedDesc=t.owedDesc||document.getElementById('csv-owed-desc-'+splitKey)?.value||t.description;
       S.moneyOwedItems=S.moneyOwedItems||[];
       S.moneyOwedItems.push({id:'ow_'+Date.now()+'_'+i,description:owedDesc,amount:t.amount,date:t.date});
       S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
-      // Also record as a transaction
-      S.transactions.push({...t,status:'pending'});
+      S.transactions.push({...t,status:'accepted'});
     } else {
-      S.transactions.push({...t,status:'pending'});
+      S.transactions.push({...t,status:'accepted'});
     }
   });
   // Handle unmatched manual — apply any edits made, mark as accepted
@@ -3124,6 +3163,7 @@ function renderAmCategories(){
     rows.push(`<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)">
       <div style="flex:1"><div style="font-size:13px;font-weight:600">Renovations</div></div>
       <input type="number" step="0.01" value="${renoVal.toFixed(2)}" id="am-reno" style="width:100px;padding:6px 8px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;text-align:right" onchange="document.getElementById('am-total-display').textContent=fmt(getAdditionalTotal())">
+      <button class="btn-icon" onclick="document.getElementById('am-reno').value='0';S.overall.renovationsBalance=0;renderAmCategories()" style="color:var(--red);border-color:var(--red);flex-shrink:0" title="Remove">✕</button>
     </div>`);
   } else {
     rows.push(`<input type="hidden" id="am-reno" value="0">`);
@@ -3132,6 +3172,7 @@ function renderAmCategories(){
     rows.push(`<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)">
       <div style="flex:1"><div style="font-size:13px;font-weight:600">Maternity</div></div>
       <input type="number" step="0.01" value="${matVal.toFixed(2)}" id="am-mat" style="width:100px;padding:6px 8px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;text-align:right" onchange="document.getElementById('am-total-display').textContent=fmt(getAdditionalTotal())">
+      <button class="btn-icon" onclick="document.getElementById('am-mat').value='0';S.overall.maternityBalance=0;renderAmCategories()" style="color:var(--red);border-color:var(--red);flex-shrink:0" title="Remove">✕</button>
     </div>`);
   } else {
     rows.push(`<input type="hidden" id="am-mat" value="0">`);
@@ -3399,7 +3440,7 @@ function addSplitRow(){
   const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isAdditional).map(c=>c.name).sort();
   div.innerHTML=`
     <div style="display:flex;gap:6px;align-items:center">
-      <select onchange="autoFillLastSplit()" style="flex:2;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+      <select onchange="autoFillLastSplit();updateSplitRowSubcat(this)" style="flex:2;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
         <option value="">-- Category --</option>
         ${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}
         <option value="Other">Other</option>
@@ -3407,12 +3448,26 @@ function addSplitRow(){
         <option value="💳 Additional Money">💳 Additional Money</option>
         <option value="💰 Add to Money Owed">💰 Add to Money Owed</option>
       </select>
-      <input type="number" placeholder="Amount $" step="0.01" min="0" oninput="autoFillLastSplit()" style="flex:1;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+      <input type="number" placeholder="Amount $" step="0.01" oninput="autoFillLastSplit()" style="flex:1;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
       <button class="btn btn-sm" onclick="this.closest('.split-row').remove();autoFillLastSplit()" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button>
     </div>
+    <select class="split-subcat" style="display:none;width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Sub-category --</option></select>
     <input type="text" placeholder="Description for this split" style="width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">`;
   document.getElementById('split-rows').appendChild(div);
   autoFillLastSplit();
+}
+function updateSplitRowSubcat(selectEl){
+  const row=selectEl.closest('.split-row');
+  const subcatSel=row?.querySelector('.split-subcat');
+  if(!subcatSel)return;
+  const cat=CATS.find(c=>c.name===selectEl.value);
+  const subs=cat?.subs||(selectEl.value==='💳 Additional Money'?getAdditionalSubcats():null);
+  if(subs&&subs.length){
+    subcatSel.innerHTML='<option value="">-- Sub-category --</option>'+subs.map(s=>`<option value="${s}">${s}</option>`).join('');
+    subcatSel.style.display='block';
+  } else {
+    subcatSel.style.display='none';
+  }
 }
 
 function autoFillLastSplit(){
@@ -3477,9 +3532,9 @@ function saveQuickTx(){
   if(isSplit){
     document.getElementById('split-rows').querySelectorAll('.split-row').forEach(row=>{
       const cat=row.querySelector('select').value;
+      const subcat=row.querySelector('.split-subcat')?.value||'';
       const inputs=row.querySelectorAll('input');
       const amt=parseFloat(inputs[0]?.value)||0;
-      // inputs[0] = amount, inputs[1] = description text field
       const splitDesc=inputs[1]?.value?.trim()||desc||row.querySelector('input[type=text]')?.value?.trim()||'Split transaction';
       if(!amt)return;
       if(cat==='💰 Add to Money Owed'){
@@ -3490,7 +3545,7 @@ function saveQuickTx(){
         // Also record as transaction with note
         S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date,description:splitDesc,amount:amt,category:'💰 Add to Money Owed',subcat:'',method,notes:'Added to Money Owed on dashboard',status:'accepted',source:'manual'});
       } else {
-        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random()+'_'+amt,date,description:splitDesc,amount:amt,category:cat,subcat:'',method,notes,status:'pending',source:'manual'});
+        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random()+'_'+amt,date,description:splitDesc,amount:amt,category:cat,subcat,method,notes,status:'pending',source:'manual'});
       }
     });
   }else{
