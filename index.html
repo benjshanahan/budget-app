@@ -109,13 +109,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* Workflow steps */
 .step{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:8px;background:var(--surface);box-shadow:var(--shadow)}
+.step.step-done{border-color:#5DBB99;background:var(--gl)}
 .step-hdr{padding:13px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .15s}
 .step-hdr:hover{background:var(--surface2)}
+.step-done .step-hdr{padding:10px 16px}
+.step-done .step-hdr:hover{background:rgba(93,187,153,0.15)}
 .step-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
 .sn-p{background:var(--surface2);color:var(--text2);border:1px solid var(--border2)}
 .sn-a{background:var(--green);color:#fff}
-.sn-d{background:var(--gl);color:var(--gd)}
+.sn-d{background:var(--green);color:#fff}
 .step-title{font-size:14px;font-weight:600;color:var(--text);flex:1}
+.step-done .step-title{font-size:13px;color:var(--gd)}
 .step-body{padding:16px;border-top:1px solid var(--border);background:var(--surface2);display:none}
 .step-body.open{display:block}
 .step-desc{font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6}
@@ -414,6 +418,10 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
       <div class="field"><label>Mortgage ahead ($)</label><input type="number" id="eo-mort" step="0.01"><div class="field-hint">How much ahead on mortgage</div></div>
 
     </div>
+    <div class="frow" style="border-top:1px solid var(--border);padding-top:1rem;margin-top:0.25rem">
+      <div class="field"><label>Benj's spending balance ($)</label><input type="number" id="eo-benj-spending" step="0.01"><div class="field-hint">Manual override</div></div>
+      <div class="field"><label>Kasie's spending balance ($)</label><input type="number" id="eo-kasie-spending" step="0.01"><div class="field-hint">Manual override</div></div>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('editOverall')">Cancel</button>
       <button class="btn btn-primary" onclick="saveOverall()">✓ Save</button>
@@ -488,30 +496,40 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
   <div class="modal">
     <button class="mclose" onclick="closeModal('addNdis')">✕</button>
     <div class="modal-title">Add NDIS invoice</div>
-    <label for="ndis-add-file" class="upload-zone" style="padding:10px;margin-bottom:12px;text-align:center;display:block;cursor:pointer">
-      <div style="font-size:20px;margin-bottom:2px">📄</div>
-      <div style="font-size:12px;color:var(--text2)">Click to upload invoice PDF</div>
-      <div style="font-size:11px;color:var(--text2)">Upload then fill in details below</div>
-    </label>
-    <input type="file" id="ndis-add-file" accept=".pdf,image/*" onchange="handleNdisAddUpload(event)" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
-    <div id="ndis-add-scan-status" style="font-size:12px;color:var(--text2);margin-bottom:8px;display:none"></div>
-    <div class="field"><label>Category</label>
-      <select id="ndis-cat">
-        <option value="">-- Select category --</option>
-      </select>
+    <div id="ndis-add-next-steps" style="display:none;background:var(--gl);border:1px solid #5DBB99;border-radius:var(--radius-sm);padding:12px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:var(--gd);margin-bottom:8px">✅ Invoice saved! Next steps:</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="ndis-step-pay"> Pay the invoice (if not already paid)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="ndis-step-claim"> <span>Submit NDIS claim in <a href="https://login.my.gov.au/las/mygov-login?execution=e1s1" target="_blank" style="color:var(--green)">MyGov</a></span></label>
+      </div>
+      <button class="btn btn-sm btn-primary" style="margin-top:10px;width:100%" onclick="openNdisModal();document.getElementById('ndis-add-next-steps').style.display='none'">+ Add another invoice</button>
     </div>
-    <div class="frow">
-      <div class="field"><label>Date</label><input type="date" id="ndis-date"></div>
-      <div class="field"><label>Amount ($)</label><input type="number" id="ndis-amount" step="0.01" placeholder="0.00" oninput="previewNdisFilename"></div>
-    </div>
-    <div class="field"><label>Provider</label><input type="text" id="ndis-provider" placeholder="e.g. Fortify Physiotherapy" oninput="previewNdisFilename()"></div>
-    <div class="field"><label>Invoice number</label><input type="text" id="ndis-invno" placeholder="e.g. INV017839" oninput="previewNdisFilename()"></div>
-    <div class="field"><label>Comments</label><input type="text" id="ndis-comments" placeholder="e.g. Weekly hydrotherapy"></div>
-    <div id="ndis-filename-preview" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;font-size:11px;color:var(--text2);font-family:monospace;word-break:break-all;display:none"></div>
-    <div id="ndis-add-file-status" style="font-size:12px;color:var(--green);margin-bottom:8px;display:none"></div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal('addNdis')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveNdisInvoice()">✓ Add invoice & save to Drive</button>
+    <div id="ndis-add-form">
+      <label for="ndis-add-file" class="upload-zone" style="padding:10px;margin-bottom:12px;text-align:center;display:block;cursor:pointer">
+        <div style="font-size:20px;margin-bottom:2px">📄</div>
+        <div style="font-size:12px;color:var(--text2)">Click to upload invoice PDF</div>
+        <div style="font-size:11px;color:var(--text2)">Upload then fill in details below</div>
+      </label>
+      <input type="file" id="ndis-add-file" accept=".pdf,image/*" onchange="handleNdisAddUpload(event)" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
+      <div id="ndis-add-scan-status" style="font-size:12px;color:var(--text2);margin-bottom:8px;display:none"></div>
+      <div class="field"><label>Category</label>
+        <select id="ndis-cat">
+          <option value="">-- Select category --</option>
+        </select>
+      </div>
+      <div class="frow">
+        <div class="field"><label>Date</label><input type="date" id="ndis-date"></div>
+        <div class="field"><label>Amount ($)</label><input type="number" id="ndis-amount" step="0.01" placeholder="0.00" oninput="previewNdisFilename()"></div>
+      </div>
+      <div class="field"><label>Provider</label><input type="text" id="ndis-provider" placeholder="e.g. Fortify Physiotherapy" oninput="previewNdisFilename()"></div>
+      <div class="field"><label>Invoice number</label><input type="text" id="ndis-invno" placeholder="e.g. INV017839" oninput="previewNdisFilename()"></div>
+      <div class="field"><label>Comments</label><input type="text" id="ndis-comments" placeholder="e.g. Weekly hydrotherapy"></div>
+      <div id="ndis-filename-preview" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;font-size:11px;color:var(--text2);font-family:monospace;word-break:break-all;display:none"></div>
+      <div id="ndis-add-file-status" style="font-size:12px;color:var(--green);margin-bottom:8px;display:none"></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('addNdis')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveNdisInvoice()">✓ Save invoice</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1373,7 +1391,7 @@ function renderWorkflow(){
       const done=!!wd['s'+s.n];
       const active=!done&&(s.n===1||!!wd['s'+(s.n-1)]);
       const nc=done?'sn-d':active?'sn-a':'sn-p';
-      return`<div class="step"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${done?'✓':s.n}</div><div class="step-title">${s.title}</div><span>${done?'<span class="badge bg" style="cursor:pointer" onclick="event.stopPropagation();undoStep('+s.n+')">Done ↩</span>':active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div><div class="step-body${active||done?' open':''}" id="sb${s.n}"><div class="step-desc">${s.desc}</div>${renderStepBody(s,done,pending)}</div></div>`;
+      return`<div class="step${done?' step-done':''}"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${done?'✓':s.n}</div><div class="step-title">${s.title}</div><span>${done?'<span style="font-size:11px;color:var(--green);margin-right:4px">Done</span><span class="badge bgray" style="cursor:pointer;font-size:10px" onclick="event.stopPropagation();undoStep('+s.n+')">↩ Undo</span>':active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div><div class="step-body${active?' open':''}" id="sb${s.n}"><div class="step-desc">${s.desc}</div>${renderStepBody(s,done,pending)}</div></div>`;
     }).join('')}
     ${allDone?`<div style="margin-top:16px;padding:16px;background:var(--gl);border:1px solid #5DBB99;border-radius:var(--radius);text-align:center">
       <div style="font-size:14px;font-weight:600;color:var(--gd);margin-bottom:8px">All steps complete!</div>
@@ -1536,11 +1554,17 @@ function revertCycle(id){
   const cycles=S.completedCycles||[];
   const cycle=cycles.find(c=>c.id===id);
   if(!cycle)return;
+  // Determine the start of this fortnight (end date of the previous cycle)
+  const cycleIdx=cycles.findIndex(c=>c.id===id);
+  const fnStart=cycleIdx>0?cycles[cycleIdx-1].date:'2026-04-22';
+  const fnEnd=cycle.date;
   // Remove the tithe transaction for this cycle
   S.transactions=S.transactions.filter(t=>!(t.source==='tithe'&&t.date===cycle.date));
-  // For transactions entered this cycle: remove CSV/workflow ones, set manual back to pending
+  // For transactions entered this cycle: remove CSV/workflow ones, set manual back to pending.
+  // Only touch transactions whose date falls within this fortnight to avoid reverting
+  // transactions from prior fortnights that were incorrectly captured in transactionIds.
   S.transactions.forEach(t=>{
-    if(cycle.transactionIds&&cycle.transactionIds.includes(t.id)){
+    if(cycle.transactionIds&&cycle.transactionIds.includes(t.id)&&t.date>fnStart&&t.date<=fnEnd){
       if(t.source==='manual'){t.status='pending';}
       else{t._revertDelete=true;}
     }
@@ -1558,13 +1582,16 @@ function finaliseWorkflow(){
   // Accept the pending tithe transaction
   S.transactions.filter(t=>t.source==='tithe-pending').forEach(t=>{t.status='accepted';t.source='tithe';});
   // Record this workflow as a completed fortnight
+  // Find the start of THIS fortnight (the date of the most recently completed cycle, or app start)
+  const prevCycles=S.completedCycles||[];
+  const fnStart=prevCycles.length>0?prevCycles[prevCycles.length-1].date:'2026-04-22';
   const cycleRecord={
     id:'cycle_'+Date.now(),
     date:today,
     tithe:S.workflowData.currentTithe||0,
     gross:S.workflowData.currentGross||0,
     completedSteps:{...S.workflowData},
-    transactionIds:S.transactions.filter(t=>t.status==='accepted'&&new Date(t.date)>=new Date(today.substring(0,7))).map(t=>t.id)
+    transactionIds:S.transactions.filter(t=>t.status==='accepted'&&t.date>fnStart&&t.date<=today).map(t=>t.id)
   };
   S.completedCycles=S.completedCycles||[];
   S.completedCycles.push(cycleRecord);
@@ -2188,12 +2215,31 @@ function finaliseNdisStep(){
 
 function openNdisModal(){
   document.getElementById('ndis-date').value=localISODate();
+  document.getElementById('ndis-amount').value='';
+  document.getElementById('ndis-provider').value='';
+  document.getElementById('ndis-invno').value='';
+  document.getElementById('ndis-comments').value='';
+  const fileInput=document.getElementById('ndis-add-file');
+  if(fileInput)fileInput.value='';
+  const scanStatus=document.getElementById('ndis-add-scan-status');
+  if(scanStatus){scanStatus.style.display='none';scanStatus.textContent='';}
+  const fileStatus=document.getElementById('ndis-add-file-status');
+  if(fileStatus){fileStatus.style.display='none';fileStatus.textContent='';}
+  const preview=document.getElementById('ndis-filename-preview');
+  if(preview)preview.style.display='none';
+  const nextSteps=document.getElementById('ndis-add-next-steps');
+  if(nextSteps)nextSteps.style.display='none';
+  window._ndisAddFileBase64=null;
+  window._ndisAddFileMime=null;
+  window._ndisAddFileName=null;
   // Populate category select
   const sel=document.getElementById('ndis-cat');
-  sel.innerHTML=NDIS_CATS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  sel.innerHTML='<option value="">-- Select category --</option>'+NDIS_CATS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
   // Preview filename on input
   ['ndis-provider','ndis-invno','ndis-date','ndis-amount'].forEach(id=>{
-    document.getElementById(id)?.addEventListener('input',previewNdisFilename);
+    const el=document.getElementById(id);
+    if(el)el.removeEventListener('input',previewNdisFilename);
+    if(el)el.addEventListener('input',previewNdisFilename);
   });
 }
 function previewNdisFilename(){
@@ -2234,17 +2280,26 @@ async function saveNdisInvoice(){
   const provider=document.getElementById('ndis-provider')?.value?.trim();
   const invoiceNo=document.getElementById('ndis-invno')?.value?.trim();
   const comments=document.getElementById('ndis-comments')?.value?.trim();
-  const status=document.getElementById('ndis-status')?.value||'unpaid';
   if(!cat||!date||!amount||!provider){alert('Please fill in category, date, amount and provider.');return;}
   // Get next number for this category
   const catTxs=getNdisTransactions().filter(t=>t.cat===cat);
   const num=(catTxs.length>0?Math.max(...catTxs.map(t=>t.num)):0)+1;
-  const tx={id:'ndis_'+Date.now(),cat,num,provider,invoiceNo:invoiceNo||'',date,amount,comments:comments||'',status};
+  // Manually-added invoices are 'claimed' (already processed outside credit card) so they
+  // show as accepted (green) and correctly count toward NDIS owed total.
+  const tx={id:'ndis_'+Date.now(),cat,num,provider,invoiceNo:invoiceNo||'',date,amount,comments:comments||'',status:'claimed'};
   S.ndisTransactions=S.ndisTransactions||[];
   S.ndisTransactions.push(tx);
+  // Save data first so the invoice is never lost even if Drive upload fails
+  await saveToSheets();
+  renderWorkflow();
+  // Show next-steps panel
+  const nextSteps=document.getElementById('ndis-add-next-steps');
+  if(nextSteps)nextSteps.style.display='block';
   // Upload file to Drive if one was staged
   if(window._ndisAddFileBase64){
     const filename=genNdisFilename(tx);
+    const fileStatus=document.getElementById('ndis-add-file-status');
+    if(fileStatus){fileStatus.style.display='block';fileStatus.textContent='⏳ Uploading to Google Drive...';}
     try{
       setSyncStatus('syncing');
       const resp=await fetch('/.netlify/functions/sheets',{
@@ -2257,14 +2312,21 @@ async function saveNdisInvoice(){
         tx.driveLink=result.webViewLink;
         tx.fileName=result.fileName;
         setSyncStatus('synced');
-        alert('✅ Invoice saved to Google Drive: '+result.fileName);
+        if(fileStatus){fileStatus.textContent='✅ Saved to Google Drive: '+result.fileName;}
+        await saveToSheets();
+      } else {
+        if(fileStatus){fileStatus.style.color='var(--red)';fileStatus.textContent='⚠ Drive upload failed — invoice data saved, file not uploaded';}
+        setSyncStatus('error');
       }
-    } catch(err){console.error('Drive upload error:',err);setSyncStatus('error');}
+    } catch(err){
+      console.error('Drive upload error:',err);
+      if(fileStatus){fileStatus.style.color='var(--red)';fileStatus.textContent='⚠ Drive upload error — invoice data saved';}
+      setSyncStatus('error');
+    }
     window._ndisAddFileBase64=null;
     window._ndisAddFileMime=null;
     window._ndisAddFileName=null;
   }
-  saveS();closeModal('addNdis');renderNDIS();
 }
 function renderRecurringList(){
   const el=document.getElementById('recurring-list-body');
@@ -2582,7 +2644,10 @@ function handleCSV(e){
         matchedManualIds.add(manualMatch.id);
         merged.push({csv,manual:manualMatch,action:'merge'});
       } else {
-        // Try matching split transactions — find all pending txs within 2 days that sum to CSV amount
+        // Try matching split transactions — find all pending txs within 2 days that sum to CSV amount.
+        // CRITICAL: all members of a split group must share the SAME date as each other, since
+        // split rows from the same manual entry are always saved with the same date.
+        // This prevents coincidental amount-sum matches across unrelated transactions.
         const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&datesWithinDays(m.date,csv.date,2));
         // Also include nearby-date accepted manual Money Owed transactions
         const sameDateAccepted=S.transactions.filter(t=>
@@ -2591,29 +2656,35 @@ function handleCSV(e){
           (t.category==='💰 Add to Money Owed'||t.notes==='Added to Money Owed on dashboard')
         );
         const sameDateAll=[...sameDatePending,...sameDateAccepted];
-        // Try all subsets of nearby-date transactions to find one that sums EXACTLY to CSV amount.
-        // Only the combined total should determine a split match — individual items are not compared,
-        // so we require an exact (1c) sum match and prefer the smallest valid subset to avoid
-        // accidentally roping in unrelated transactions.
+        // Group candidates by their date, then only search within each date group
+        const byDate={};
+        sameDateAll.forEach(t=>{byDate[t.date]=byDate[t.date]||[];byDate[t.date].push(t);});
         function findMatchingSubset(txs,target,tolerance=0.01){
           const n=Math.min(txs.length,12);
           let best=null;
-          // Try the full set first (most common case)
           if(txs.length<=n){
             const total=txs.reduce((a,t)=>a+t.amount,0);
             if(Math.abs(total-target)<tolerance)best=txs;
           }
-          // Search all subsets, keep the smallest one that sums exactly (ties broken by first found)
           for(let mask=1;mask<(1<<n);mask++){
             const subset=txs.filter((_,i)=>mask&(1<<i));
             if(subset.length<2)continue;
-            if(best&&subset.length>=best.length)continue; // already have an equal-or-smaller match
+            if(best&&subset.length>=best.length)continue;
             const sum=subset.reduce((a,t)=>a+t.amount,0);
             if(Math.abs(sum-target)<tolerance)best=subset;
           }
           return best;
         }
-        const matchedSubset=findMatchingSubset(sameDateAll,csv.amount);
+        let matchedSubset=null;
+        for(const dateGroup of Object.values(byDate)){
+          const found=findMatchingSubset(dateGroup,csv.amount);
+          if(found){
+            // Prefer smallest subset; if tie, prefer group closer to CSV date
+            if(!matchedSubset||found.length<matchedSubset.length){
+              matchedSubset=found;
+            }
+          }
+        }
         if(matchedSubset){
           matchedSubset.forEach(m=>matchedManualIds.add(m.id));
           const pendingInSubset=matchedSubset.filter(m=>m.status==='pending');
@@ -3193,7 +3264,10 @@ function openModal(id){
     document.getElementById('eo-cash').value=(S.overall.cashSavings||0).toFixed(2);
     const mortEl=document.getElementById('eo-mort');
     if(mortEl)mortEl.value=(S.overall.mortgageAhead||0).toFixed(2);
-
+    const benjSpEl=document.getElementById('eo-benj-spending');
+    if(benjSpEl)benjSpEl.value=(S.spendingBalances?.benj?.current||0).toFixed(2);
+    const kasieSpEl=document.getElementById('eo-kasie-spending');
+    if(kasieSpEl)kasieSpEl.value=(S.spendingBalances?.kasie?.current||0).toFixed(2);
   }
   if(id==='quickTx'){
     // Reset all fields
@@ -3270,7 +3344,10 @@ async function saveOverall(){
   S.overall.cashSavings=parseFloat(document.getElementById('eo-cash')?.value)||0;
   const mortInput=document.getElementById('eo-mort');
   if(mortInput)S.overall.mortgageAhead=parseFloat(mortInput.value)||0;
-
+  const benjSp=parseFloat(document.getElementById('eo-benj-spending')?.value);
+  const kasieSp=parseFloat(document.getElementById('eo-kasie-spending')?.value);
+  if(!isNaN(benjSp)){S.spendingBalances=S.spendingBalances||{};S.spendingBalances.benj=S.spendingBalances.benj||{};S.spendingBalances.benj.current=benjSp;}
+  if(!isNaN(kasieSp)){S.spendingBalances=S.spendingBalances||{};S.spendingBalances.kasie=S.spendingBalances.kasie||{};S.spendingBalances.kasie.current=kasieSp;}
   closeModal('editOverall');
   render();
   await saveToSheets();
