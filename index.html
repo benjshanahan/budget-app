@@ -813,7 +813,7 @@ function checkPassword(){
     sessionStorage.setItem('shbn_auth','1');
     document.getElementById('auth-screen').style.display='none';
     document.getElementById('app-screen').style.display='flex';
-    loadFromSheets().then(render);
+    loadFromSheets().then(render).catch(e=>{console.error("Load error:",e);render();});
   } else {
     if(errEl)errEl.style.display='block';
     if(document.getElementById('password-input'))document.getElementById('password-input').value='';
@@ -1102,10 +1102,14 @@ const IMPORT_TXS=[{id:"import_bills_0",date:"2026-04-21",description:"Electricit
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
 function render(){
-  renderHeader();renderOverall();renderBudgetGrid();renderBanners();renderYearProgress();
+  try{renderHeader();}catch(e){console.error('renderHeader error:',e);}
+  try{renderOverall();}catch(e){console.error('renderOverall error:',e);}
+  try{renderBudgetGrid();}catch(e){console.error('renderBudgetGrid error:',e);}
+  try{renderBanners();}catch(e){console.error('renderBanners error:',e);}
+  try{renderYearProgress();}catch(e){console.error('renderYearProgress error:',e);}
   const active=document.querySelector('.tab.active')?.textContent.trim();
-  if(active==='Transactions')renderTxList();
-  if(active==='Fortnightly')renderWorkflow();
+  if(active==='Transactions'){try{renderTxList();}catch(e){console.error('renderTxList error:',e);}}
+  if(active==='Fortnightly'){try{renderWorkflow();}catch(e){console.error('renderWorkflow error:',e);}}
 }
 
 let privateMode=false;
@@ -1379,15 +1383,18 @@ function renderWorkflow(){
   const wd=S.workflowData||{};
   const pending=S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').length;
   const allDone=steps.every(s=>!!wd['s'+s.n]);
+  // Build a list of step ns in order so we can check the previous step correctly
+  const stepNs=steps.map(s=>s.n);
   document.getElementById('workflow-area').innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Fortnightly workflow · ${getTithingCycles()} cycles</div>
       <button class="btn btn-sm" onclick="openModal('cycleHistory')">📅 History</button>
       <button class="btn btn-primary btn-sm" onclick="resetWorkflow()" style="background:var(--blue);border-color:#0F4A8A">↺ Start new fortnight</button>
     </div>
-    ${steps.map(s=>{
+    ${steps.map((s,idx)=>{
       const done=!!wd['s'+s.n];
-      const active=!done&&(s.n===1||!!wd['s'+(s.n-1)]);
+      const prevN=stepNs[idx-1];
+      const active=!done&&(idx===0||!!wd['s'+prevN]);
       const nc=done?'sn-d':active?'sn-a':'sn-p';
       return`<div class="step${done?' step-done':''}"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${done?'✓':s.n}</div><div class="step-title">${s.title}</div><span>${done?'<span style="font-size:11px;color:var(--green);margin-right:4px">Done</span><span class="badge bgray" style="cursor:pointer;font-size:10px" onclick="event.stopPropagation();undoStep('+s.n+')">↩ Undo</span>':active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div><div class="step-body${active?' open':''}" id="sb${s.n}"><div class="step-desc">${s.desc}</div>${renderStepBody(s,done,pending)}</div></div>`;
     }).join('')}
@@ -4071,7 +4078,7 @@ window.addEventListener('load',()=>{
   const authed=sessionStorage.getItem('shbn_auth');
   if(authed){
     document.getElementById('app-screen').style.display='flex';
-    loadFromSheets().then(render);
+    loadFromSheets().then(render).catch(e=>{console.error("Load error:",e);render();});
   } else {
     document.getElementById('auth-screen').style.display='flex';
   }
