@@ -643,6 +643,11 @@ function datesWithinDays(d1,d2,days){
   const diff=Math.abs(a.getTime()-b.getTime())/(1000*60*60*24);
   return diff<=days;
 }
+function getCurrentFortnightCutoff(){
+  // The start date of the current (in-progress) fortnight, based on the last 2 accepted tithe transactions.
+  const tithes=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').sort((a,b)=>a.date.localeCompare(b.date));
+  return tithes.length>=1?tithes[tithes.length-1].date:'2026-04-22';
+}
 
 // ─── NDIS DATA ────────────────────────────────────────────────────────────────
 const NDIS_CATS = [
@@ -1387,7 +1392,7 @@ function renderStepBody(s,done,pending){
       ${hasPending?'<div class="banner banner-warn" style="margin-top:10px">📋 You have an unfinished review — <button class="btn btn-sm" onclick="openCSVReview(S.csvPending)" style="margin-left:4px">Resume review</button></div>':''}
       <button class="btn btn-sm" style="margin-top:10px" onclick="doneStep(1)">Skip — no statement this fortnight</button>`;
   }
-  if(s.action==='review')return`${pending>0?'<div class="banner banner-warn" style="margin-bottom:10px">👁 '+pending+' transactions to review</div>':''}<button class="btn btn-primary btn-sm" onclick="showTab(\'transactions\');doneStep(2)">👁 Review transactions</button>`;
+  if(s.action==='review')return`${pending>0?'<div class="banner banner-warn" style="margin-bottom:10px">👁 '+pending+' transactions to review</div>':''}<button class="btn btn-primary btn-sm" onclick="reviewWorkflowTransactions()">👁 Review transactions</button><button class="btn btn-sm" style="margin-left:8px" onclick="doneStep(2)">✓ Done reviewing</button>`;
   if(s.action==='manual')return`<button class="btn btn-primary btn-sm" onclick="openModal(\'quickTx\')">+ Add manual transaction</button><button class="btn btn-sm" style="margin-left:8px" onclick="doneStep(3)">Done adding</button>`;
   if(s.action==='accept'){const p=S.transactions.filter(t=>t.status==='pending').length;return`${p>0?'<div class="banner banner-warn" style="margin-bottom:10px">'+p+' pending transactions</div>':''}<button class="btn btn-primary btn-sm" onclick="acceptAllPending()">✓ Accept all (${p})</button>`;}
   if(s.action==='confirm'){
@@ -1400,8 +1405,9 @@ function renderStepBody(s,done,pending){
   if(s.action==='tithe'){const carersDefault=S.carersDefault||162.60;return`<a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex;margin-right:6px">🔗 RACQ Bank</a><a href="https://outlook.live.com/mail/" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 Outlook</a><div class="frow" style="margin-bottom:8px"><div class="field"><label>Benj gross income ($)</label><input type="number" id="tb" step="0.01" placeholder="0.00" oninput="calcTithe()"></div><div class="field"><label>Kasie gross income ($)</label><input type="number" id="tk" step="0.01" placeholder="0.00" oninput="calcTithe()"></div></div><div class="field" style="margin-bottom:8px"><label>Carers Payment ($)</label><div style="display:flex;gap:8px;align-items:center"><input type="number" id="tc" step="0.01" value="${carersDefault.toFixed(2)}" oninput="calcTithe()" style="flex:1"><button class="btn btn-sm" onclick="saveCarersDefault()" style="white-space:nowrap;flex-shrink:0">Set as default</button></div><div class="field-hint">Default: ${fmt(carersDefault)}</div></div><div id="tithe-out" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="saveTithe()">✓ Record tithe & done</button><button class="btn btn-sm" id="transfer-zcm-btn" style="display:none;background:var(--blue);color:#fff;border-color:#0F4A8A" onclick="showZCMTransfer()">💸 Manually transfer tithe to ZCM</button></div>`;}
   if(s.action==='spending')return`<a href='https://banking.racqbank.com.au/#/login' target='_blank' class='btn btn-sm' style='margin-bottom:10px;display:inline-flex'>🔗 RACQ Bank</a><button class="btn btn-primary btn-sm" onclick="openSpendingModal()">💳 Enter debit card balances</button>`;
   if(s.action==='ndis'){
-    const ndisTxs=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='accepted');
-    const pendingNdis=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='pending');
+    const fnCutoff=getCurrentFortnightCutoff();
+    const ndisTxs=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='accepted'&&t.date>=fnCutoff);
+    const pendingNdis=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='pending'&&t.date>=fnCutoff);
     const processedIds=S.workflowData.ndisProcessed||[];
     // Also consider a tx processed if it has a matching ndisTransaction entry (processed in a previous fn)
     const unprocessed=ndisTxs.filter(t=>{
@@ -1657,7 +1663,22 @@ function saveMortgage(){
   saveS();
   doneStep(11);
 }
-function acceptAllPending(){let n=0;S.transactions.filter(t=>t.status==='pending').forEach(t=>{t.status='accepted';n++;});saveS();doneStep(4);alert(n+' transactions accepted.');}
+function acceptAllPending(){
+  let n=0;
+  const addlReminders=[];
+  S.transactions.filter(t=>t.status==='pending').forEach(t=>{
+    t.status='accepted';
+    n++;
+    if(t.category==='💳 Additional Money'&&t.subcat&&!t._additionalDeducted){
+      deductAdditionalBalance(t.subcat,t.amount);
+      t._additionalDeducted=true;
+      addlReminders.push({subcat:t.subcat,amount:t.amount});
+    }
+  });
+  saveS();doneStep(4);
+  addlReminders.forEach(r=>showAdditionalReminder(r.subcat,r.amount));
+  alert(n+' transactions accepted.');
+}
 
 function openSpendingModal(){
   const fnB=getFNSpending('Benj'),fnK=getFNSpending('Kasie');
@@ -1732,7 +1753,7 @@ function openTxDetail(id){
     ${tx.flag?'<div class="banner banner-err" style="margin-bottom:10px">⚠ '+tx.flag+'</div>':''}
     <div class="field"><label>Description / summary</label><input type="text" id="edit-desc" value="${tx.description}" style="width:100%"></div>
     <div class="frow">
-      <div class="field"><label>Category</label><select id="edit-cat" onchange="updateEditSubcat()">${CATS.filter(c=>!c.isAdditional).map(c=>`<option value="${c.name}"${c.name===tx.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other"${tx.category==='Other'?' selected':''}>Other</option><option value="💳 Additional Money"${tx.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option></select></div>
+      <div class="field"><label>Category</label><select id="edit-cat" onchange="updateEditSubcat()">${CATS.filter(c=>!c.isAdditional).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===tx.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${tx.category==='Other'?' selected':''}>Other</option><option value="💳 Additional Money"${tx.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option></select></div>
       <div class="field"><label>Date</label><input type="date" id="fix-date" value="${tx.date}"></div>
     </div>
     <div id="edit-subcat-wrap" class="field" style="${txCat?.subs?'':'display:none'}"><label>Sub-category</label><select id="edit-subcat">${txCat?.subs?txCat.subs.map(s=>`<option value="${s}"${s===tx.subcat?' selected':''}>${s}</option>`).join(''):''}</select></div>
@@ -2304,11 +2325,18 @@ function saveEdits(id){
   const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
   const di=document.getElementById('fix-date');if(di)tx.date=di.value;
   const dd=document.getElementById('edit-desc');if(dd)tx.description=dd.value;
-  const dc=document.getElementById('edit-cat');if(dc)tx.category=dc.value;
+  const dc=document.getElementById('edit-cat');
+  const wasAdditional=tx.category!=='💳 Additional Money'&&dc&&dc.value==='💳 Additional Money';
+  if(dc)tx.category=dc.value;
   const ds=document.getElementById('edit-subcat');if(ds&&document.getElementById('edit-subcat-wrap')?.style.display!=='none')tx.subcat=ds.value;
   const dn=document.getElementById('edit-notes');if(dn)tx.notes=dn.value;
   delete tx.flag;
   saveS();closeModal('txDetail');
+  if(wasAdditional&&tx.subcat){
+    deductAdditionalBalance(tx.subcat,tx.amount);
+    showAdditionalReminder(tx.subcat,tx.amount);
+    tx._additionalDeducted=true;
+  }
 }
 function updateEditSubcat(){
   const catName=document.getElementById('edit-cat')?.value;
@@ -2335,7 +2363,11 @@ async function fixAndAccept(id){
   const dn=document.getElementById('edit-notes');if(dn)tx.notes=dn.value;
   tx.status='accepted';delete tx.flag;
   closeModal('txDetail');render();
-  if(tx.category==='💳 Additional Money')showAdditionalReminder(tx.subcat||'',tx.amount);
+  if(tx.category==='💳 Additional Money'&&tx.subcat&&!tx._additionalDeducted){
+    deductAdditionalBalance(tx.subcat,tx.amount);
+    tx._additionalDeducted=true;
+    showAdditionalReminder(tx.subcat,tx.amount);
+  }
   await saveToSheets();
 }
 async function deleteTx(id){
@@ -2559,20 +2591,27 @@ function handleCSV(e){
           (t.category==='💰 Add to Money Owed'||t.notes==='Added to Money Owed on dashboard')
         );
         const sameDateAll=[...sameDatePending,...sameDateAccepted];
-        // Try all subsets of nearby-date transactions to find one that sums to CSV amount
-        function findMatchingSubset(txs,target,tolerance=2){
-          // Try full set first
-          const total=txs.reduce((a,t)=>a+t.amount,0);
-          if(Math.abs(total-target)<tolerance)return txs;
-          // Try subsets (up to 8 items for performance)
-          const n=Math.min(txs.length,8);
+        // Try all subsets of nearby-date transactions to find one that sums EXACTLY to CSV amount.
+        // Only the combined total should determine a split match — individual items are not compared,
+        // so we require an exact (1c) sum match and prefer the smallest valid subset to avoid
+        // accidentally roping in unrelated transactions.
+        function findMatchingSubset(txs,target,tolerance=0.01){
+          const n=Math.min(txs.length,12);
+          let best=null;
+          // Try the full set first (most common case)
+          if(txs.length<=n){
+            const total=txs.reduce((a,t)=>a+t.amount,0);
+            if(Math.abs(total-target)<tolerance)best=txs;
+          }
+          // Search all subsets, keep the smallest one that sums exactly (ties broken by first found)
           for(let mask=1;mask<(1<<n);mask++){
             const subset=txs.filter((_,i)=>mask&(1<<i));
             if(subset.length<2)continue;
+            if(best&&subset.length>=best.length)continue; // already have an equal-or-smaller match
             const sum=subset.reduce((a,t)=>a+t.amount,0);
-            if(Math.abs(sum-target)<tolerance)return subset;
+            if(Math.abs(sum-target)<tolerance)best=subset;
           }
-          return null;
+          return best;
         }
         const matchedSubset=findMatchingSubset(sameDateAll,csv.amount);
         if(matchedSubset){
@@ -2613,7 +2652,7 @@ function openCSVReview(data){
   if(merged.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">✓ Matched — manual entry + credit card (${merged.length})</div>`;
     merged.forEach((m,i)=>{
-      if(m._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('m${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${m.csv.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(m.csv.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${m.csv.category} · Matched</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
+      if(m._reviewed){const dispCat=m.action==='merge-split'?'Split match':m.csv.category+(m.manual?.subcat?' · '+m.manual.subcat:'');html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('m${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${m.csv.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(m.csv.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${fmtDate(m.manual?.date||m.csv.date)} · ${dispCat} · Matched</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
       const manualDesc=m.action==='merge-split'
         ? m.manualGroup.map(t=>t.description+' ('+fmt(t.amount)+')').join(', ')
         : '"'+m.manual.description+'" · '+m.manual.category;
@@ -2633,7 +2672,10 @@ function openCSVReview(data){
         `:`
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${m.manual.date}" onchange="S.csvPending.merged[${i}].manual.date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].manual.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.filter(c=>!c.isAdditional).map(c=>`<option value="${c.name}"${c.name===m.manual.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other"${m.manual.category==='Other'?' selected':''}>Other</option><option value="💳 Additional Money"${m.manual.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option></select></div>
+          <div class="field" style="margin:0"><label>Amount ($)</label><input type="number" step="0.01" value="${m.manual.amount.toFixed(2)}" onchange="S.csvPending.merged[${i}].manual.amount=parseFloat(this.value)||0"></div>
+        </div>
+        <div class="frow" style="margin-top:8px">
+          <div class="field" style="margin:0;grid-column:1/-1"><label>Category</label><select onchange="S.csvPending.merged[${i}].manual.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.filter(c=>!c.isAdditional).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===m.manual.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${m.manual.category==='Other'?' selected':''}>Other</option><option value="💳 Additional Money"${m.manual.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option></select></div>
         </div>
         <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.manual.category,m.manual.subcat)}</div>
         <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.manual.description}" onchange="S.csvPending.merged[${i}].manual.description=this.value" style="width:100%"></div>
@@ -2648,7 +2690,7 @@ function openCSVReview(data){
   if(unmatchedCSV.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">New credit card transactions (${unmatchedCSV.length})</div>`;
     unmatchedCSV.forEach((t,i)=>{
-      if(t._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('c${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${t.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(t.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${t.category}${t.cardLast4?' · ****'+t.cardLast4:''}</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
+      if(t._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('c${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${t.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(t.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${fmtDate(t.date)} · ${t.category}${t.subcat?' · '+t.subcat:''}${t.cardLast4?' · ****'+t.cardLast4:''}</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
       html+=`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;margin-bottom:8px">
           <div>
@@ -2660,7 +2702,7 @@ function openCSVReview(data){
       ${t.isDuplicate?`<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — ${fmt(t.amount)} on ${fmtDate(t.date)} already exists: "${t.duplicateOf?.description}". Check carefully.</div>`:''}
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isAdditional).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="💳 Additional Money"${t.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option><option value="Money Owed"${t.category==='Money Owed'?' selected':''}>💰 Money owed to you</option></select></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isAdditional).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="💳 Additional Money"${t.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option><option value="💰 Add to Money Owed"${t.category==='💰 Add to Money Owed'?' selected':''}>💰 Add to Money Owed</option></select></div>
         </div>
         <div id="csv-sub-c${i}" style="margin-top:8px">${renderCSVSubcatNamed('c'+i,t.category,t.subcat)}</div>
         <div id="csv-split-c${i}" style="display:none;margin-top:8px">
@@ -2669,7 +2711,7 @@ function openCSVReview(data){
           <button class="btn btn-sm" onclick="addCSVSplitRow('c${i}')" style="margin-top:4px">+ Add split</button>
         </div>
         <div id="csv-desc-c${i}" class="field" style="margin-top:8px;margin-bottom:0"><label>Summary / description</label><input type="text" value="${t.description}" onchange="S.csvPending.unmatchedCSV[${i}].description=this.value" style="width:100%"></div>
-        <div id="csv-owed-c${i}" class="field" style="margin-top:8px;margin-bottom:0;display:${t.category==='Money Owed'?'block':'none'}"><label>Who owes you?</label><input type="text" id="csv-owed-desc-c${i}" placeholder="e.g. John owes for dinner" value="${t.owedDesc||''}" onchange="S.csvPending.unmatchedCSV[${i}].owedDesc=this.value" style="width:100%"></div>
+        <div id="csv-owed-c${i}" class="field" style="margin-top:8px;margin-bottom:0;display:${t.category==='💰 Add to Money Owed'?'block':'none'}"><label>Who owes you?</label><input type="text" id="csv-owed-desc-c${i}" placeholder="e.g. John owes for dinner" value="${t.owedDesc||''}" onchange="S.csvPending.unmatchedCSV[${i}].owedDesc=this.value" style="width:100%"></div>
         <button class="btn btn-sm" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('csv',${i})">🗑 Remove</button>
         <button class="btn btn-sm btn-primary" style="margin-top:8px;margin-left:6px;background:var(--green);border-color:var(--gd)" onclick="markCSVReviewed('c${i}',this.closest('.csv-tx-row'))">✓ Reviewed</button>
       </div>`;
@@ -2680,7 +2722,7 @@ function openCSVReview(data){
   if(unmatchedManual.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">⚠ Manual entries — no credit card match found (${unmatchedManual.length})</div>`;
     unmatchedManual.forEach((t,i)=>{
-      if(t._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('u${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${t.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(t.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${t.category}</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
+      if(t._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('u${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${t.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(t.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${fmtDate(t.date)} · ${t.category}${t.subcat?' · '+t.subcat:''}</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
       html+=`<div style="border:1px solid #E8C060;border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--al)">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
           <span style="font-size:13px;font-weight:700">${t.description}</span>
@@ -2689,8 +2731,9 @@ function openCSVReview(data){
         <div style="font-size:11px;color:#7A5A10;margin-bottom:8px">No matching credit card entry — paid by cash/debit, or still to appear on your statement?</div>
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedManual[${i}].date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedManual[${i}].category=this.value;updateMergedSubcat('u${i}',this.value)">${CATS.filter(c=>!c.isAdditional).map(c=>`<option value="${c.name}"${c.name===t.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="💳 Additional Money"${t.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option></select></div>
+          <div class="field" style="margin:0"><label>Amount ($)</label><input type="number" step="0.01" value="${t.amount.toFixed(2)}" onchange="S.csvPending.unmatchedManual[${i}].amount=parseFloat(this.value)||0"></div>
         </div>
+        <div class="field" style="margin-top:8px;margin-bottom:0"><label>Category</label><select onchange="S.csvPending.unmatchedManual[${i}].category=this.value;updateMergedSubcat('u${i}',this.value)">${CATS.filter(c=>!c.isAdditional).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="💳 Additional Money"${t.category==='💳 Additional Money'?' selected':''}>💳 Additional Money</option></select></div>
         <div id="csv-sub-u${i}" style="margin-top:8px">${renderCSVSubcatNamed('u'+i,t.category,t.subcat)}</div>
         <div id="csv-desc-u${i}" class="field" style="margin-top:8px;margin-bottom:0"><label>Summary / description</label><input type="text" value="${t.description}" onchange="S.csvPending.unmatchedManual[${i}].description=this.value" style="width:100%"></div>
         <button class="btn btn-sm" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('manual',${i})">🗑 Remove</button>
@@ -2803,7 +2846,7 @@ function toggleCSVSplit(key,catName,idx,section){
     if(splitArea)splitArea.style.display='none';
     if(subcatArea)subcatArea.style.display='block';
     if(descArea)descArea.style.display='block';
-    if(owedArea)owedArea.style.display=catName==='Money Owed'?'block':'none';
+    if(owedArea)owedArea.style.display=catName==='💰 Add to Money Owed'?'block':'none';
   }
 }
 function addCSVSplitRowPrefilled(key,category,description,amount,subcat){
@@ -2814,7 +2857,7 @@ function addCSVSplitRowPrefilled(key,category,description,amount,subcat){
   div.style.marginBottom='6px';
   const sortedCats2=CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isAdditional).map(c=>c.name).sort();
   const isAdditional=category==='💳 Additional Money';
-  div.innerHTML=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><select class="csv-split-cat" onchange="autoFillCSVSplit('${key}');toggleSplitRowSubcat(this)" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>${sortedCats2.map(n=>`<option value="${n}"${n===category?' selected':''}>${n}</option>`).join('')}<option value="Other"${category==='Other'?' selected':''}>Other</option><option value="💳 Additional Money"${isAdditional?' selected':''}>💳 Additional Money</option></select><input type="text" placeholder="Summary" value="${(description||'').replace(/"/g,'&quot;')}" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" value="${amount!=null?amount.toFixed(2):''}" oninput="autoFillCSVSplit('${key}')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit('${key}')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button><select class="csv-split-subcat" style="display:${isAdditional?'inline-block':'none'};flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Sub-category --</option>${getAdditionalSubcats().map(s=>`<option value="${s}"${s===subcat?' selected':''}>${s}</option>`).join('')}</select></div>`;
+  div.innerHTML=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><select class="csv-split-cat" onchange="autoFillCSVSplit('${key}');toggleSplitRowSubcat(this)" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>${sortedCats2.map(n=>`<option value="${n}"${n===category?' selected':''}>${n}</option>`).join('')}<option value="Other"${category==='Other'?' selected':''}>Other</option><option value="💳 Additional Money"${isAdditional?' selected':''}>💳 Additional Money</option><option value="💰 Add to Money Owed"${category==='💰 Add to Money Owed'?' selected':''}>💰 Add to Money Owed</option></select><input type="text" placeholder="Summary" value="${(description||'').replace(/"/g,'&quot;')}" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" value="${amount!=null?amount.toFixed(2):''}" oninput="autoFillCSVSplit('${key}')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit('${key}')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button><select class="csv-split-subcat" style="display:${isAdditional?'inline-block':'none'};flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Sub-category --</option>${getAdditionalSubcats().map(s=>`<option value="${s}"${s===subcat?' selected':''}>${s}</option>`).join('')}</select></div>`;
   container.appendChild(div);
 }
 function addCSVSplitRow(key){
@@ -2824,7 +2867,7 @@ function addCSVSplitRow(key){
   div.className='csv-split-row split-row';
   div.style.marginBottom='6px';
   const sortedCats2=CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isAdditional).map(c=>c.name).sort();
-  div.innerHTML=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><select class="csv-split-cat" onchange="autoFillCSVSplit('${key}');toggleSplitRowSubcat(this)" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>${sortedCats2.map(n=>`<option value="${n}">${n}</option>`).join('')}<option value="Other">Other</option><option value="💳 Additional Money">💳 Additional Money</option></select><input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" oninput="autoFillCSVSplit('${key}')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit('${key}')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button><select class="csv-split-subcat" style="display:none;flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Sub-category --</option>${getAdditionalSubcats().map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>`;
+  div.innerHTML=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><select class="csv-split-cat" onchange="autoFillCSVSplit('${key}');toggleSplitRowSubcat(this)" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>${sortedCats2.map(n=>`<option value="${n}">${n}</option>`).join('')}<option value="Other">Other</option><option value="💳 Additional Money">💳 Additional Money</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option></select><input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" oninput="autoFillCSVSplit('${key}')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit('${key}')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button><select class="csv-split-subcat" style="display:none;flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Sub-category --</option>${getAdditionalSubcats().map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>`;
   container.appendChild(div);
   autoFillCSVSplit(key);
 }
@@ -2904,6 +2947,7 @@ function acceptCSVReview(){
       if(manualTx){
         const wasAdditional=manualTx.category!=='💳 Additional Money'&&m.manual.category==='💳 Additional Money';
         manualTx.date=m.manual.date;
+        manualTx.amount=m.manual.amount;
         manualTx.category=m.manual.category;
         manualTx.subcat=m.manual.subcat||'';
         manualTx.description=m.manual.description;
@@ -2927,13 +2971,13 @@ function acceptCSVReview(){
           deductAdditionalBalance(sp.subcat,sp.amount);
           showAdditionalReminder(sp.subcat,sp.amount);
         }
-        S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:sp.subcat||'',method:'credit',status:'pending',source:'csv'});
+        S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:sp.subcat||'',method:'credit',status:'pending',source:'csv',_additionalDeducted:sp.category==='💳 Additional Money'&&!!sp.subcat});
       });
     } else if(t.category==='💳 Additional Money'){
       const subcat=t.subcat||'';
       deductAdditionalBalance(subcat,t.amount);
-      S.transactions.push({...t,status:'pending'});
-    } else if(t.category==='Money Owed'){
+      S.transactions.push({...t,status:'pending',_additionalDeducted:true});
+    } else if(t.category==='💰 Add to Money Owed'){
       // Add to money owed list on dashboard
       const owedDesc=t.owedDesc||document.getElementById('csv-owed-desc-'+splitKey)?.value||t.description;
       S.moneyOwedItems=S.moneyOwedItems||[];
@@ -2951,6 +2995,7 @@ function acceptCSVReview(){
     if(!tx)return;
     const wasAdditional=tx.category!=='💳 Additional Money'&&t.category==='💳 Additional Money';
     tx.date=t.date;
+    tx.amount=t.amount;
     tx.category=t.category;
     tx.subcat=t.subcat||'';
     tx.description=t.description;
@@ -3346,7 +3391,7 @@ function saveQuickTx(){
     const subcat=document.getElementById('qt-subcat')?.value;
     if(!subcat){alert('Please select an Additional Money sub-category.');return;}
     deductAdditionalBalance(subcat,amount);
-    S.transactions.push({id:'tx_'+Date.now(),date,description:desc,amount,category:'💳 Additional Money',subcat,method,notes,status:'pending',source:'manual'});
+    S.transactions.push({id:'tx_'+Date.now(),date,description:desc,amount,category:'💳 Additional Money',subcat,method,notes,status:'pending',source:'manual',_additionalDeducted:true});
     saveS();closeModal('quickTx');
     showAdditionalReminder(subcat,amount);
     return;
@@ -3861,6 +3906,16 @@ function scrollToUnpaid(){
   if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
+function reviewWorkflowTransactions(){
+  showTab('transactions');
+  // Pre-filter to pending transactions from this fortnight, so the user sees a focused
+  // outstanding-transactions list rather than the entire all-time transaction history.
+  const sf=document.getElementById('f-status');
+  const pf=document.getElementById('f-period');
+  if(sf)sf.value='pending';
+  if(pf)pf.value='this-fn';
+  renderTxList();
+}
 function showTab(tab){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
