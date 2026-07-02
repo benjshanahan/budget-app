@@ -1365,7 +1365,13 @@ function renderTxList(){
   if(!txs.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">No transactions</div>';return;}
   list.innerHTML=txs.map(t=>`<div class="tx ${t.status}" onclick="openTxDetail('${t.id}')"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}${t.flag?'<small style="color:var(--red)">⚠ '+t.flag+'</small>':''}${t.status==='pending'?'<small style="color:var(--amber);font-weight:600">⏳ Pending review</small>':''}</span><span class="tx-cat">${t.category}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join('');
   const sel=document.getElementById('f-cat');
-  if(sel.options.length<=1)[...new Set(S.transactions.map(t=>t.category))].sort().forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  if(sel.options.length<=1){
+    const cats=[
+      ...CATS.filter(c=>!c.isAdditional&&!c.noGrid).map(c=>c.name).sort(),
+      'Other','NDIS','💳 Additional Money','Tithing','Split','💰 Add to Money Owed'
+    ];
+    cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  }
 }
 
 function renderWorkflow(){
@@ -1578,15 +1584,21 @@ function revertCycle(id){
   const cycleIdx=cycles.findIndex(c=>c.id===id);
   const fnStart=cycleIdx>0?cycles[cycleIdx-1].date:'2026-04-22';
   const fnEnd=cycle.date;
-  // Remove the tithe transaction for this cycle
-  S.transactions=S.transactions.filter(t=>!(t.source==='tithe'&&t.date===cycle.date));
-  // For transactions entered this cycle: remove CSV/workflow ones, set manual back to pending.
-  // Only touch transactions whose date falls within this fortnight to avoid reverting
-  // transactions from prior fortnights that were incorrectly captured in transactionIds.
+  // Remove any tithe transactions dated within this fortnight (catches date mismatches from revert/redo)
+  S.transactions=S.transactions.filter(t=>!(
+    (t.source==='tithe'||t.source==='tithe-pending')&&t.date>fnStart&&t.date<=fnEnd
+  ));
+  // For transactions within this fortnight's date range:
+  // - CSV/credit-sourced: delete entirely
+  // - manual: reset to pending
+  // We use both the transactionIds list AND the date range to catch anything missed
+  const txIdSet=new Set(cycle.transactionIds||[]);
   S.transactions.forEach(t=>{
-    if(cycle.transactionIds&&cycle.transactionIds.includes(t.id)&&t.date>fnStart&&t.date<=fnEnd){
+    const inIdList=txIdSet.has(t.id);
+    const inDateRange=t.date>fnStart&&t.date<=fnEnd;
+    if(inIdList||inDateRange){
       if(t.source==='manual'){t.status='pending';}
-      else{t._revertDelete=true;}
+      else if(t.source!=='import'&&t.source!=='tithe'&&t.source!=='tithe-pending'){t._revertDelete=true;}
     }
   });
   S.transactions=S.transactions.filter(t=>!t._revertDelete);
@@ -1688,7 +1700,13 @@ function saveTithe(){
   S.workflowData.currentGross=t;
   S.workflowData.currentDate=today;
   // Record as pending tithe transaction (not accepted until finalise)
-  S.transactions=S.transactions.filter(tx=>tx.source!=='tithe-pending');
+  // Remove any existing tithe-pending AND any accepted tithe from this fortnight
+  // (guards against duplicates if tithe step is re-run after finalising)
+  const prevCycles=S.completedCycles||[];
+  const fnStart=prevCycles.length>0?prevCycles[prevCycles.length-1].date:'2026-04-22';
+  S.transactions=S.transactions.filter(tx=>!(
+    tx.source==='tithe-pending'||(tx.source==='tithe'&&tx.date>fnStart&&tx.date<=today)
+  ));
   S.transactions.push({id:'tithe_'+Date.now(),date:today,description:'Tithe — '+today,amount:ti,category:'Tithing',method:'transfer',status:'pending',source:'tithe-pending'});
   saveS();doneStep(6);
   // Show ZCM transfer button
@@ -2334,9 +2352,12 @@ async function saveNdisInvoice(){
   const num=(catTxs.length>0?Math.max(...catTxs.map(t=>t.num)):0)+1;
   const tx={id:'ndis_'+Date.now(),cat,num,provider,invoiceNo:invoiceNo||'',date,amount,comments:comments||'',status:'claimed'};
   S.ndisTransactions=S.ndisTransactions||[];
-  // Guard against duplicates — check for same provider+date+amount in last 10 seconds
-  const recentDupe=S.ndisTransactions.find(t=>t.provider===provider&&t.date===date&&Math.abs(t.amount-amount)<0.01&&(Date.now()-parseInt(t.id.replace('ndis_','')))<10000);
-  if(recentDupe){alert('This invoice appears to have already been saved. Please check the list below.');return;}
+  // Guard against duplicates — same invoice number, or same provider+date+amount
+  const isDupe=S.ndisTransactions.some(t=>
+    (invoiceNo&&t.invoiceNo&&t.invoiceNo===invoiceNo) ||
+    (t.provider===provider&&t.date===date&&Math.abs(t.amount-amount)<0.01)
+  );
+  if(isDupe){alert('This invoice appears to already be saved (same invoice number or matching provider/date/amount). Check the NDIS tab.');return;}
   S.ndisTransactions.push(tx);
   // Show next-steps panel immediately
   const nextSteps=document.getElementById('ndis-add-next-steps');
@@ -2542,12 +2563,12 @@ function openSubcatDashboard(catName){
     'Streaming':120,'Amazon':120,'Linkt':300,'Other':530
   } : {};
 
-  const subcatRows = cat.subs.map(sub=>{
+  const subcatRows = cat.subs.map((sub,subIdx)=>{
     const subTxs=allTxs.filter(t=>(t.subcat||'Other')===sub);
     const subSpent=subTxs.reduce((a,t)=>a+t.amount,0);
     const subYearly=subcatYearlyBudgets[sub]||0;
     const subPct=subYearly>0?Math.min(subSpent/subYearly*100,100):0;
-    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;cursor:pointer;opacity:${subSpent===0?'0.5':'1'}" onclick="openSubcatDetail('${catName}','${sub.replace(/'/g,"\'")}')">
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;cursor:pointer;opacity:${subSpent===0?'0.5':'1'}" onclick="openSubcatDetail('${catName}',${subIdx})">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
         <span style="font-size:13px;font-weight:600">${sub}</span>
         <span style="font-size:14px;font-weight:700;color:var(--text)">${fmt(subSpent)}</span>
@@ -2570,7 +2591,9 @@ function openSubcatDashboard(catName){
   openModal('txDetail');
 }
 
-function openSubcatDetail(catName, sub){
+function openSubcatDetail(catName, subIdx){
+  const cat=CATS.find(c=>c.name===catName);
+  const sub=typeof subIdx==='number'?(cat?.subs?.[subIdx]||subIdx):subIdx;
   const txs=S.transactions.filter(t=>t.category===catName&&(t.subcat||'Other')===sub&&t.status==='accepted').sort((a,b)=>b.date.localeCompare(a.date));
   const spent=txs.reduce((a,t)=>a+t.amount,0);
   document.getElementById('txd-title').textContent=catName+' — '+sub;
