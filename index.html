@@ -2085,16 +2085,13 @@ async function saveNdisCategorise(txId){
   if(pendingFile){
     const newEntry=S.ndisTransactions[S.ndisTransactions.length-1];
     const filename=genNdisFilename(newEntry);
+    const NDIS_FOLDER_IDS={core:'1upqz4gwIM0q7klvfkTIAhNkS3ecgs4US',idls:'1GVmWlO4dSzhvPZnzG4hhiHaZA9-d2yKj',sc:'1cKzi9eZ6hLtmbAsgYQKWTqTmCII2pPa0',at:'1T4TRV-23F87jVO6b2gIqKyiWiypxTmTM'};
+    const folderId=NDIS_FOLDER_IDS[catId];
     try{
       setSyncStatus('syncing');
-      const resp=await fetch('/.netlify/functions/sheets',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:'uploadToDrive',catId,filename,fileBase64:pendingFile,mimeType:S.workflowData['ndisFileMime_'+txId]||'application/pdf'})
-      });
-      const result=await resp.json();
-      if(result.success){
-        S.workflowData['ndisFile_'+txId]=result.fileName;
+      const result=await uploadFileToDriveFolder(folderId,filename,pendingFile,S.workflowData['ndisFileMime_'+txId]||'application/pdf');
+      if(result&&result.id){
+        S.workflowData['ndisFile_'+txId]=filename;
         S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
         delete S.workflowData['ndisFileData_'+txId];
         setSyncStatus('synced');
@@ -2231,21 +2228,19 @@ async function saveNdisInvoice(){
   // Upload file to Drive if one was staged
   if(window._ndisAddFileBase64){
     const filename=genNdisFilename(tx);
+    const NDIS_FOLDER_IDS={core:'1upqz4gwIM0q7klvfkTIAhNkS3ecgs4US',idls:'1GVmWlO4dSzhvPZnzG4hhiHaZA9-d2yKj',sc:'1cKzi9eZ6hLtmbAsgYQKWTqTmCII2pPa0',at:'1T4TRV-23F87jVO6b2gIqKyiWiypxTmTM'};
+    const folderId=NDIS_FOLDER_IDS[cat];
     try{
       setSyncStatus('syncing');
-      const resp=await fetch('/.netlify/functions/sheets',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:'uploadToDrive',catId:cat,filename,fileBase64:window._ndisAddFileBase64,mimeType:window._ndisAddFileMime||'application/pdf'})
-      });
-      const result=await resp.json();
-      if(result.success){
-        tx.driveFileId=result.fileId;
+      const result=await uploadFileToDriveFolder(folderId,filename,window._ndisAddFileBase64,window._ndisAddFileMime||'application/pdf');
+      if(result&&result.id){
+        tx.driveFileId=result.id;
         tx.driveLink=result.webViewLink;
-        tx.fileName=result.fileName;
+        tx.fileName=filename;
         setSyncStatus('synced');
       } else {
         setSyncStatus('error');
-        alert('⚠️ Invoice record saved, but Drive upload failed: '+(result.error||'Unknown error')+'\n\nPlease upload the file manually to the NDIS Drive folder.');
+        alert('⚠️ Invoice record saved, but Drive upload failed.\n\nPlease upload the file manually to the NDIS Drive folder.');
       }
     } catch(err){
       console.error('Drive upload error:',err);
