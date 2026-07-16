@@ -1319,7 +1319,7 @@ function renderTxList(){
   if(totalEl)totalEl.innerHTML=`Total: <span style="color:${total<0?'var(--green)':total>0?'var(--red)':'var(--text)'}">${total<0?'-':''}${fmt(Math.abs(total))}</span>`;
   const list=document.getElementById('tx-list-main');
   if(!txs.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">No transactions</div>';return;}
-  list.innerHTML=txs.map(t=>`<div class="tx ${t.status}" onclick="openTxDetail('${t.id}')"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}${t.flag?'<small style="color:var(--red)">⚠ '+t.flag+'</small>':''}${t.status==='pending'?'<small style="color:var(--amber);font-weight:600">⏳ Pending review</small>':''}</span><span class="tx-cat">${t.category}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join('');
+  list.innerHTML=txs.map(t=>`<div class="tx ${t.status}" onclick="${t._ndisId?`openNdisTxDetail('${t._ndisId}')`:` openTxDetail('${t.id}')`}"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}${t.flag?'<small style="color:var(--red)">⚠ '+t.flag+'</small>':''}${t.status==='pending'?'<small style="color:var(--amber);font-weight:600">⏳ Pending review</small>':''}</span><span class="tx-cat">${t.category}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join('');
   const sel=document.getElementById('f-cat');
   if(sel.options.length<=1)[...new Set(S.transactions.map(t=>t.category))].sort().forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
 }
@@ -1368,8 +1368,6 @@ function renderStepBody(s,done,pending){
       ${hasPending?'<div class="banner banner-warn" style="margin-top:10px">📋 You have an unfinished review — <button class="btn btn-sm" onclick="openCSVReview(S.csvPending)" style="margin-left:4px">Resume review</button></div>':''}
       <button class="btn btn-sm" style="margin-top:10px" onclick="doneStep(1)">Skip — no statement this fortnight</button>`;
   }
-  if(s.action==='review')return`${pending>0?'<div class="banner banner-warn" style="margin-bottom:10px">👁 '+pending+' transactions to review</div>':''}<button class="btn btn-primary btn-sm" onclick="showTab(\'transactions\');doneStep(2)">👁 Review transactions</button>`;
-  if(s.action==='manual')return`<button class="btn btn-primary btn-sm" onclick="openModal(\'quickTx\')">+ Add manual transaction</button><button class="btn btn-sm" style="margin-left:8px" onclick="doneStep(3)">Done adding</button>`;
   if(s.action==='accept'){const p=S.transactions.filter(t=>t.status==='pending').length;return`${p>0?'<div class="banner banner-warn" style="margin-bottom:10px">'+p+' pending transactions</div>':''}<button class="btn btn-primary btn-sm" onclick="acceptAllPending()">✓ Accept all (${p})</button>`;}
   if(s.action==='confirm'){
     const racqLink='<a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 RACQ Bank</a>';
@@ -1399,7 +1397,7 @@ function renderStepBody(s,done,pending){
         <a href="https://login.my.gov.au/las/mygov-login?execution=e1s1" target="_blank" class="btn btn-sm">🔗 MyGov</a>
       </div>
 
-    ${pendingNdis.length?`<div class="banner banner-warn" style="margin-bottom:10px">⚠ ${pendingNdis.length} NDIS transaction${pendingNdis.length>1?'s are':' is'} still pending — accept them in Step 4 first</div>`:''}
+    ${pendingNdis.length?`<div class="banner banner-warn" style="margin-bottom:10px">⚠ ${pendingNdis.length} NDIS transaction${pendingNdis.length>1?'s are':' is'} still pending — accept them in Step 2 first</div>`:''}
       ${unprocessed.length?`
         <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Transactions to process (${unprocessed.length})</div>
         <div class="tx-list" style="margin-bottom:12px">
@@ -1723,6 +1721,9 @@ function openTxDetail(id){
       <div class="field"><label>Category</label><select id="edit-cat" onchange="updateEditSubcat()">${CATS.map(c=>`<option value="${c.name}"${c.name===tx.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other"${tx.category==='Other'?' selected':''}>Other</option></select></div>
       <div class="field"><label>Date</label><input type="date" id="fix-date" value="${tx.date}"></div>
     </div>
+    <div class="frow">
+      <div class="field"><label>Amount ($)</label><input type="number" id="edit-amount" step="0.01" value="${tx.amount}" style="width:100%"></div>
+    </div>
     <div id="edit-subcat-wrap" class="field" style="${txCat?.subs?'':'display:none'}"><label>Sub-category</label><select id="edit-subcat">${txCat?.subs?txCat.subs.map(s=>`<option value="${s}"${s===tx.subcat?' selected':''}>${s}</option>`).join(''):''}</select></div>
     ${tx.notes?'<div class="field"><label>Notes</label><input type="text" id="edit-notes" value="'+tx.notes+'" style="width:100%"></div>':''}
     `;
@@ -1808,13 +1809,24 @@ function renderNdisStepAction(stepId,txId){
     const invVal=scanned.invoiceNo||'';
     const dateVal=scanned.date||tx?.date||new Date().toISOString().split('T')[0];
     const amtVal=scanned.amount||tx?.amount||'';
+    const uploadedFile=wf['ndisFile_'+txId]||'';
+    const uploadedLink=wf['ndisFileLink_'+txId]||'';
+    const uploadZoneHTML=uploadedFile
+      ? `<div style="padding:10px;margin-bottom:10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);text-align:center">
+          <div style="font-size:13px;color:var(--green);font-weight:600">✅ Invoice uploaded</div>
+          <div style="font-size:11px;color:var(--gd);margin-top:2px">${uploadedFile}</div>
+          ${uploadedLink?`<a href="${uploadedLink}" target="_blank" style="font-size:11px;color:var(--blue)">View in Drive →</a>`:''}
+          <label for="ndis-inv-upload-${txId}" style="font-size:11px;color:var(--text2);cursor:pointer;display:block;margin-top:4px">Replace file</label>
+          <input type="file" id="ndis-inv-upload-${txId}" accept=".pdf,image/*" onchange="handleNdisUpload(event,'${txId}')" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
+        </div>`
+      : `<label for="ndis-inv-upload-${txId}" class="upload-zone" style="padding:10px;margin-bottom:10px;display:block;cursor:pointer;text-align:center">
+          <div style="font-size:20px;margin-bottom:2px">📄</div>
+          <div style="font-size:12px;color:var(--text2)">Click to upload invoice PDF</div>
+          <div style="font-size:11px;color:var(--text2)">Upload then fill in details below</div>
+        </label>
+        <input type="file" id="ndis-inv-upload-${txId}" accept=".pdf,image/*" onchange="handleNdisUpload(event,'${txId}')" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">`;
     return`
-      <label for="ndis-inv-upload-${txId}" class="upload-zone" style="padding:10px;margin-bottom:10px;display:block;cursor:pointer;text-align:center">
-        <div style="font-size:20px;margin-bottom:2px">📄</div>
-        <div style="font-size:12px;color:var(--text2)">Click to upload invoice PDF</div>
-        <div style="font-size:11px;color:var(--text2)">Upload then fill in details below</div>
-      </label>
-      <input type="file" id="ndis-inv-upload-${txId}" accept=".pdf,image/*" onchange="handleNdisUpload(event,'${txId}')" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
+      ${uploadZoneHTML}
       <div id="ndis-scan-status-${txId}" style="font-size:12px;color:var(--text2);margin-bottom:8px;display:none"></div>
       <div class="frow" style="margin-bottom:8px">
         <div class="field" style="margin:0"><label>Category</label>
@@ -1996,7 +2008,10 @@ async function handleNdisUpload(e,txId){
         if(ndisEntry){ndisEntry.driveFileId=result.fileId;ndisEntry.driveLink=result.webViewLink;ndisEntry.fileName=result.fileName;}
         setSyncStatus('synced');
         markNdisStep(txId,'upload');
-        alert('Invoice uploaded to Google Drive! File: '+result.fileName);
+        const uploadZone=document.querySelector('#ndis-inv-upload')?.closest('.upload-zone')||document.querySelector('.ndis-upload-zone');
+        const statusEl=document.getElementById('ndis-upload-status-'+txId);
+        if(statusEl){statusEl.textContent='✅ '+result.fileName+' uploaded to Drive';statusEl.style.color='var(--green)';statusEl.style.display='block';}
+        else{const el=document.getElementById('ndis-step-upload-'+txId);if(el){const msg=document.createElement('div');msg.style.cssText='font-size:12px;color:var(--green);margin-top:6px;font-weight:500';msg.textContent='✅ '+result.fileName+' uploaded to Drive';el.appendChild(msg);}}
       } else {
         throw new Error(result.error||'Upload failed');
       }
@@ -2006,7 +2021,6 @@ async function handleNdisUpload(e,txId){
       S.workflowData['ndisFileMime_'+txId]=file.type||'application/pdf';
       S.workflowData['ndisFileOrig_'+txId]=file.name;
       markNdisStep(txId,'upload');
-      alert('Invoice ready — it will be uploaded to the correct Drive folder after you select the NDIS category.');
     }
   } catch(err){
     console.error('Drive upload error:',err);
@@ -2048,6 +2062,12 @@ async function saveNdisCategorise(txId){
   S.ndisTransactions=S.ndisTransactions||[];
   // Remove existing entry if re-doing this step
   S.ndisTransactions=S.ndisTransactions.filter(t=>t.id!=='ndis_pending_'+txId);
+  // Also deduplicate by invoiceNo or provider+date+amount to prevent double-saves
+  const isDup=S.ndisTransactions.some(t=>
+    (invoiceNo&&t.invoiceNo&&t.invoiceNo===invoiceNo) ||
+    (!invoiceNo&&t.provider===provider&&t.date===(dateVal||tx?.date)&&Math.abs(t.amount-(amtVal||tx?.amount||0))<0.01)
+  );
+  if(isDup){alert('This invoice appears to already be saved (duplicate invoice number or matching provider/date/amount).');return;}
   // Track this for potential cleanup if workflow is reset
   S.workflowData.ndisAddedIds=S.workflowData.ndisAddedIds||[];
   if(!S.workflowData.ndisAddedIds.includes('ndis_pending_'+txId))S.workflowData.ndisAddedIds.push('ndis_pending_'+txId);
@@ -2078,7 +2098,6 @@ async function saveNdisCategorise(txId){
         S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
         delete S.workflowData['ndisFileData_'+txId];
         setSyncStatus('synced');
-        alert('✅ Invoice uploaded to Google Drive!\n\nFile: '+result.fileName);
       }
     } catch(err){
       console.error('Drive upload error:',err);
@@ -2201,7 +2220,7 @@ async function saveNdisInvoice(){
   const provider=document.getElementById('ndis-provider')?.value?.trim();
   const invoiceNo=document.getElementById('ndis-invno')?.value?.trim();
   const comments=document.getElementById('ndis-comments')?.value?.trim();
-  const status=document.getElementById('ndis-status')?.value||'unpaid';
+  const status=document.getElementById('ndis-status')?.value||'claimed';
   if(!cat||!date||!amount||!provider){alert('Please fill in category, date, amount and provider.');return;}
   // Get next number for this category
   const catTxs=getNdisTransactions().filter(t=>t.cat===cat);
@@ -2224,9 +2243,15 @@ async function saveNdisInvoice(){
         tx.driveLink=result.webViewLink;
         tx.fileName=result.fileName;
         setSyncStatus('synced');
-        alert('✅ Invoice saved to Google Drive: '+result.fileName);
+      } else {
+        setSyncStatus('error');
+        alert('⚠️ Invoice record saved, but Drive upload failed: '+(result.error||'Unknown error')+'\n\nPlease upload the file manually to the NDIS Drive folder.');
       }
-    } catch(err){console.error('Drive upload error:',err);setSyncStatus('error');}
+    } catch(err){
+      console.error('Drive upload error:',err);
+      setSyncStatus('error');
+      alert('⚠️ Invoice record saved, but Drive upload failed: '+err.message+'\n\nPlease upload the file manually to the NDIS Drive folder.');
+    }
     window._ndisAddFileBase64=null;
     window._ndisAddFileMime=null;
     window._ndisAddFileName=null;
@@ -2291,6 +2316,7 @@ function restoreTx(id){
 function saveEdits(id){
   const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
   const di=document.getElementById('fix-date');if(di)tx.date=di.value;
+  const da=document.getElementById('edit-amount');if(da&&da.value)tx.amount=parseFloat(da.value);
   const dd=document.getElementById('edit-desc');if(dd)tx.description=dd.value;
   const dc=document.getElementById('edit-cat');if(dc)tx.category=dc.value;
   const ds=document.getElementById('edit-subcat');if(ds&&document.getElementById('edit-subcat-wrap')?.style.display!=='none')tx.subcat=ds.value;
@@ -2313,6 +2339,7 @@ function updateEditSubcat(){
 async function fixAndAccept(id){
   const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
   const di=document.getElementById('fix-date');if(di)tx.date=di.value;
+  const da=document.getElementById('edit-amount');if(da&&da.value)tx.amount=parseFloat(da.value);
   const dd=document.getElementById('edit-desc');if(dd)tx.description=dd.value;
   const dc=document.getElementById('edit-cat');if(dc)tx.category=dc.value;
   const ds=document.getElementById('edit-subcat');if(ds&&document.getElementById('edit-subcat-wrap')?.style.display!=='none')tx.subcat=ds.value;
@@ -3038,7 +3065,7 @@ async function saveOverall(){
 
 function populateQTCats(){
   const sel=document.getElementById('qt-cat');
-  sel.innerHTML='<option value="">-- Select category --</option><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}">${n}</option>`).join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS (process in Step 9)</option><option value="Renovations">🏗 Renovations</option><option value="➕ Add to Cash Savings">➕ Add to Cash Savings</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option>';
+  sel.innerHTML='<option value="">-- Select category --</option><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}">${n}</option>`).join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS</option><option value="Renovations">🏗 Renovations</option><option value="➕ Add to Cash Savings">➕ Add to Cash Savings</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option>';
   sel.onchange=updateQTSubcat;
   updateQTSubcat();
 }
