@@ -457,6 +457,21 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
     <button class="mclose" onclick="saveS();closeModal('csvReview');renderWorkflow()">✕</button>
     <div class="modal-title">Review credit card transactions</div>
     <div id="csv-review-body"></div>
+    <div style="margin:8px 0 12px">
+      <button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue);width:100%" onclick="toggleCSVAddForm()"><i class="ti ti-plus"></i> Add transaction</button>
+      <div id="csv-add-form" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+          <div><label style="font-size:11px;color:var(--text2)">Date</label><input type="date" id="csv-add-date" style="width:100%;font-size:12px;padding:4px 6px"></div>
+          <div><label style="font-size:11px;color:var(--text2)">Amount ($)</label><input type="number" id="csv-add-amount" step="0.01" placeholder="0.00" style="width:100%;font-size:12px;padding:4px 6px"></div>
+        </div>
+        <div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Description</label><input type="text" id="csv-add-desc" placeholder="e.g. Groceries" style="width:100%;font-size:12px;padding:4px 6px"></div>
+        <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--text2)">Category</label><select id="csv-add-cat" style="width:100%;font-size:12px;padding:4px 6px"></select></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-primary" onclick="saveCSVAddForm()">+ Add</button>
+          <button class="btn btn-sm" onclick="toggleCSVAddForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="saveS();closeModal('csvReview');renderWorkflow()">Cancel</button>
       <button class="btn btn-primary" onclick="acceptCSVReview()">✓ Accept all & add to pending</button>
@@ -699,6 +714,7 @@ let syncTimeout = null;
 const fmt = n => '$'+(Math.abs(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 const fmtDate = iso => { if(!iso||iso.length<10)return iso||'—'; const[y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
 const fmtS = n => (n<0?'-':'')+fmt(n);
+const localISODate = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
 const getNextMoneyDay = () => MONEY_DAYS.find(d=>d>new Date())||MONEY_DAYS[MONEY_DAYS.length-1];
 const getTithingCycles = () => S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').length;
 const getCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name).reduce((a,t)=>a+(t.amount||0),0);
@@ -1349,7 +1365,7 @@ function renderWorkflow(){
       const done=!!wd['s'+s.n];
       const active=!done&&(s.n===1||!!wd['s'+(s.n-1)]);
       const nc=done?'sn-d':active?'sn-a':'sn-p';
-      return`<div class="step"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${done?'✓':s.n}</div><div class="step-title">${s.title}</div><span>${done?'<span class="badge bg" style="cursor:pointer" onclick="event.stopPropagation();undoStep('+s.n+')">Done ↩</span>':active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div><div class="step-body${active||done?' open':''}" id="sb${s.n}"><div class="step-desc">${s.desc}</div>${renderStepBody(s,done,pending)}</div></div>`;
+      return`<div class="step" style="${done?'opacity:0.7':''}"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${done?'✓':s.n}</div><div class="step-title" style="${done?'color:var(--text2)':''}">${s.title}</div><span>${done?'<span class="badge bg" style="cursor:pointer" onclick="event.stopPropagation();undoStep('+s.n+')">Done ↩</span>':active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div>${done?'':'<div class="step-body'+(active?' open':'') +'" id="sb'+s.n+'"><div class="step-desc">'+s.desc+'</div>'+renderStepBody(s,done,pending)+'</div>'}</div>`;
     }).join('')}
     ${allDone?`<div style="margin-top:16px;padding:16px;background:var(--gl);border:1px solid #5DBB99;border-radius:var(--radius);text-align:center">
       <div style="font-size:14px;font-weight:600;color:var(--gd);margin-bottom:8px">All steps complete!</div>
@@ -2170,7 +2186,20 @@ function finaliseNdisStep(){
 }
 
 function openNdisModal(){
-  document.getElementById('ndis-date').value=new Date().toISOString().split('T')[0];
+  // Reset all fields
+  document.getElementById('ndis-date').value=localISODate();
+  document.getElementById('ndis-provider').value='';
+  document.getElementById('ndis-invno').value='';
+  document.getElementById('ndis-amount').value='';
+  document.getElementById('ndis-comments').value='';
+  // Clear file staging
+  window._ndisAddFileBase64=null;
+  window._ndisAddFileMime=null;
+  window._ndisAddFileName=null;
+  const fileStatus=document.getElementById('ndis-add-file-status');
+  if(fileStatus){fileStatus.style.display='none';fileStatus.textContent='';}
+  const preview=document.getElementById('ndis-filename-preview');
+  if(preview){preview.style.display='none';preview.textContent='';}
   // Populate category select
   const sel=document.getElementById('ndis-cat');
   sel.innerHTML=NDIS_CATS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
@@ -2625,9 +2654,12 @@ function openCSVReview(data){
           <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].csv.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.map(c=>`<option value="${c.name}"${c.name===m.csv.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option></select></div>
         </div>
         <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)}</div>
-        <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value" style="width:100%"></div>
+        <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.manual?.description||m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value" style="width:100%"></div>
         <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: credit card transaction matched — manual entry will be kept as-is</div>
-        <button class="btn btn-sm" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('merged',${i})">🗑 Remove</button>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="unmatchFromCSVReview(${i})">↩ Unmatch</button>
+          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('merged',${i})">🗑 Remove</button>
+        </div>
         <button class="btn btn-sm btn-primary" style="margin-top:8px;margin-left:6px;background:var(--green);border-color:var(--gd)" onclick="markCSVReviewed('m${i}',this.closest('.csv-tx-row'))">✓ Reviewed</button>
       </div>`;
     });
@@ -2669,18 +2701,23 @@ function openCSVReview(data){
   if(unmatchedManual.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">⚠ Manual entries — no credit card match found (${unmatchedManual.length})</div>`;
     unmatchedManual.forEach((t,i)=>{
+      const cats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
+      const catOptions=cats.map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('');
       html+=`<div style="border:1px solid #E8C060;border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--al)">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
-          <div>
-            <div style="font-size:13px;font-weight:700">${t.description}</div>
-            <div style="font-size:11px;color:var(--amber)">Manually entered · ${t.category}${t.subcat?' · '+t.subcat:''} · ${t.date}</div>
-          </div>
-          <span style="font-size:15px;font-weight:700">${fmt(t.amount)}</span>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+          <div style="font-size:11px;color:var(--amber)">Manual entry · no credit card match</div>
+          <span style="font-size:13px;font-weight:700">${fmt(t.amount)}</span>
         </div>
-        <div style="font-size:12px;color:#7A5A10;margin-bottom:8px">This transaction has no matching credit card entry. Was it paid by cash/debit, or is it still to appear on your statement?</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+          <div><label style="font-size:11px;color:var(--text2)">Date</label><input type="date" value="${t.date}" onchange="updateUnmatchedManual(${i},'date',this.value)" style="width:100%;font-size:12px;padding:4px 6px"></div>
+          <div><label style="font-size:11px;color:var(--text2)">Amount ($)</label><input type="number" value="${t.amount}" step="0.01" onchange="updateUnmatchedManual(${i},'amount',parseFloat(this.value))" style="width:100%;font-size:12px;padding:4px 6px"></div>
+        </div>
+        <div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Description</label><input type="text" value="${t.description}" onchange="updateUnmatchedManual(${i},'description',this.value)" style="width:100%;font-size:12px;padding:4px 6px"></div>
+        <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--text2)">Category</label><select onchange="updateUnmatchedManual(${i},'category',this.value)" style="width:100%;font-size:12px;padding:4px 6px">${catOptions}</select></div>
+        <div style="font-size:12px;color:#7A5A10;margin-bottom:8px">No matching credit card entry — was it paid by cash/debit, or still to appear on your statement?</div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='keep'">Keep as-is</button>
-          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='remove'">Remove</button>
+          <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="setUnmatchedKeep(${i},'keep',this)">Keep as-is</button>
+          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="setUnmatchedKeep(${i},'remove',this)">Remove</button>
         </div>
       </div>`;
     });
@@ -2690,6 +2727,55 @@ function openCSVReview(data){
   openModal('csvReview');
 }
 
+function toggleCSVAddForm(){
+  const form=document.getElementById('csv-add-form');
+  if(!form)return;
+  const visible=form.style.display!=='none';
+  form.style.display=visible?'none':'block';
+  if(!visible){
+    // Populate category dropdown and set default date
+    const sel=document.getElementById('csv-add-cat');
+    sel.innerHTML=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}">${n}</option>`).join('');
+    document.getElementById('csv-add-date').value=localISODate();
+    document.getElementById('csv-add-desc').value='';
+    document.getElementById('csv-add-amount').value='';
+  }
+}
+function saveCSVAddForm(){
+  const date=document.getElementById('csv-add-date').value;
+  const amount=parseFloat(document.getElementById('csv-add-amount').value)||0;
+  const desc=document.getElementById('csv-add-desc').value.trim();
+  const cat=document.getElementById('csv-add-cat').value;
+  if(!date||!amount||!desc){alert('Please fill in date, amount and description.');return;}
+  const tx={id:'tx_'+Date.now(),date,description:desc,amount,category:cat,subcat:'',method:'manual',notes:'',status:'pending',source:'manual'};
+  S.transactions.push(tx);
+  S.csvPending.unmatchedManual=S.csvPending.unmatchedManual||[];
+  S.csvPending.unmatchedManual.push(tx);
+  toggleCSVAddForm();
+  openCSVReview(S.csvPending);
+}
+function updateUnmatchedManual(i,field,value){
+  const t=S.csvPending.unmatchedManual[i];
+  if(!t)return;
+  t[field]=value;
+  const tx=S.transactions.find(tx=>tx.id===t.id);
+  if(tx)tx[field]=value;
+}
+function setUnmatchedKeep(i,action,btn){
+  const t=S.csvPending.unmatchedManual[i];
+  if(!t)return;
+  t.keepAction=action;
+  // Visual feedback
+  const parent=btn.closest('div[style*="border:1px solid #E8C060"]');
+  if(parent){
+    if(action==='keep'){
+      parent.style.borderColor='var(--green)';
+      parent.style.background='var(--gl)';
+    } else {
+      parent.style.opacity='0.5';
+    }
+  }
+}
 function unmarkCSVReviewed(key){
   const prefix=key[0];
   const idx=parseInt(key.slice(1));
@@ -2703,6 +2789,20 @@ function markCSVReviewed(key,rowEl){
   if(prefix==='c'&&S.csvPending.unmatchedCSV[idx])S.csvPending.unmatchedCSV[idx]._reviewed=true;
   if(prefix==='m'&&S.csvPending.merged[idx])S.csvPending.merged[idx]._reviewed=true;
   openCSVReview(S.csvPending);
+}
+function unmatchFromCSVReview(idx){
+  const pending=S.csvPending;
+  const m=pending.merged[idx];
+  if(m){
+    // Send CSV back to unmatched list
+    pending.unmatchedCSV=pending.unmatchedCSV||[];
+    pending.unmatchedCSV.push(m.csv);
+    // Return manual entries back to pending/unmatched
+    if(m.manual)m.manual.status='pending';
+    if(m.manualGroup)m.manualGroup.forEach(t=>t.status='pending');
+    pending.merged.splice(idx,1);
+  }
+  openCSVReview(pending);
 }
 function deleteFromCSVReview(type, idx){
   const pending=S.csvPending;
@@ -2835,6 +2935,7 @@ function acceptCSVReview(){
         manualTx.method='credit';
         manualTx.status='accepted';
         manualTx.source='csv';
+        if(m.csv.description)manualTx.description=m.csv.description;
       }
     }
   });
