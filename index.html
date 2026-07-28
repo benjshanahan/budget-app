@@ -1365,7 +1365,7 @@ function renderWorkflow(){
       const done=!!wd['s'+s.n];
       const active=!done&&(s.n===1||!!wd['s'+(s.n-1)]);
       const nc=done?'sn-d':active?'sn-a':'sn-p';
-      return`<div class="step" style="${done?'opacity:0.7':''}"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${done?'✓':s.n}</div><div class="step-title" style="${done?'color:var(--text2)':''}">${s.title}</div><span>${done?'<span class="badge bg" style="cursor:pointer" onclick="event.stopPropagation();undoStep('+s.n+')">Done ↩</span>':active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div>${done?'':'<div class="step-body'+(active?' open':'') +'" id="sb'+s.n+'"><div class="step-desc">'+s.desc+'</div>'+renderStepBody(s,done,pending)+'</div>'}</div>`;
+      return`<div class="step" style="${done?'opacity:0.7':''}"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${done?'✓':s.n}</div><div class="step-title" style="${done?'color:var(--text2)':''}">${s.title}</div><span>${done?'<span class="badge bg" style="cursor:pointer" onclick="event.stopPropagation();undoStep('+s.n+')">Done ↩</span>':active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div>${done?`<div class="step-body" id="sb${s.n}" style="padding:8px 12px"><button class="btn btn-sm" onclick="undoStep(${s.n})">↩ Mark undone</button></div>`:`<div class="step-body${active?' open':''}" id="sb${s.n}"><div class="step-desc">${s.desc}</div>${renderStepBody(s,done,pending)}</div>`}</div>`;
     }).join('')}
     ${allDone?`<div style="margin-top:16px;padding:16px;background:var(--gl);border:1px solid #5DBB99;border-radius:var(--radius);text-align:center">
       <div style="font-size:14px;font-weight:600;color:var(--gd);margin-bottom:8px">All steps complete!</div>
@@ -1582,8 +1582,8 @@ function undoStep(n){
   delete S.workflowData['s'+n];
   saveS();renderWorkflow();
 }
-function doneStep(n){S.workflowData['s'+n]=true;saveS();renderWorkflow();}
-function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
+function doneStep(n){S.workflowData['s'+n]=true;saveS();setTimeout(renderWorkflow,300);}
+function undoStep(n){delete S.workflowData['s'+n];saveS();setTimeout(renderWorkflow,300);}
 function resetWorkflow(){
   if(confirm('Start a new fortnight?\n\nThis will reset all workflow steps back to the beginning. Any pending transactions from this workflow will be removed.')){
     // Remove pending CSV transactions but keep manually entered ones
