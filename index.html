@@ -1459,7 +1459,7 @@ function renderStepBody(s,done,pending){
     return`
       ${itemRows}
       ${negBudgets.length?`<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">Overspent budgets</div>${negRows}`:''}
-      <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="doneStep(8)">✓ Done — continue</button>`;
+      <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="doneStep(6)">✓ Done — continue</button>`;
   }
   if(s.action==='cash')return`<div class="field"><label>Cash added to savings ($)</label><input type="number" id="cash-in" step="0.01" placeholder="0.00"><div class="field-hint">Current cash savings: ${fmt(S.overall.cashSavings||0)}</div></div><button class="btn btn-primary btn-sm" onclick="addCash()">✓ Update & done</button>`;
 
