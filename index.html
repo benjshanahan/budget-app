@@ -355,6 +355,11 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
   </main>
 </div>
 
+<!-- NDIS Checklist Modal -->
+<div id="modal-ndisChecklist" class="modal-overlay">
+  <div class="modal" style="max-width:400px"></div>
+</div>
+
 <!-- Quick Transaction Modal -->
 <div id="modal-quickTx" class="modal-overlay">
   <div class="modal">
@@ -2171,7 +2176,7 @@ function finaliseNdisStep(){
   const processedIds=S.workflowData.ndisProcessed||[];
   // Also include any ndisTransactions added this fortnight (status paid or claimed, after last tithe)
   const tithes=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').sort((a,b)=>a.date.localeCompare(b.date));
-  const cutoff=tithes.length>=2?tithes[tithes.length-2].date:tithes[0]?.date||'2026-04-22';
+  const cutoff=tithes.length>=1?tithes[tithes.length-1].date:tithes[0]?.date||'2026-04-22';
   // From main transactions (credit card NDIS)
   const processedTxs=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='accepted'&&processedIds.includes(t.id));
   const txTotal=processedTxs.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
@@ -2280,7 +2285,28 @@ async function saveNdisInvoice(){
     window._ndisAddFileMime=null;
     window._ndisAddFileName=null;
   }
-  saveS();closeModal('addNdis');renderNDIS();
+  saveS();
+  closeModal('addNdis');
+  renderNDIS();
+  // Show post-save checklist
+  const checklistHtml=`
+    <div style="padding:16px">
+      <div style="font-size:15px;font-weight:600;margin-bottom:4px">Invoice saved${tx.driveLink?' & uploaded to Drive':''}</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px">${tx.provider} · ${fmt(tx.amount)} · ${fmtDate(tx.date)}</div>
+      ${tx.driveLink?`<div style="margin-bottom:12px"><a href="${tx.driveLink}" target="_blank" class="btn btn-sm">📄 View in Drive</a></div>`:''}
+      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Next steps</div>
+      <label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;cursor:pointer;font-size:13px">
+        <input type="checkbox" id="ndis-check-pay" style="width:18px;height:18px">
+        <span>Pay the invoice</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:14px;cursor:pointer;font-size:13px">
+        <input type="checkbox" id="ndis-check-claim" style="width:18px;height:18px">
+        <span>Claim in MyGov</span>
+      </label>
+      <button class="btn btn-primary" style="width:100%" onclick="closeModal('ndisChecklist')">Done</button>
+    </div>`;
+  const m=document.getElementById('modal-ndisChecklist');
+  if(m){m.querySelector('.modal').innerHTML=checklistHtml;openModal('ndisChecklist');}
 }
 function renderRecurringList(){
   const el=document.getElementById('recurring-list-body');
