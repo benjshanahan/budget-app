@@ -851,7 +851,8 @@ async function loadFromSheets(){
         mortgageAhead:parseFloat(cfg.mortgageAhead)||0,
         moneyOwed:parseFloat(cfg.moneyOwed)||0,
         renovationsBalance:cfg.renovationsBalance!=null&&cfg.renovationsBalance!==''&&cfg.renovationsBalance!=='null'&&cfg.renovationsBalance!=='undefined'?parseFloat(cfg.renovationsBalance):null,
-        maternityBalance:parseFloat(cfg.maternityBalance)||0
+        maternityBalance:parseFloat(cfg.maternityBalance)||0,
+        additionalCategories:cfg.additionalCategories?JSON.parse(cfg.additionalCategories):[]
       };
     }
     const owedRows=ranges[2].values||[];
@@ -925,7 +926,7 @@ async function saveToSheets(){
     const txRows=[['id','date','description','amount','category','subcat','method','status','source','flag','notes']];
     S.transactions.forEach(t=>txRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.source||'',t.flag||'',t.notes||'']));
     data.push({range:'Transactions!A1',values:txRows});
-    data.push({range:'Config!A1',values:Object.entries(S.overall).map(([k,v])=>[k,v])});
+    data.push({range:'Config!A1',values:Object.entries(S.overall).map(([k,v])=>[k,Array.isArray(v)||typeof v==='object'?JSON.stringify(v):v])});
     const owRows=[['id','description','amount','date']];
     (S.moneyOwedItems||[]).forEach(o=>owRows.push([o.id,o.description,o.amount,o.date||'']));
     data.push({range:'MoneyOwed!A1:Z1000',values:owRows});
