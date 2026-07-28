@@ -735,8 +735,8 @@ const getCatBudgeted = name => {
 const getFNSpending = person => {
   const catName='Spending - '+person;
   const dates=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').map(t=>t.date).sort();
-  // Use second-to-last tithe as cutoff (transactions since last fortnight started)
-  const cutoff=dates.length>=2?dates[dates.length-2]:dates[0]||'2026-04-22';
+  // Use last accepted tithe as cutoff (spending since this fortnight started)
+  const cutoff=dates.length>=1?dates[dates.length-1]:dates[0]||'2026-04-22';
   return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>cutoff).reduce((a,t)=>a+(t.amount||0),0);
 };
 const calcSpendingBal = (person,debit) => {
