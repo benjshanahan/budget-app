@@ -1435,6 +1435,27 @@ function renderStepBody(s,done,pending){
             </div>`).join('')}
         </div>`:'<div style="font-size:13px;color:var(--green);margin-bottom:12px">✓ All NDIS transactions processed!</div>'}
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+        ${(()=>{
+          const tithes=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').sort((a,b)=>a.date.localeCompare(b.date));
+          const cutoff=tithes.length>=1?tithes[tithes.length-1].date:'2026-04-22';
+          const thisfnInvoices=(S.ndisTransactions||[]).filter(t=>t.date>cutoff);
+          if(!thisfnInvoices.length)return'';
+          const total=thisfnInvoices.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
+          return`<div style="margin-bottom:12px">
+            <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Invoices added this fortnight (${thisfnInvoices.length})</div>
+            ${thisfnInvoices.map(t=>`
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+                <div>
+                  <div style="font-weight:500">${t.provider}</div>
+                  <div style="font-size:11px;color:var(--text2)">${fmtDate(t.date)} · ${t.invoiceNo||'No invoice no.'} ${t.driveLink?'· <a href="'+t.driveLink+'" target="_blank" style="color:var(--blue)">Drive</a>':''}</div>
+                </div>
+                <span style="font-weight:600;color:var(--green)">${fmt(t.amount)}</span>
+              </div>`).join('')}
+            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;padding-top:8px">
+              <span>Total</span><span style="color:var(--green)">${fmt(total)}</span>
+            </div>
+          </div>`;
+        })()}
         <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Add new invoice</div>
         <button class="btn btn-sm" onclick="openModal('addNdis')">+ Add invoice not yet in transactions</button>
       </div>
