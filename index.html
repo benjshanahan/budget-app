@@ -2512,37 +2512,6 @@ function handleCSV(e){
         matchedManualIds.add(manualMatch.id);
         merged.push({csv,manual:manualMatch,action:'merge'});
       } else {
-        // Try matching split transactions — find all pending txs on same date that sum to CSV amount
-        const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&m.date===csv.date);
-        // Also include same-date accepted manual Money Owed transactions
-        const sameDateAccepted=S.transactions.filter(t=>
-          t.status==='accepted'&&t.source==='manual'&&t.date===csv.date&&
-          !matchedManualIds.has(t.id)&&
-          (t.category==='💰 Add to Money Owed'||t.notes==='Added to Money Owed on dashboard')
-        );
-        const sameDateAll=[...sameDatePending,...sameDateAccepted];
-        // Try all subsets of same-date transactions to find one that sums to CSV amount
-        function findMatchingSubset(txs,target,tolerance=2){
-          // Try full set first
-          const total=txs.reduce((a,t)=>a+t.amount,0);
-          if(Math.abs(total-target)<tolerance)return txs;
-          // Try subsets (up to 8 items for performance)
-          const n=Math.min(txs.length,8);
-          for(let mask=1;mask<(1<<n);mask++){
-            const subset=txs.filter((_,i)=>mask&(1<<i));
-            if(subset.length<2)continue;
-            const sum=subset.reduce((a,t)=>a+t.amount,0);
-            if(Math.abs(sum-target)<tolerance)return subset;
-          }
-          return null;
-        }
-        const matchedSubset=findMatchingSubset(sameDateAll,csv.amount);
-        if(matchedSubset){
-          matchedSubset.forEach(m=>matchedManualIds.add(m.id));
-          const pendingInSubset=matchedSubset.filter(m=>m.status==='pending');
-          merged.push({csv,manualGroup:pendingInSubset,action:'merge-split'});
-          continue;
-        }
         // Check for duplicate in previous accepted transactions (same date + amount)
         const dupMatch=S.transactions.find(t=>
           t.status==='accepted'&&
@@ -2575,28 +2544,74 @@ function openCSVReview(data){
   if(merged.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">✓ Matched — manual entry + credit card (${merged.length})</div>`;
     merged.forEach((m,i)=>{
-      if(m._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('m${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${m.csv.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(m.csv.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${m.csv.category} · Matched</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
-      const manualDesc=m.action==='merge-split'
-        ? m.manualGroup.map(t=>t.description+' ('+fmt(t.amount)+')').join(', ')
-        : '"'+m.manual.description+'" · '+m.manual.category;
-      html+=`<div style="border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--gl)">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
-          <div>
-            <div style="font-size:13px;font-weight:700;color:var(--gd)">${m.csv.description}</div>
-            <div style="font-size:11px;color:var(--green)">${m.action==='merge-split'?'Split match: ':' Manual entry: '}${manualDesc}</div>
+      if(m._reviewed){
+        const reviewedCat=m.action==='merge-split'?(m.manualGroup[0]?.category||m.csv.category):(m.manual?.category||m.csv.category);
+        const reviewedDesc=m.action==='merge-split'?(m.manualGroup[0]?.description||m.csv.description):(m.csv.description);
+        html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('m${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${reviewedDesc}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(m.csv.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${m.csv.date} · ${reviewedCat} · Matched</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;
+        return;
+      }
+      if(m.action==='merge-split'){
+        const groupTotal=(m.manualGroup||[]).reduce((a,t)=>a+t.amount,0);
+        const withinTolerance=Math.abs(groupTotal-m.csv.amount)<2;
+        html+=`<div style="border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--gl)">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--gd)">${m.csv.description} <span style="font-size:11px;font-weight:400;color:var(--text2)">${m.csv.date}</span></div>
+              <div style="font-size:11px;color:var(--green)">Split match — ${(m.manualGroup||[]).length} items</div>
+            </div>
+            <span style="font-size:15px;font-weight:700;color:var(--gd)">${fmt(m.csv.amount)}</span>
           </div>
-          <span style="font-size:15px;font-weight:700;color:var(--gd)">${fmt(m.csv.amount)}</span>
-        </div>
-        <div class="frow">
-          <div class="field" style="margin:0"><label>Date</label><input type="date" value="${m.csv.date}" onchange="S.csvPending.merged[${i}].csv.date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].csv.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.map(c=>`<option value="${c.name}"${c.name===m.csv.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option></select></div>
-        </div>
-        <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)}</div>
-        <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value" style="width:100%"></div>
-        <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: credit card transaction matched — manual entry will be kept as-is</div>
-        <button class="btn btn-sm" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('merged',${i})">🗑 Remove</button>
-        <button class="btn btn-sm btn-primary" style="margin-top:8px;margin-left:6px;background:var(--green);border-color:var(--gd)" onclick="markCSVReviewed('m${i}',this.closest('.csv-tx-row'))">✓ Reviewed</button>
-      </div>`;
+          <div id="csv-split-group-${i}">
+            ${(m.manualGroup||[]).map((t,j)=>{
+              const cats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
+              const catOpts=cats.map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('');
+              return`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;margin-bottom:6px;background:var(--surface)">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:4px">
+                  <div><label style="font-size:11px;color:var(--text2)">Description</label><input type="text" value="${t.description}" onchange="updateSplitGroupItem(${i},${j},'description',this.value)" style="width:100%;font-size:12px;padding:4px 6px"></div>
+                  <div><label style="font-size:11px;color:var(--text2)">Amount ($)</label><input type="number" value="${t.amount}" step="0.01" onchange="updateSplitGroupItem(${i},${j},'amount',parseFloat(this.value))" style="width:100%;font-size:12px;padding:4px 6px"></div>
+                </div>
+                <div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Category</label><select onchange="updateSplitGroupItem(${i},${j},'category',this.value)" style="width:100%;font-size:12px;padding:4px 6px">${catOpts}</select></div>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-sm" style="font-size:11px;color:var(--amber);border-color:var(--amber)" onclick="unmatchSplitItem(${i},${j})">↩ Unmatch</button>
+                  <button class="btn btn-sm" style="font-size:11px;color:var(--red);border-color:var(--red)" onclick="removeSplitItem(${i},${j})">🗑 Remove</button>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;margin-bottom:8px;border-top:1px solid var(--border)">
+            <span style="font-size:12px;color:var(--text2)">Group total</span>
+            <span style="font-size:13px;font-weight:600;color:${withinTolerance?'var(--green)':'var(--red)'}">${fmt(groupTotal)} ${withinTolerance?'✓':'⚠ outside $2 tolerance'}</span>
+          </div>
+          <button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue);margin-bottom:8px;width:100%" onclick="showAddFromUnmatched(${i})">+ Add from unmatched transactions</button>
+          <div id="csv-add-unmatched-${i}" style="display:none"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="unmatchFromCSVReview(${i})">↩ Unmatch all</button>
+            <button class="btn btn-sm btn-primary" style="background:var(--green);border-color:var(--gd);flex:1" onclick="markCSVReviewed('m${i}',this)">✓ Reviewed</button>
+          </div>
+        </div>`;
+      } else {
+        html+=`<div style="border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--gl)">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--gd)">${m.csv.description} <span style="font-size:11px;font-weight:400;color:var(--text2)">${m.csv.date}</span></div>
+              <div style="font-size:11px;color:var(--green)">Manual entry: "${m.manual?.description}" · ${m.manual?.category} · ${m.manual?.date}</div>
+            </div>
+            <span style="font-size:15px;font-weight:700;color:var(--gd)">${fmt(m.csv.amount)}</span>
+          </div>
+          <div class="frow">
+            <div class="field" style="margin:0"><label>Date</label><input type="date" value="${m.csv.date}" onchange="S.csvPending.merged[${i}].csv.date=this.value"></div>
+            <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].csv.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.map(c=>`<option value="${c.name}"${c.name===(m.manual?.category||m.csv.category)?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option></select></div>
+          </div>
+          <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.manual?.category||m.csv.category,m.csv.subcat)}</div>
+          <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.manual?.description||m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value" style="width:100%"></div>
+          <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: credit card transaction matched — manual entry will be kept as-is</div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="unmatchFromCSVReview(${i})">↩ Unmatch</button>
+            <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('merged',${i})">🗑 Remove</button>
+            <button class="btn btn-sm btn-primary" style="background:var(--green);border-color:var(--gd);flex:1" onclick="markCSVReviewed('m${i}',this.closest('div'))">✓ Reviewed</button>
+          </div>
+        </div>`;
+      }
     });
   }
 
@@ -2636,18 +2651,38 @@ function openCSVReview(data){
   if(unmatchedManual.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">⚠ Manual entries — no credit card match found (${unmatchedManual.length})</div>`;
     unmatchedManual.forEach((t,i)=>{
+      const cats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
+      const catOptions=cats.map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('');
+      // Get split group members if this is a split transaction
+      const splitGroup=t.splitGroupId?S.transactions.filter(tx=>tx.splitGroupId===t.splitGroupId):[];
+      const isSplitHead=splitGroup.length>1&&splitGroup[0]?.id===t.id;
+      // Only render once per split group (the first member)
+      if(t.splitGroupId&&!isSplitHead)return;
+      const splitBreakdown=splitGroup.length>1?`
+        <div style="margin-bottom:8px;padding:8px;background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px">SPLIT BREAKDOWN</div>
+          ${splitGroup.map(s=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text)">${s.description}</span><span style="color:var(--text2)">${s.category} · <strong>${fmt(s.amount)}</strong></span></div>`).join('')}
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding-top:4px"><span>Total</span><span>${fmt(splitGroup.reduce((a,s)=>a+s.amount,0))}</span></div>
+        </div>`:'';
+      const displayAmount=splitGroup.length>1?splitGroup.reduce((a,s)=>a+s.amount,0):t.amount;
       html+=`<div style="border:1px solid #E8C060;border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--al)">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
-          <div>
-            <div style="font-size:13px;font-weight:700">${t.description}</div>
-            <div style="font-size:11px;color:var(--amber)">Manually entered · ${t.category}${t.subcat?' · '+t.subcat:''} · ${t.date}</div>
-          </div>
-          <span style="font-size:15px;font-weight:700">${fmt(t.amount)}</span>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+          <div style="font-size:11px;color:var(--amber)">Manual entry · no credit card match</div>
+          <span style="font-size:13px;font-weight:700">${fmt(displayAmount)}</span>
         </div>
-        <div style="font-size:12px;color:#7A5A10;margin-bottom:8px">This transaction has no matching credit card entry. Was it paid by cash/debit, or is it still to appear on your statement?</div>
+        ${splitBreakdown}
+        ${splitGroup.length<=1?`
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+          <div><label style="font-size:11px;color:var(--text2)">Date</label><input type="date" value="${t.date}" onchange="updateUnmatchedManual(${i},'date',this.value)" style="width:100%;font-size:12px;padding:4px 6px"></div>
+          <div><label style="font-size:11px;color:var(--text2)">Amount ($)</label><input type="number" value="${t.amount}" step="0.01" onchange="updateUnmatchedManual(${i},'amount',parseFloat(this.value))" style="width:100%;font-size:12px;padding:4px 6px"></div>
+        </div>
+        <div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Description</label><input type="text" value="${t.description}" onchange="updateUnmatchedManual(${i},'description',this.value)" style="width:100%;font-size:12px;padding:4px 6px"></div>
+        <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--text2)">Category</label><select onchange="updateUnmatchedManual(${i},'category',this.value)" style="width:100%;font-size:12px;padding:4px 6px">${catOptions}</select></div>
+        `:''}
+        <div style="font-size:12px;color:#7A5A10;margin-bottom:8px">No matching credit card entry — was it paid by cash/debit, or still to appear on your statement?</div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='keep'">Keep as-is</button>
-          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='remove'">Remove</button>
+          <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="setUnmatchedKeep(${i},'keep',this)">Keep as-is</button>
+          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="setUnmatchedKeep(${i},'remove',this)">Remove</button>
         </div>
       </div>`;
     });
@@ -2657,6 +2692,69 @@ function openCSVReview(data){
   openModal('csvReview');
 }
 
+function updateSplitGroupItem(mergeIdx,itemIdx,field,value){
+  const m=S.csvPending.merged[mergeIdx];
+  if(!m||!m.manualGroup[itemIdx])return;
+  m.manualGroup[itemIdx][field]=value;
+  const tx=S.transactions.find(t=>t.id===m.manualGroup[itemIdx].id);
+  if(tx)tx[field]=value;
+}
+function unmatchSplitItem(mergeIdx,itemIdx){
+  const m=S.csvPending.merged[mergeIdx];
+  if(!m)return;
+  const t=m.manualGroup.splice(itemIdx,1)[0];
+  if(t){t.status='pending';S.csvPending.unmatchedManual=S.csvPending.unmatchedManual||[];S.csvPending.unmatchedManual.push(t);}
+  if(m.manualGroup.length===0)S.csvPending.merged.splice(mergeIdx,1);
+  openCSVReview(S.csvPending);
+}
+function removeSplitItem(mergeIdx,itemIdx){
+  const m=S.csvPending.merged[mergeIdx];
+  if(!m)return;
+  const t=m.manualGroup.splice(itemIdx,1)[0];
+  if(t){S.transactions=S.transactions.filter(tx=>tx.id!==t.id);}
+  if(m.manualGroup.length===0)S.csvPending.merged.splice(mergeIdx,1);
+  openCSVReview(S.csvPending);
+}
+function showAddFromUnmatched(mergeIdx){
+  const el=document.getElementById('csv-add-unmatched-'+mergeIdx);
+  if(!el)return;
+  if(el.style.display!=='none'){el.style.display='none';return;}
+  const unmatched=S.csvPending.unmatchedManual||[];
+  if(!unmatched.length){el.innerHTML='<div style="font-size:12px;color:var(--text2);padding:6px">No unmatched transactions available.</div>';el.style.display='block';return;}
+  el.innerHTML=`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;background:var(--surface);margin-bottom:6px">
+    <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px">SELECT TO ADD TO GROUP</div>
+    ${unmatched.map((t,j)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <span>${t.description} · ${t.category} · ${fmtDate(t.date)}</span>
+      <button class="btn btn-sm" style="font-size:11px" onclick="addUnmatchedToGroup(${mergeIdx},${j})">${fmt(t.amount)} Add</button>
+    </div>`).join('')}
+  </div>`;
+  el.style.display='block';
+}
+function addUnmatchedToGroup(mergeIdx,unmatchedIdx){
+  const m=S.csvPending.merged[mergeIdx];
+  const t=S.csvPending.unmatchedManual[unmatchedIdx];
+  if(!m||!t)return;
+  m.manualGroup.push(t);
+  S.csvPending.unmatchedManual.splice(unmatchedIdx,1);
+  openCSVReview(S.csvPending);
+}
+function updateUnmatchedManual(i,field,value){
+  const t=S.csvPending.unmatchedManual[i];
+  if(!t)return;
+  t[field]=value;
+  const tx=S.transactions.find(tx=>tx.id===t.id);
+  if(tx)tx[field]=value;
+}
+function setUnmatchedKeep(i,action,btn){
+  const t=S.csvPending.unmatchedManual[i];
+  if(!t)return;
+  t.keepAction=action;
+  const parent=btn.closest('div[style*="border:1px solid #E8C060"]');
+  if(parent){
+    if(action==='keep'){parent.style.borderColor='var(--green)';parent.style.background='var(--gl)';}
+    else{parent.style.opacity='0.5';}
+  }
+}
 function unmarkCSVReviewed(key){
   const prefix=key[0];
   const idx=parseInt(key.slice(1));
