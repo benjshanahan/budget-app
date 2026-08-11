@@ -3147,9 +3147,14 @@ function addSplitRow(){
   div.className='split-row';
   div.style.cssText='margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
   const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isRenovations).map(c=>c.name).sort();
+  const additionalSubs=[
+    {name:'Renovations',balance:S.overall.renovationsBalance||0},
+    {name:'Maternity',balance:S.overall.maternityBalance||0},
+    ...(S.overall.additionalCategories||[]).map(e=>({name:e.name,balance:e.balance||0}))
+  ];
   div.innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px">
-      <select onchange="autoFillLastSplit()" style="flex:1;min-width:0;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+      <select onchange="autoFillLastSplit();updateSplitRowSubcat(this)" style="flex:1;min-width:0;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
         <option value="">-- Category --</option>
         ${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}
         <option value="Other">Other</option>
@@ -3160,9 +3165,20 @@ function addSplitRow(){
       <input type="number" placeholder="$0.00" step="0.01" min="0" oninput="autoFillLastSplit()" style="width:90px;flex-shrink:0;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit;text-align:right">
       <button class="btn btn-sm" onclick="this.closest('.split-row').remove();autoFillLastSplit()" style="color:var(--red);border-color:var(--red);flex-shrink:0;padding:6px 8px">✕</button>
     </div>
+    <div class="split-subcat-wrap" style="display:none;margin-bottom:6px">
+      <select style="width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+        <option value="">-- Select subcategory --</option>
+        ${additionalSubs.map(s=>`<option value="${s.name}">${s.name} (${fmt(s.balance)})</option>`).join('')}
+      </select>
+    </div>
     <input type="text" placeholder="Description for this split" style="width:100%;box-sizing:border-box;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">`;
   document.getElementById('split-rows').appendChild(div);
   autoFillLastSplit();
+}
+function updateSplitRowSubcat(sel){
+  const row=sel.closest('.split-row');
+  const subcatWrap=row?.querySelector('.split-subcat-wrap');
+  if(subcatWrap)subcatWrap.style.display=sel.value==='Additional'?'block':'none';
 }
 
 function autoFillLastSplit(){
@@ -3232,22 +3248,29 @@ function saveQuickTx(){
   }
   const isSplit=isSplitCat;
   if(isSplit){
+    const splitGroupId='sg_'+Date.now();
     document.getElementById('split-rows').querySelectorAll('.split-row').forEach(row=>{
-      const cat=row.querySelector('select').value;
+      const selects=row.querySelectorAll('select');
+      const cat=selects[0]?.value;
       const inputs=row.querySelectorAll('input');
       const amt=parseFloat(inputs[0]?.value)||0;
-      // inputs[0] = amount, inputs[1] = description text field
       const splitDesc=inputs[1]?.value?.trim()||desc||row.querySelector('input[type=text]')?.value?.trim()||'Split transaction';
       if(!amt)return;
+      // Get subcategory for Additional
+      const subcat=cat==='Additional'?(selects[1]?.value||''):'';
+      if(cat==='Additional'&&subcat){
+        // Deduct from correct Additional subcategory
+        if(subcat==='Renovations')S.overall.renovationsBalance=(S.overall.renovationsBalance||0)-amt;
+        else if(subcat==='Maternity')S.overall.maternityBalance=(S.overall.maternityBalance||0)-amt;
+        else{const extras=S.overall.additionalCategories||[];const extra=extras.find(e=>e.name===subcat);if(extra)extra.balance=(extra.balance||0)-amt;}
+      }
       if(cat==='💰 Add to Money Owed'){
-        // Add directly to money owed dashboard
         S.moneyOwedItems=S.moneyOwedItems||[];
         S.moneyOwedItems.push({id:'ow_'+Date.now()+'_'+Math.random(),description:splitDesc,amount:amt,date});
         S.overall.moneyOwed=S.moneyOwedItems.reduce((a,o)=>a+o.amount,0);
-        // Also record as transaction with note
-        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date,description:splitDesc,amount:amt,category:'💰 Add to Money Owed',subcat:'',method,notes:'Added to Money Owed on dashboard',status:'accepted',source:'manual'});
+        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date,description:splitDesc,amount:amt,category:'💰 Add to Money Owed',subcat:'',method,notes:'Added to Money Owed on dashboard',status:'accepted',source:'manual',splitGroupId,splitTotal:amount});
       } else {
-        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random()+'_'+amt,date,description:splitDesc,amount:amt,category:cat,subcat:'',method,notes,status:'pending',source:'manual'});
+        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random()+'_'+amt,date,description:splitDesc,amount:amt,category:cat,subcat,method,notes,status:'pending',source:'manual',splitGroupId,splitTotal:amount});
       }
     });
   }else{
