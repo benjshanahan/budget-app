@@ -2725,6 +2725,18 @@ function openCSVReview(data){
   openModal('csvReview');
 }
 
+function unmatchFromCSVReview(idx){
+  const pending=S.csvPending;
+  const m=pending.merged[idx];
+  if(m){
+    pending.unmatchedCSV=pending.unmatchedCSV||[];
+    pending.unmatchedCSV.push(m.csv);
+    if(m.manual){m.manual.status='pending';pending.unmatchedManual=pending.unmatchedManual||[];pending.unmatchedManual.push(m.manual);}
+    if(m.manualGroup)m.manualGroup.forEach(t=>{t.status='pending';pending.unmatchedManual=pending.unmatchedManual||[];pending.unmatchedManual.push(t);});
+    pending.merged.splice(idx,1);
+  }
+  openCSVReview(pending);
+}
 function updateSplitGroupItem(mergeIdx,itemIdx,field,value){
   const m=S.csvPending.merged[mergeIdx];
   if(!m||!m.manualGroup[itemIdx])return;
