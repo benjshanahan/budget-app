@@ -2674,8 +2674,12 @@ function openCSVReview(data){
         </div>
         <div id="csv-desc-c${i}" class="field" style="margin-top:8px;margin-bottom:0"><label>Summary / description</label><input type="text" value="${t.description}" onchange="S.csvPending.unmatchedCSV[${i}].description=this.value" style="width:100%"></div>
         <div id="csv-owed-c${i}" class="field" style="margin-top:8px;margin-bottom:0;display:${t.category==='Money Owed'?'block':'none'}"><label>Who owes you?</label><input type="text" id="csv-owed-desc-c${i}" placeholder="e.g. John owes for dinner" value="${t.owedDesc||''}" onchange="S.csvPending.unmatchedCSV[${i}].owedDesc=this.value" style="width:100%"></div>
-        <button class="btn btn-sm" style="margin-top:8px;color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('csv',${i})">🗑 Remove</button>
-        <button class="btn btn-sm btn-primary" style="margin-top:8px;margin-left:6px;background:var(--green);border-color:var(--gd)" onclick="markCSVReviewed('c${i}',this.closest('.csv-tx-row'))">✓ Reviewed</button>
+        <button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue);margin-top:8px;width:100%" onclick="showAddFromUnmatchedCSV(${i})">+ Add from unmatched transactions</button>
+        <div id="csv-add-unmatched-csv-${i}" style="display:none"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('csv',${i})">🗑 Remove</button>
+          <button class="btn btn-sm btn-primary" style="background:var(--green);border-color:var(--gd);flex:1" onclick="markCSVReviewed('c${i}',this.closest('div'))">✓ Reviewed</button>
+        </div>
       </div>`;
     });
   }
@@ -2758,6 +2762,31 @@ function removeSplitItem(mergeIdx,itemIdx){
   const t=m.manualGroup.splice(itemIdx,1)[0];
   if(t){S.transactions=S.transactions.filter(tx=>tx.id!==t.id);}
   if(m.manualGroup.length===0)S.csvPending.merged.splice(mergeIdx,1);
+  openCSVReview(S.csvPending);
+}
+function showAddFromUnmatchedCSV(csvIdx){
+  const el=document.getElementById('csv-add-unmatched-csv-'+csvIdx);
+  if(!el)return;
+  if(el.style.display!=='none'){el.style.display='none';return;}
+  const unmatched=S.csvPending.unmatchedManual||[];
+  if(!unmatched.length){el.innerHTML='<div style="font-size:12px;color:var(--text2);padding:6px">No unmatched transactions available.</div>';el.style.display='block';return;}
+  el.innerHTML=`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;background:var(--surface);margin-top:6px">
+    <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px">SELECT TO LINK TO THIS CREDIT CARD TRANSACTION</div>
+    ${unmatched.map((t,j)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <span>${t.description} · ${t.category} · ${fmtDate(t.date)}</span>
+      <button class="btn btn-sm" style="font-size:11px" onclick="linkUnmatchedToCSV(${csvIdx},${j})">${fmt(t.amount)} Link</button>
+    </div>`).join('')}
+  </div>`;
+  el.style.display='block';
+}
+function linkUnmatchedToCSV(csvIdx,unmatchedIdx){
+  const csv=S.csvPending.unmatchedCSV[csvIdx];
+  const t=S.csvPending.unmatchedManual[unmatchedIdx];
+  if(!csv||!t)return;
+  // Move from unmatchedCSV to merged
+  S.csvPending.unmatchedCSV.splice(csvIdx,1);
+  S.csvPending.unmatchedManual.splice(unmatchedIdx,1);
+  S.csvPending.merged.push({csv,manualGroup:[t],action:'merge-split'});
   openCSVReview(S.csvPending);
 }
 function showAddFromUnmatched(mergeIdx){
