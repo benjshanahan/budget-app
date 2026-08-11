@@ -825,15 +825,17 @@ async function loadFromSheets(){
     }
     const cfg={};
     (ranges[1].values||[]).forEach(r=>{if(r[0])cfg[r[0]]=r[1];});
+    const cfgNum=v=>parseFloat(String(v||0).replace(/,/g,''))||0;
     if(cfg.actualSavings!==undefined){
       S.overall={
-        actualSavings:parseFloat(cfg.actualSavings)||0,
-        ndisOwed:parseFloat(cfg.ndisOwed)||0,
-        cashSavings:parseFloat(cfg.cashSavings)||0,
-        mortgageAhead:parseFloat(cfg.mortgageAhead)||0,
-        moneyOwed:parseFloat(cfg.moneyOwed)||0,
-        renovationsBalance:cfg.renovationsBalance!=null&&cfg.renovationsBalance!==''&&cfg.renovationsBalance!=='null'&&cfg.renovationsBalance!=='undefined'?parseFloat(cfg.renovationsBalance):0,
-        maternityBalance:parseFloat(cfg.maternityBalance)||0
+        actualSavings:cfgNum(cfg.actualSavings),
+        ndisOwed:cfgNum(cfg.ndisOwed),
+        cashSavings:cfgNum(cfg.cashSavings),
+        mortgageAhead:cfgNum(cfg.mortgageAhead),
+        moneyOwed:cfgNum(cfg.moneyOwed),
+        renovationsBalance:cfg.renovationsBalance&&cfg.renovationsBalance!=='null'&&cfg.renovationsBalance!=='undefined'?cfgNum(cfg.renovationsBalance):0,
+        maternityBalance:cfgNum(cfg.maternityBalance),
+        additionalCategories:cfg.additionalCategories?JSON.parse(cfg.additionalCategories):[]
       };
     }
     const owedRows=ranges[2].values||[];
@@ -907,7 +909,7 @@ async function saveToSheets(){
     const txRows=[['id','date','description','amount','category','subcat','method','status','source','flag','notes']];
     S.transactions.forEach(t=>txRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.source||'',t.flag||'',t.notes||'']));
     data.push({range:'Transactions!A1',values:txRows});
-    data.push({range:'Config!A1',values:Object.entries(S.overall).map(([k,v])=>[k,v===null||v===undefined?0:Array.isArray(v)||typeof v==='object'?JSON.stringify(v):v])});
+    data.push({range:'Config!A1',values:Object.entries(S.overall).map(([k,v])=>[k,v===null||v===undefined?0:Array.isArray(v)||typeof v==='object'?JSON.stringify(v):typeof v==='number'?v:String(v).replace(/,/g,'')])});
     const owRows=[['id','description','amount','date']];
     (S.moneyOwedItems||[]).forEach(o=>owRows.push([o.id,o.description,o.amount,o.date||'']));
     data.push({range:'MoneyOwed!A1:Z1000',values:owRows});
