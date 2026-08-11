@@ -2531,6 +2531,18 @@ function handleCSV(e){
           merged.push({csv,manualGroup:matchedSubset,action:'merge-split'});
           continue;
         }
+        // Fallback: match same-date pending transactions where at least one is named
+        // 'Split transaction' and they sum within $2 of CSV amount (for old entries without splitGroupId)
+        const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&m.date===csv.date);
+        const hasSplitLabel=sameDatePending.some(m=>m.description==='Split transaction');
+        if(hasSplitLabel&&sameDatePending.length>=2){
+          const splitTotal=sameDatePending.reduce((a,t)=>a+t.amount,0);
+          if(Math.abs(splitTotal-csv.amount)<2){
+            sameDatePending.forEach(m=>matchedManualIds.add(m.id));
+            merged.push({csv,manualGroup:sameDatePending,action:'merge-split'});
+            continue;
+          }
+        }
         // Check for duplicate in previous accepted transactions (same date + amount)
         const dupMatch=S.transactions.find(t=>
           t.status==='accepted'&&
