@@ -2512,6 +2512,25 @@ function handleCSV(e){
         matchedManualIds.add(manualMatch.id);
         merged.push({csv,manual:manualMatch,action:'merge'});
       } else {
+        // Try matching pre-linked split groups (transactions tagged with a splitGroupId)
+        const pendingSplitGroups={};
+        manualPending.filter(m=>!matchedManualIds.has(m.id)&&m.splitGroupId).forEach(m=>{
+          if(!pendingSplitGroups[m.splitGroupId])pendingSplitGroups[m.splitGroupId]=[];
+          pendingSplitGroups[m.splitGroupId].push(m);
+        });
+        let matchedSubset=null;
+        for(const groupId of Object.keys(pendingSplitGroups)){
+          const group=pendingSplitGroups[groupId];
+          const groupTotal=group.reduce((a,t)=>a+t.amount,0);
+          const groupDate=group[0].date;
+          const daysDiff=Math.abs((new Date(csv.date)-new Date(groupDate))/(1000*60*60*24));
+          if(Math.abs(groupTotal-csv.amount)<2&&daysDiff<=2){matchedSubset=group;break;}
+        }
+        if(matchedSubset){
+          matchedSubset.forEach(m=>matchedManualIds.add(m.id));
+          merged.push({csv,manualGroup:matchedSubset,action:'merge-split'});
+          continue;
+        }
         // Check for duplicate in previous accepted transactions (same date + amount)
         const dupMatch=S.transactions.find(t=>
           t.status==='accepted'&&
@@ -2605,6 +2624,8 @@ function openCSVReview(data){
           <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.manual?.category||m.csv.category,m.csv.subcat)}</div>
           <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.manual?.description||m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value" style="width:100%"></div>
           <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: credit card transaction matched — manual entry will be kept as-is</div>
+          <button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue);margin-top:8px;width:100%" onclick="showAddFromUnmatched(${i})">+ Add from unmatched transactions</button>
+          <div id="csv-add-unmatched-${i}" style="display:none"></div>
           <div style="display:flex;gap:8px;margin-top:8px">
             <button class="btn btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="unmatchFromCSVReview(${i})">↩ Unmatch</button>
             <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('merged',${i})">🗑 Remove</button>
@@ -2734,6 +2755,12 @@ function addUnmatchedToGroup(mergeIdx,unmatchedIdx){
   const m=S.csvPending.merged[mergeIdx];
   const t=S.csvPending.unmatchedManual[unmatchedIdx];
   if(!m||!t)return;
+  // Convert single match to split match if needed
+  if(m.action==='merge'){
+    m.manualGroup=[m.manual];
+    m.action='merge-split';
+    delete m.manual;
+  }
   m.manualGroup.push(t);
   S.csvPending.unmatchedManual.splice(unmatchedIdx,1);
   openCSVReview(S.csvPending);
