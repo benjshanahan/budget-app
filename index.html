@@ -898,6 +898,12 @@ async function loadFromSheets(){
     checkRecurringTransactions();
     // Migrate imported NDIS transactions into S.ndisTransactions so Drive links persist
     await migrateNdisImports();
+    // Migrate old Renovations category transactions to Additional/Renovations
+    let migratedReno=0;
+    S.transactions.forEach(t=>{
+      if(t.category==='Renovations'){t.category='Additional';t.subcat='Renovations';migratedReno++;}
+    });
+    if(migratedReno>0){console.log('Migrated '+migratedReno+' Renovations transactions to Additional/Renovations');saveS();}
     // Repair any split transactions
     repairSplitTransactions();
     // One-time fix for known split transactions
@@ -1295,10 +1301,14 @@ function updateSubcatFilter(){
   const cf=document.getElementById('f-cat').value;
   const subcatSel=document.getElementById('f-subcat');
   const subcatCats=['Additional','Bills','Presents'];
-  if(subcatCats.includes(cf)){
-    const cat=CATS.find(c=>c.name===cf);
-    const subs=cat?.subs||[];
-    subcatSel.innerHTML=`<option value="">All subcategories</option><option value="__blank__">— No subcategory —</option>`+subs.filter(s=>s!=='').map(s=>`<option value="${s}">${s}</option>`).join('');
+  const matchedCat=subcatCats.find(c=>cf===c||cf.includes(c));
+  if(matchedCat){
+    const cat=CATS.find(c=>c.name===matchedCat);
+    const definedSubs=cat?.subs||[];
+    // Also include any historical subcategories from actual transactions
+    const historicalSubs=[...new Set(S.transactions.filter(t=>t.category===matchedCat&&t.subcat).map(t=>t.subcat))];
+    const allSubs=[...new Set([...definedSubs.filter(s=>s!==''),...historicalSubs])].sort();
+    subcatSel.innerHTML=`<option value="">All subcategories</option><option value="__blank__">— No subcategory —</option>`+allSubs.map(s=>`<option value="${s}">${s}</option>`).join('');
     subcatSel.style.display='';
   } else {
     subcatSel.style.display='none';
@@ -1342,7 +1352,10 @@ function renderTxList(){
   if(!txs.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">No transactions</div>';return;}
   list.innerHTML=txs.map(t=>`<div class="tx ${t.status}" onclick="openTxDetail('${t.id}')"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}${t.flag?'<small style="color:var(--red)">⚠ '+t.flag+'</small>':''}${t.status==='pending'?'<small style="color:var(--amber);font-weight:600">⏳ Pending review</small>':''}</span><span class="tx-cat">${t.category}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join('');
   const sel=document.getElementById('f-cat');
-  if(sel.options.length<=1)[...new Set(S.transactions.map(t=>t.category))].sort().forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  if(sel.options.length<=1){
+    const cats=[...new Set([...CATS.filter(c=>!c.noGrid&&!c.specialAction).map(c=>c.name),...S.transactions.map(t=>t.category)])].sort();
+    cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  }
 }
 
 function renderWorkflow(){
