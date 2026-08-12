@@ -507,7 +507,7 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
     </div>
     <div class="frow">
       <div class="field"><label>Date</label><input type="date" id="ndis-date"></div>
-      <div class="field"><label>Amount ($)</label><input type="number" id="ndis-amount" step="0.01" placeholder="0.00" oninput="previewNdisFilename"></div>
+      <div class="field"><label>Amount ($)</label><input type="number" id="ndis-amount" step="0.01" placeholder="0.00" oninput="previewNdisFilename()"></div>
     </div>
     <div class="field"><label>Provider</label><input type="text" id="ndis-provider" placeholder="e.g. Fortify Physiotherapy" oninput="previewNdisFilename()"></div>
     <div class="field"><label>Invoice number</label><input type="text" id="ndis-invno" placeholder="e.g. INV017839" oninput="previewNdisFilename()"></div>
@@ -2198,7 +2198,7 @@ function openNdisModal(){
   if(scanStatus){scanStatus.style.display='none';scanStatus.textContent='';}
   // Populate category select
   const sel=document.getElementById('ndis-cat');
-  sel.innerHTML=NDIS_CATS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  if(sel)sel.innerHTML=NDIS_CATS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
   // Preview filename on input
   ['ndis-provider','ndis-invno','ndis-date','ndis-amount'].forEach(id=>{
     document.getElementById(id)?.addEventListener('input',previewNdisFilename);
@@ -2431,10 +2431,22 @@ function openCatDetail(catName){
   }
   document.getElementById('txd-title').textContent=catName;
   document.getElementById('txd-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">${headerStats}</div><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">Transactions (${txs.length})</div><div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}</div>`;
-  document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+  document.getElementById('txd-actions').innerHTML=`${cat?.isSpending?`<button class="btn btn-sm" onclick="editSpendingBalance('${cat.person}')">✏ Edit balance</button>`:''}
+    <button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   openModal('txDetail');
 }
 
+function editSpendingBalance(person){
+  const sb=S.spendingBalances||{benj:{current:0},kasie:{current:0}};
+  const cur=person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
+  const newVal=prompt(`Edit ${person}'s current spending balance ($):`,cur.toFixed(2));
+  if(newVal===null)return;
+  const parsed=parseFloat(newVal);
+  if(isNaN(parsed)){alert('Invalid amount.');return;}
+  if(person==='Benj'){S.spendingBalances.benj={...S.spendingBalances.benj,current:parsed};}
+  else{S.spendingBalances.kasie={...S.spendingBalances.kasie,current:parsed};}
+  saveS();render();closeModal('txDetail');
+}
 function openSubcatDashboard(catName){
   const cat=CATS.find(c=>c.name===catName);
   const cycles=getTithingCycles();
