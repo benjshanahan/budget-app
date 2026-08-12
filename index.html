@@ -1362,8 +1362,12 @@ function renderTxList(){
   const catNames=[...new Set([
     ...CATS.filter(c=>!c.noGrid&&!c.specialAction&&!c.isAdditional).map(c=>c.name),
     'Additional',
-    ...S.transactions.filter(t=>t.category&&!['💰 Add to Money Owed','➕ Add to Cash Savings'].includes(t.category)).map(t=>t.category)
-  ])].sort().filter(c=>c&&!c.includes('Add to')&&!c.includes('NDIS')&&c!=='Split');
+    ...S.transactions.filter(t=>t.category&&!['💰 Add to Money Owed','➕ Add to Cash Savings'].includes(t.category)).map(t=>{
+      // Normalise old category names
+      if(t.category==='Renovations'||t.category==='Additional Money'||t.category==='💰 Additional')return'Additional';
+      return t.category;
+    })
+  ])].sort().filter(c=>c&&!c.includes('Add to')&&!c.includes('NDIS')&&c!=='Split'&&!c.includes('💰')&&!c.includes('➕'));
   catNames.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
   if(currentVal)sel.value=currentVal;
 }
@@ -3220,13 +3224,7 @@ function renderAMBody(){
         <div style="font-size:11px;color:var(--blue);margin-top:4px">Tap to edit</div>
       </div>
       <div id="am-edit-${c.key}" style="display:none">
-        ${c.extra?`
-        <input type="text" id="am-name-${c.key}" value="${c.name}" placeholder="Name" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">
-        <label style="font-size:10px;color:var(--text2)">Date added</label>
-        <input type="date" id="am-date-${c.key}" value="${c.dateAdded||localISODate()}" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">
-        <label style="font-size:10px;color:var(--text2)">Starting balance ($)</label>
-        <input type="number" id="am-start-${c.key}" value="${c.startingBalance.toFixed(2)}" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">
-        <label style="font-size:10px;color:var(--text2)">Current balance ($)</label>`:''}
+        ${c.extra?'<input type="text" id="am-name-'+c.key+'" value="'+c.name+'" placeholder="Name" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px"><label style="font-size:10px;color:var(--text2)">Date added</label><input type="date" id="am-date-'+c.key+'" value="'+(c.dateAdded||localISODate())+'" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px"><label style="font-size:10px;color:var(--text2)">Starting balance ($)</label><input type="number" id="am-start-'+c.key+'" value="'+c.startingBalance.toFixed(2)+'" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px"><label style="font-size:10px;color:var(--text2)">Current balance ($)</label>':''}
         <input type="number" id="am-val-${c.key}" value="${c.balance.toFixed(2)}" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:13px;padding:4px 6px">
         <button class="btn btn-sm btn-primary" style="margin-top:6px;width:100%" onclick="event.stopPropagation();saveAMTile('${c.key}')">✓</button>
       </div>
