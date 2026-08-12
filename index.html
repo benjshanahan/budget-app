@@ -898,6 +898,15 @@ async function loadFromSheets(){
     checkRecurringTransactions();
     // Migrate imported NDIS transactions into S.ndisTransactions so Drive links persist
     await migrateNdisImports();
+    // Clean up any NDIS_IMPORT entries that got pushed into S.ndisTransactions
+    // (they're already included via getNdisTransactions() merge)
+    const importIds=new Set(NDIS_IMPORT.map(t=>t.id));
+    const beforeCount=S.ndisTransactions.length;
+    S.ndisTransactions=S.ndisTransactions.filter(t=>!importIds.has(t.id));
+    if(S.ndisTransactions.length<beforeCount){
+      console.log('Removed '+(beforeCount-S.ndisTransactions.length)+' duplicate NDIS import entries from S.ndisTransactions');
+      await saveToSheets();
+    }
     // Migrate old Renovations category transactions to Additional/Renovations
     let migratedReno=0;
     S.transactions.forEach(t=>{
@@ -970,21 +979,9 @@ function scheduleSave(){
 }
 
 async function migrateNdisImports(){
-  // Move any NDIS_IMPORT entries not yet in S.ndisTransactions
-  // CRITICAL: never overwrite existing entries - they have driveLink saved
-  const existingIds=new Set((S.ndisTransactions||[]).map(t=>t.id));
-  let migrated=0;
-  NDIS_IMPORT.forEach(t=>{
-    if(!existingIds.has(t.id)){
-      S.ndisTransactions=S.ndisTransactions||[];
-      S.ndisTransactions.push({...t});
-      migrated++;
-    }
-  });
-  if(migrated>0){
-    console.log('Migrated '+migrated+' NDIS import transactions');
-    await saveToSheets();
-  }
+  // Migration disabled — getNdisTransactions() merges NDIS_IMPORT at read time
+  // Running this caused duplication by pushing imports into S.ndisTransactions
+  // which then got saved to Sheets alongside the hardcoded NDIS_IMPORT array
 }
 function applyKnownSplitFixes(){
   const fixes=[
@@ -1301,13 +1298,19 @@ function updateSubcatFilter(){
   const cf=document.getElementById('f-cat').value;
   const subcatSel=document.getElementById('f-subcat');
   const subcatCats=['Additional','Bills','Presents'];
-  const matchedCat=subcatCats.find(c=>cf===c||cf.includes(c));
+  const matchedCat=subcatCats.find(c=>cf===c);
   if(matchedCat){
-    const cat=CATS.find(c=>c.name===matchedCat);
-    const definedSubs=cat?.subs||[];
-    // Also include any historical subcategories from actual transactions
+    // Get defined subs
+    let definedSubs=[];
+    if(matchedCat==='Additional'){
+      definedSubs=['Renovations','Maternity',...(S.overall?.additionalCategories||[]).map(e=>e.name)];
+    } else {
+      const cat=CATS.find(c=>c.name===matchedCat);
+      definedSubs=cat?.subs||[];
+    }
+    // Get historical subcategories from transactions
     const historicalSubs=[...new Set(S.transactions.filter(t=>t.category===matchedCat&&t.subcat).map(t=>t.subcat))];
-    const allSubs=[...new Set([...definedSubs.filter(s=>s!==''),...historicalSubs])].sort();
+    const allSubs=[...new Set([...definedSubs.filter(s=>s),...historicalSubs])].sort();
     subcatSel.innerHTML=`<option value="">All subcategories</option><option value="__blank__">— No subcategory —</option>`+allSubs.map(s=>`<option value="${s}">${s}</option>`).join('');
     subcatSel.style.display='';
   } else {
@@ -1352,10 +1355,17 @@ function renderTxList(){
   if(!txs.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">No transactions</div>';return;}
   list.innerHTML=txs.map(t=>`<div class="tx ${t.status}" onclick="openTxDetail('${t.id}')"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}${t.flag?'<small style="color:var(--red)">⚠ '+t.flag+'</small>':''}${t.status==='pending'?'<small style="color:var(--amber);font-weight:600">⏳ Pending review</small>':''}</span><span class="tx-cat">${t.category}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join('');
   const sel=document.getElementById('f-cat');
-  if(sel.options.length<=1){
-    const cats=[...new Set([...CATS.filter(c=>!c.noGrid&&!c.specialAction).map(c=>c.name),...S.transactions.map(t=>t.category)])].sort();
-    cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
-  }
+  // Always repopulate to pick up new categories
+  const currentVal=sel.value;
+  sel.innerHTML='<option value="">All categories</option>';
+  // Use clean CATS names, exclude noGrid/specialAction/isAdditional (Additional handled separately)
+  const catNames=[...new Set([
+    ...CATS.filter(c=>!c.noGrid&&!c.specialAction&&!c.isAdditional).map(c=>c.name),
+    'Additional',
+    ...S.transactions.filter(t=>t.category&&!['💰 Add to Money Owed','➕ Add to Cash Savings'].includes(t.category)).map(t=>t.category)
+  ])].sort().filter(c=>c&&!c.includes('Add to')&&!c.includes('NDIS')&&c!=='Split');
+  catNames.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  if(currentVal)sel.value=currentVal;
 }
 
 function renderWorkflow(){
@@ -3194,7 +3204,7 @@ function renderAMBody(){
   const allCats=[
     {key:'reno',name:'Renovations',balance:S.overall.renovationsBalance||0},
     {key:'mat',name:'Maternity',balance:S.overall.maternityBalance||0},
-    ...extras.map((e,i)=>({key:'extra_'+i,name:e.name,balance:e.balance||0,extra:true,idx:i}))
+    ...extras.map((e,i)=>({key:'extra_'+i,name:e.name,balance:e.balance||0,startingBalance:e.startingBalance||0,dateAdded:e.dateAdded||'',extra:true,idx:i}))
   ];
   const total=allCats.reduce((a,c)=>a+c.balance,0);
   let html=`<div style="font-size:12px;color:var(--text2);margin-bottom:10px;text-align:right">Total: <strong id="am-total" style="color:var(--green)">${fmt(total)}</strong></div>`;
@@ -3205,10 +3215,18 @@ function renderAMBody(){
       </div>
       <div id="am-tile-${c.key}">
         <div class="stat-value pos">${fmt(c.balance)}</div>
+        ${c.extra&&c.dateAdded?`<div style="font-size:10px;color:var(--text2);margin-top:2px">From ${fmtDate(c.dateAdded)}</div>`:''}
+        ${c.extra&&c.startingBalance?`<div style="font-size:10px;color:var(--text2)">Started ${fmt(c.startingBalance)}</div>`:''}
         <div style="font-size:11px;color:var(--blue);margin-top:4px">Tap to edit</div>
       </div>
       <div id="am-edit-${c.key}" style="display:none">
-        ${c.extra?`<input type="text" id="am-name-${c.key}" value="${c.name}" placeholder="Name" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px"><br>`:''}
+        ${c.extra?`
+        <input type="text" id="am-name-${c.key}" value="${c.name}" placeholder="Name" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">
+        <label style="font-size:10px;color:var(--text2)">Date added</label>
+        <input type="date" id="am-date-${c.key}" value="${c.dateAdded||localISODate()}" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">
+        <label style="font-size:10px;color:var(--text2)">Starting balance ($)</label>
+        <input type="number" id="am-start-${c.key}" value="${c.startingBalance.toFixed(2)}" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">
+        <label style="font-size:10px;color:var(--text2)">Current balance ($)</label>`:''}
         <input type="number" id="am-val-${c.key}" value="${c.balance.toFixed(2)}" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:13px;padding:4px 6px">
         <button class="btn btn-sm btn-primary" style="margin-top:6px;width:100%" onclick="event.stopPropagation();saveAMTile('${c.key}')">✓</button>
       </div>
@@ -3239,6 +3257,10 @@ function saveAMTile(key){
       extras[idx].balance=val;
       const nameEl=document.getElementById('am-name-'+key);
       if(nameEl)extras[idx].name=nameEl.value.trim()||extras[idx].name;
+      const dateEl=document.getElementById('am-date-'+key);
+      if(dateEl)extras[idx].dateAdded=dateEl.value;
+      const startEl=document.getElementById('am-start-'+key);
+      if(startEl)extras[idx].startingBalance=parseFloat(startEl.value)||0;
     }
   }
   // Update total display
@@ -3249,7 +3271,7 @@ function saveAMTile(key){
 }
 function addAMExtra(){
   const extras=S.overall.additionalCategories||[];
-  extras.push({id:'amc_'+Date.now(),name:'New category',balance:0});
+  extras.push({id:'amc_'+Date.now(),name:'New category',balance:0,startingBalance:0,dateAdded:localISODate()});
   S.overall.additionalCategories=extras;
   renderAMBody();
   // Auto-open the new tile for editing
