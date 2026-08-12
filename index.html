@@ -315,7 +315,8 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
     <!-- Transactions -->
     <div id="tab-transactions" class="screen">
       <div class="filter-row">
-        <select id="f-cat" onchange="renderTxList()"><option value="">All categories</option></select>
+        <select id="f-cat" onchange="updateSubcatFilter();renderTxList()"><option value="">All categories</option></select>
+        <select id="f-subcat" onchange="renderTxList()" style="display:none"><option value="">All subcategories</option></select>
         <select id="f-status" onchange="renderTxList()"><option value="">All status</option><option value="accepted">Accepted</option><option value="pending">Pending</option><option value="flagged">Flagged</option></select>
         <select id="f-method" onchange="renderTxList()"><option value="">All methods</option><option value="credit">Credit card</option><option value="cash">Cash</option><option value="transfer">Transfer</option></select>
         <select id="f-period" onchange="renderTxList()">
@@ -608,7 +609,7 @@ const CATS = [
   {name:'➕ Add to Cash Savings',fn:0,yearly:0,noGrid:true,specialAction:'cash-add'},
   {name:'💰 Add to Money Owed',fn:0,yearly:0,noGrid:true,specialAction:'owed-add'},
   {name:'NDIS',fn:0,yearly:0,noGrid:true,specialAction:'ndis'},
-  {name:'Additional',fn:0,yearly:0,isRenovations:true},
+  {name:'Additional',fn:0,yearly:0,isAdditional:true,get subs(){return['',...(['Renovations','Maternity',...((typeof S!=='undefined'?(S.overall?.additionalCategories||[]):[])).map(e=>e.name)])]}},
 ];
 
 // ─── STARTING BALANCES (as at app creation, after 3 fortnights) ──────────────
@@ -739,7 +740,7 @@ const calcActualSavings = () => {
   const appCycles=Math.max(0,cycles-PRE_APP_CYCLES);
   let pos=0;
   for(const cat of CATS){
-    if(cat.noGrid||cat.isSpending||cat.isRenovations)continue;
+    if(cat.noGrid||cat.isSpending||cat.isAdditional)continue;
     const startBal=STARTING_BALANCES[cat.name]||0;
     const spent=getAppCatSpent(cat.name);
     const bal=startBal+(appCycles*cat.fn)-spent;
@@ -754,7 +755,7 @@ const getNetSavings = () => {
   const appCycles=Math.max(0,cycles-PRE_APP_CYCLES);
   let pos=0;
   for(const cat of CATS){
-    if(cat.noGrid||cat.isSpending||cat.isRenovations)continue;
+    if(cat.noGrid||cat.isSpending||cat.isAdditional)continue;
     const startBal=STARTING_BALANCES[cat.name]||0;
     const spent=getAppCatSpent(cat.name);
     const bal=startBal+(appCycles*cat.fn)-spent;
@@ -1226,7 +1227,7 @@ function renderBudgetGrid(){
   let bal=0,spent=0,pct=0,yPct=0,isOver=false,isWarn=false,note='';
   for(const cat of CATS){
     if(cat.noGrid)continue;
-    if(cat.isRenovations)continue; // Shown in top stats only
+    if(cat.isAdditional)continue; // Shown in top stats only
     if(cat.isSpending){
       const sb=S.spendingBalances||{benj:{current:0},kasie:{current:0}};
       const cur=cat.person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
@@ -1290,6 +1291,20 @@ function getPeriodDates(period){
   return null;
 }
 
+function updateSubcatFilter(){
+  const cf=document.getElementById('f-cat').value;
+  const subcatSel=document.getElementById('f-subcat');
+  const subcatCats=['Additional','Bills','Presents'];
+  if(subcatCats.includes(cf)){
+    const cat=CATS.find(c=>c.name===cf);
+    const subs=cat?.subs||[];
+    subcatSel.innerHTML=`<option value="">All subcategories</option><option value="__blank__">— No subcategory —</option>`+subs.filter(s=>s!=='').map(s=>`<option value="${s}">${s}</option>`).join('');
+    subcatSel.style.display='';
+  } else {
+    subcatSel.style.display='none';
+    subcatSel.value='';
+  }
+}
 function renderTxList(){
   const cf=document.getElementById('f-cat').value;
   const sf=document.getElementById('f-status').value;
@@ -1306,7 +1321,10 @@ function renderTxList(){
     _ndisId:t.id
   }));
   let txs=[...S.transactions,...ndisTxsForList].sort((a,b)=>b.date.localeCompare(a.date));
+  const scf=document.getElementById('f-subcat')?.value||'';
   if(cf)txs=txs.filter(t=>t.category===cf);
+  if(scf==='__blank__')txs=txs.filter(t=>!t.subcat||t.subcat==='');
+  else if(scf)txs=txs.filter(t=>(t.subcat||'')=== scf);
   if(sf)txs=txs.filter(t=>t.status===sf);
   if(mf)txs=txs.filter(t=>t.method===mf);
   if(pf){
@@ -1330,16 +1348,14 @@ function renderTxList(){
 function renderWorkflow(){
   const steps=[
     {n:1,title:'Upload credit card statement',desc:'Upload your MyCard CSV statement for this fortnight.',action:'upload'},
-    {n:2,title:'Review & assign transactions',desc:'Check auto-assigned categories and sub-categories. Edit as needed.',action:'review'},
-    {n:3,title:'Add manual transactions',desc:'Add any cash or non-credit-card expenses for this fortnight.',action:'manual'},
-    {n:4,title:'Accept all transactions',desc:'Post all pending transactions to your budgets.',action:'accept'},
-    {n:5,title:'Pay credit card',desc:'Pay your MyCard balance now.',action:'confirm',ct:'I have paid the credit card ✓'},
-    {n:6,title:'Tithe',desc:'Enter gross income — 10% calculated. Records tithing transaction only (budgets update at finalise step).',action:'tithe'},
-    {n:7,title:'Benj & Kasie spending balances',desc:'Enter current debit card balances to calculate positions and transfer amounts.',action:'spending'},
-    {n:8,title:'Money owed to you',desc:'Review people who owe you money and mark any as paid.',action:'moneyowed'},
-    {n:9,title:'Review & pay bills',desc:'Check emails, mail, and apps for any bills due this fortnight.',action:'confirm',ct:'I have reviewed and paid all bills ✓'},
-    {n:10,title:'Process NDIS',desc:'Process all NDIS transactions for this fortnight — upload invoices, pay, categorise and claim.',action:'ndis'},
-    {n:11,title:'Update mortgage position',desc:'Enter how much you are currently ahead on the mortgage.',action:'mortgage'},
+    {n:2,title:'Accept all transactions',desc:'Post all pending transactions to your budgets.',action:'accept'},
+    {n:3,title:'Pay credit card',desc:'Pay your MyCard balance now.',action:'confirm',ct:'I have paid the credit card ✓'},
+    {n:4,title:'Tithe',desc:'Enter gross income — 10% calculated. Records tithing transaction only (budgets update at finalise step).',action:'tithe'},
+    {n:5,title:'Benj & Kasie spending balances',desc:'Enter current debit card balances to calculate positions and transfer amounts.',action:'spending'},
+    {n:6,title:'Money owed to you',desc:'Review people who owe you money and mark any as paid.',action:'moneyowed'},
+    {n:7,title:'Review & pay bills',desc:'Check emails, mail, and apps for any bills due this fortnight.',action:'confirm',ct:'I have reviewed and paid all bills ✓'},
+    {n:8,title:'Process NDIS',desc:'Process all NDIS transactions for this fortnight — upload invoices, pay, categorise and claim.',action:'ndis'},
+    {n:9,title:'Update mortgage position',desc:'Enter how much you are currently ahead on the mortgage.',action:'mortgage'},
   ];
   const wd=S.workflowData||{};
   const pending=S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').length;
@@ -1431,7 +1447,7 @@ function renderStepBody(s,done,pending){
         </div>`:'<div style="font-size:13px;color:var(--green);margin-bottom:12px">✓ All NDIS transactions processed!</div>'}
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
         <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Add new invoice</div>
-        <button class="btn btn-sm" onclick="openModal('addNdis')">+ Add invoice not yet in transactions</button>
+        <button class="btn btn-sm" onclick="openNdisModal()">+ Add invoice not yet in transactions</button>
       </div>
       ${unprocessed.length===0?`<button class="btn btn-primary btn-sm" style="margin-top:12px;width:100%" onclick="finaliseNdisStep()">✓ Done — update NDIS owed & continue</button>`:''}`;
   }
@@ -2182,7 +2198,7 @@ function finaliseNdisStep(){
   alert('NDIS step complete!\nNDIS owed updated to '+fmt(totalNdis)+' for this fortnight.');
 }
 
-function openNdisModal(){
+function openNdisModal(catId){
   document.getElementById('ndis-date').value=localISODate();
   document.getElementById('ndis-provider').value='';
   document.getElementById('ndis-invno').value='';
@@ -2199,11 +2215,14 @@ function openNdisModal(){
   if(scanStatus){scanStatus.style.display='none';scanStatus.textContent='';}
   // Populate category select
   const sel=document.getElementById('ndis-cat');
-  if(sel)sel.innerHTML=NDIS_CATS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  if(sel){
+    sel.innerHTML=`<option value="">-- Select category --</option>`+NDIS_CATS.map(c=>`<option value="${c.id}"${c.id===catId?' selected':''}>${c.name}</option>`).join('');
+  }
   // Preview filename on input
   ['ndis-provider','ndis-invno','ndis-date','ndis-amount'].forEach(id=>{
     document.getElementById(id)?.addEventListener('input',previewNdisFilename);
   });
+  document.getElementById('modal-addNdis').classList.add('open');
 }
 function previewNdisFilename(){
   const provider=document.getElementById('ndis-provider')?.value||'';
@@ -3118,9 +3137,9 @@ function acceptCSVReview(){
     if(splitArea&&splitArea.style.display!=='none'){
       const splits=getCSVSplitRows(splitKey);
       splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
-    } else if(t.category==='Renovations'){
+    } else if(t.category==='Renovations'||(t.category==='Additional'&&t.subcat==='Renovations')){
       S.overall.renovationsBalance=(S.overall.renovationsBalance||0)-t.amount;
-      S.transactions.push({...t,status:'pending'});
+      S.transactions.push({...t,category:'Additional',subcat:'Renovations',status:'pending'});
     } else if(t.category==='Money Owed'){
       // Add to money owed list on dashboard
       const owedDesc=t.owedDesc||document.getElementById('csv-owed-desc-'+splitKey)?.value||t.description;
@@ -3410,7 +3429,7 @@ function populateQTCats(){
     {name:'Maternity',balance:S.overall.maternityBalance||0},
     ...(S.overall.additionalCategories||[]).map(e=>({name:e.name,balance:e.balance||0}))
   ];
-  sel.innerHTML='<option value="">-- Select category --</option><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isRenovations).map(c=>c.name).sort().map(n=>`<option value="${n}">${n}</option>`).join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS</option><option value="Additional">💰 Additional</option><option value="➕ Add to Cash Savings">➕ Add to Cash Savings</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option>';
+  sel.innerHTML='<option value="">-- Select category --</option><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isAdditional).map(c=>c.name).sort().map(n=>`<option value="${n}">${n}</option>`).join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS</option><option value="Additional">💰 Additional</option><option value="➕ Add to Cash Savings">➕ Add to Cash Savings</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option>';
   sel.onchange=updateQTSubcat;
   // Store additional subs for use in updateQTSubcat
   window._additionalSubs=additionalSubs;
@@ -3452,7 +3471,7 @@ function addSplitRow(){
   const div=document.createElement('div');
   div.className='split-row';
   div.style.cssText='margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
-  const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isRenovations).map(c=>c.name).sort();
+  const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid&&!c.isAdditional).map(c=>c.name).sort();
   const additionalSubs=[
     {name:'Renovations',balance:S.overall.renovationsBalance||0},
     {name:'Maternity',balance:S.overall.maternityBalance||0},
@@ -3643,7 +3662,7 @@ function getNegativeBudgets(){
   const neg=[];
   for(const cat of CATS){
     if(cat.noGrid)continue;
-    if(cat.isRenovations){
+    if(cat.isAdditional){
       const bal=(S.overall.renovationsBalance||0)+(S.overall.maternityBalance||0)+(S.overall.additionalCategories||[]).reduce((a,e)=>a+(e.balance||0),0);
       if(bal<0)neg.push({name:'Additional',amount:Math.abs(bal)});
       continue;
@@ -3763,7 +3782,10 @@ function exportCSV(){
     _ndisId:t.id
   }));
   let txs=[...S.transactions,...ndisTxsForList].sort((a,b)=>b.date.localeCompare(a.date));
+  const scf=document.getElementById('f-subcat')?.value||'';
   if(cf)txs=txs.filter(t=>t.category===cf);
+  if(scf==='__blank__')txs=txs.filter(t=>!t.subcat||t.subcat==='');
+  else if(scf)txs=txs.filter(t=>(t.subcat||'')===scf);
   if(sf)txs=txs.filter(t=>t.status===sf);
   if(mf)txs=txs.filter(t=>t.method===mf);
   if(pf){const dates=getPeriodDates(pf);if(dates){if(dates.from)txs=txs.filter(t=>t.date>=dates.from);if(dates.to)txs=txs.filter(t=>t.date<=dates.to);}}
@@ -3856,7 +3878,7 @@ function renderNDIS(){
       <div style="font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">NDIS — Ezekiel Shanahan</div>
       <div style="display:flex;gap:6px">
         <button class="btn btn-sm" onclick="scanDriveFolders()" id="scan-drive-btn">🔍 Link Drive files</button>
-        <button class="btn btn-primary btn-sm" onclick="openModal('addNdis')">+ Add invoice</button>
+        <button class="btn btn-primary btn-sm" onclick="openNdisModal()">+ Add invoice</button>
       </div>
     </div>
 
@@ -3989,7 +4011,7 @@ function openNdisCatDetail(catId){
         </div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No invoices yet</div>'}
     </div>`;
   document.getElementById('txd-actions').innerHTML=`
-    <button class="btn btn-sm btn-primary" onclick="closeModal('txDetail');openModal('addNdis')">+ Add invoice</button>
+    <button class="btn btn-sm btn-primary" onclick="closeModal('txDetail');openNdisModal('${catId}')">+ Add invoice</button>
     <button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   openModal('txDetail');
 }
