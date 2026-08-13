@@ -907,9 +907,21 @@ async function loadFromSheets(){
     // (they're already included via getNdisTransactions() merge)
     const importIds=new Set(NDIS_IMPORT.map(t=>t.id));
     const beforeCount=S.ndisTransactions.length;
-    S.ndisTransactions=S.ndisTransactions.filter(t=>!importIds.has(t.id));
+    // Deduplicate by id first
+    const seenIds=new Set();
+    // Then deduplicate by invoiceNo+provider (for user-added duplicates)
+    const seenInvKeys=new Set();
+    S.ndisTransactions=S.ndisTransactions.filter(t=>{
+      if(importIds.has(t.id))return false;
+      if(seenIds.has(t.id))return false;
+      seenIds.add(t.id);
+      const invKey=t.invoiceNo&&t.provider?t.invoiceNo+'|'+t.provider:'';
+      if(invKey&&seenInvKeys.has(invKey))return false;
+      if(invKey)seenInvKeys.add(invKey);
+      return true;
+    });
     if(S.ndisTransactions.length<beforeCount){
-      console.log('Removed '+(beforeCount-S.ndisTransactions.length)+' duplicate NDIS import entries from S.ndisTransactions');
+      console.log('Removed '+(beforeCount-S.ndisTransactions.length)+' duplicate NDIS entries');
       await saveToSheets();
     }
     // Migrate old Renovations category transactions to Additional/Renovations
