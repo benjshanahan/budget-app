@@ -907,21 +907,19 @@ async function loadFromSheets(){
     // (they're already included via getNdisTransactions() merge)
     const importIds=new Set(NDIS_IMPORT.map(t=>t.id));
     const beforeCount=S.ndisTransactions.length;
-    // Deduplicate: remove NDIS_IMPORT entries only if they have no Drive link
-    // Keep user-enhanced versions (with driveLink) even if id matches NDIS_IMPORT
+    // Only keep user-added entries (not NDIS_IMPORT ids) and deduplicate by invoiceNo+provider
     const seenNdisIds=new Set();
     const seenInvKeys=new Set();
     S.ndisTransactions=S.ndisTransactions.filter(t=>{
-      // Remove bare NDIS_IMPORT duplicates (no driveLink, no user data)
-      if(importIds.has(t.id)&&!t.driveLink&&!t.fileName)return false;
+      // Remove any entry whose id matches NDIS_IMPORT - these are handled by getNdisTransactions() merge
+      if(importIds.has(t.id))return false;
+      // Deduplicate user-added entries by id
       if(seenNdisIds.has(t.id))return false;
       seenNdisIds.add(t.id);
-      // Deduplicate user-added entries by invoiceNo+provider
-      if(!importIds.has(t.id)){
-        const invKey=t.invoiceNo&&t.provider?t.invoiceNo+'|'+t.provider:'';
-        if(invKey&&seenInvKeys.has(invKey))return false;
-        if(invKey)seenInvKeys.add(invKey);
-      }
+      // Deduplicate by invoiceNo+provider
+      const invKey=t.invoiceNo&&t.provider?t.invoiceNo+'|'+t.provider:'';
+      if(invKey&&seenInvKeys.has(invKey))return false;
+      if(invKey)seenInvKeys.add(invKey);
       return true;
     });
     if(S.ndisTransactions.length<beforeCount){
