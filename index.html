@@ -998,9 +998,27 @@ function scheduleSave(){
 }
 
 async function migrateNdisImports(){
-  // Migration disabled — getNdisTransactions() merges NDIS_IMPORT at read time
-  // Running this caused duplication by pushing imports into S.ndisTransactions
-  // which then got saved to Sheets alongside the hardcoded NDIS_IMPORT array
+  // One-time migration: move NDIS_IMPORT entries into S.ndisTransactions
+  // so Drive links can be saved against them. Only adds entries not already present.
+  if(S.workflowData?.ndisImportMigrated)return;
+  const existingIds=new Set((S.ndisTransactions||[]).map(t=>t.id));
+  let migrated=0;
+  NDIS_IMPORT.forEach(t=>{
+    if(!existingIds.has(t.id)){
+      S.ndisTransactions=S.ndisTransactions||[];
+      S.ndisTransactions.push({...t});
+      migrated++;
+    }
+  });
+  if(migrated>0){
+    console.log('Migrated '+migrated+' NDIS import transactions');
+    S.workflowData=S.workflowData||{};
+    S.workflowData.ndisImportMigrated=true;
+    await saveToSheets();
+  } else {
+    S.workflowData=S.workflowData||{};
+    S.workflowData.ndisImportMigrated=true;
+  }
 }
 function applyKnownSplitFixes(){
   const fixes=[
@@ -3918,10 +3936,12 @@ function exportCSV(){
 // ─── NDIS FUNCTIONS ──────────────────────────────────────────────────────────
 
 function getNdisTransactions(){
-  // Merge imported + user-added, deduplicate by id
-  const existing = S.ndisTransactions||[];
-  const existingIds = new Set(existing.map(t=>t.id));
-  const imported = NDIS_IMPORT.filter(t=>!existingIds.has(t.id));
+  const existing=S.ndisTransactions||[];
+  // If migration has run, all entries are in S.ndisTransactions
+  if(S.workflowData?.ndisImportMigrated)return [...existing].sort((a,b)=>a.cat.localeCompare(b.cat)||a.num-b.num);
+  // Otherwise merge NDIS_IMPORT for backwards compatibility
+  const existingIds=new Set(existing.map(t=>t.id));
+  const imported=NDIS_IMPORT.filter(t=>!existingIds.has(t.id));
   return [...imported,...existing].sort((a,b)=>a.cat.localeCompare(b.cat)||a.num-b.num);
 }
 
