@@ -907,14 +907,13 @@ async function loadFromSheets(){
     // (they're already included via getNdisTransactions() merge)
     const importIds=new Set(NDIS_IMPORT.map(t=>t.id));
     const beforeCount=S.ndisTransactions.length;
-    // Deduplicate by id first
-    const seenIds=new Set();
-    // Then deduplicate by invoiceNo+provider (for user-added duplicates)
+    // Deduplicate by id and invoiceNo+provider
+    const seenNdisIds=new Set();
     const seenInvKeys=new Set();
     S.ndisTransactions=S.ndisTransactions.filter(t=>{
       if(importIds.has(t.id))return false;
-      if(seenIds.has(t.id))return false;
-      seenIds.add(t.id);
+      if(seenNdisIds.has(t.id))return false;
+      seenNdisIds.add(t.id);
       const invKey=t.invoiceNo&&t.provider?t.invoiceNo+'|'+t.provider:'';
       if(invKey&&seenInvKeys.has(invKey))return false;
       if(invKey)seenInvKeys.add(invKey);
