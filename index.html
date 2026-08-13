@@ -1357,17 +1357,18 @@ function renderTxList(){
   if(!txs.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">No transactions</div>';return;}
   list.innerHTML=txs.map(t=>`<div class="tx ${t.status}" onclick="openTxDetail('${t.id}')"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}${t.flag?'<small style="color:var(--red)">⚠ '+t.flag+'</small>':''}${t.status==='pending'?'<small style="color:var(--amber);font-weight:600">⏳ Pending review</small>':''}</span><span class="tx-cat">${t.category}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join('');
   const sel=document.getElementById('f-cat');
-  // Always repopulate to pick up new categories
   const currentVal=sel.value;
   sel.innerHTML='<option value="">All categories</option>';
   const catNames=[...new Set([
     ...CATS.filter(c=>!c.noGrid&&!c.specialAction&&!c.isAdditional).map(c=>c.name),
     'Additional Money',
-    ...S.transactions.filter(t=>t.category&&!['💰 Add to Money Owed','➕ Add to Cash Savings'].includes(t.category)).map(t=>{
-      if(['Renovations','Additional Money','Additional','💰 Additional'].includes(t.category))return'Additional Money';
+    ...S.transactions.map(t=>{
+      if(!t.category)return null;
+      if(['Renovations','Additional Money','Additional','💰 Additional','🗜 Additional Money'].includes(t.category)||t.category.includes('Additional'))return'Additional Money';
+      if(['💰 Add to Money Owed','➕ Add to Cash Savings','Split','NDIS'].includes(t.category))return null;
       return t.category;
-    })
-  ])].sort().filter(c=>c&&!c.includes('Add to')&&!c.includes('NDIS')&&c!=='Split'&&c!=='Additional'&&!c.includes('💰 Add')&&!c.includes('➕'));
+    }).filter(Boolean)
+  ])].sort().filter(c=>c&&c!=='Additional');
   catNames.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
   if(currentVal)sel.value=currentVal;
 }
