@@ -1373,6 +1373,7 @@ function renderTxList(){
     } else {infoEl.style.display='none';}
   }
   document.getElementById('tx-count').textContent=txs.length+' transaction'+(txs.length!==1?'s':'');
+  const total=txs.reduce((a,t)=>a+(t.amount||0),0);
   const totalEl=document.getElementById('tx-total');
   if(totalEl)totalEl.innerHTML=`Total: <span style="color:${total<0?'var(--green)':total>0?'var(--red)':'var(--text)'}">${total<0?'-':''}${fmt(Math.abs(total))}</span>`;
   const list=document.getElementById('tx-list-main');
