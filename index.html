@@ -341,6 +341,7 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
         <div id="tx-count" style="font-size:12px;color:var(--text2)"></div>
         <div id="tx-total" style="font-size:13px;font-weight:600;color:var(--text)"></div>
       </div>
+      <div id="tx-subcat-info" style="display:none;margin-bottom:12px"></div>
       <div class="tx-list" id="tx-list-main"></div>
     </div>
 
@@ -1353,7 +1354,24 @@ function renderTxList(){
       if(dates.to)txs=txs.filter(t=>t.date<=dates.to);
     }
   }
-  const total=txs.reduce((a,t)=>a+(t.amount||0),0);
+  // Show subcategory info banner for Additional Money
+  const infoEl=document.getElementById('tx-subcat-info');
+  if(infoEl){
+    if(cf==='Additional Money'&&scf&&scf!=='__blank__'){
+      let catData=null;
+      if(scf==='Renovations')catData={name:'Renovations',balance:S.overall.renovationsBalance||0,startingBalance:S.overall.renovationsStarting||0,dateAdded:S.overall.renovationsDate||''};
+      else if(scf==='Maternity')catData={name:'Maternity',balance:S.overall.maternityBalance||0,startingBalance:S.overall.maternityStarting||0,dateAdded:S.overall.maternityDate||''};
+      else catData=(S.overall.additionalCategories||[]).find(e=>e.name===scf);
+      if(catData){
+        infoEl.style.display='block';
+        infoEl.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div class="stat"><div class="stat-label">Current balance</div><div class="stat-value pos">${fmt(catData.balance||0)}</div></div>
+          <div class="stat"><div class="stat-label">Starting balance</div><div class="stat-value">${fmt(catData.startingBalance||0)}</div></div>
+          <div class="stat"><div class="stat-label">Date added</div><div class="stat-value" style="font-size:15px">${catData.dateAdded?fmtDate(catData.dateAdded):'—'}</div></div>
+        </div>`;
+      } else {infoEl.style.display='none';}
+    } else {infoEl.style.display='none';}
+  }
   document.getElementById('tx-count').textContent=txs.length+' transaction'+(txs.length!==1?'s':'');
   const totalEl=document.getElementById('tx-total');
   if(totalEl)totalEl.innerHTML=`Total: <span style="color:${total<0?'var(--green)':total>0?'var(--red)':'var(--text)'}">${total<0?'-':''}${fmt(Math.abs(total))}</span>`;
