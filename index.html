@@ -1297,19 +1297,19 @@ function getPeriodDates(period){
 function updateSubcatFilter(){
   const cf=document.getElementById('f-cat').value;
   const subcatSel=document.getElementById('f-subcat');
-  const subcatCats=['Additional','Bills','Presents'];
+  const subcatCats=['Additional Money','Bills','Presents'];
   const matchedCat=subcatCats.find(c=>cf===c);
   if(matchedCat){
-    // Get defined subs
     let definedSubs=[];
-    if(matchedCat==='Additional'){
+    if(matchedCat==='Additional Money'){
       definedSubs=['Renovations','Maternity',...(S.overall?.additionalCategories||[]).map(e=>e.name)];
     } else {
       const cat=CATS.find(c=>c.name===matchedCat);
       definedSubs=cat?.subs||[];
     }
-    // Get historical subcategories from transactions
-    const historicalSubs=[...new Set(S.transactions.filter(t=>t.category===matchedCat&&t.subcat).map(t=>t.subcat))];
+    // Get historical subcategories from transactions (match both old and new category names)
+    const additionalCatNames=['Additional','Additional Money','Renovations','💰 Additional'];
+    const historicalSubs=[...new Set(S.transactions.filter(t=>(matchedCat==='Additional Money'?additionalCatNames.includes(t.category):t.category===matchedCat)&&t.subcat).map(t=>t.subcat))];
     const allSubs=[...new Set([...definedSubs.filter(s=>s),...historicalSubs])].sort();
     subcatSel.innerHTML=`<option value="">All subcategories</option><option value="__blank__">— No subcategory —</option>`+allSubs.map(s=>`<option value="${s}">${s}</option>`).join('');
     subcatSel.style.display='';
@@ -1335,7 +1335,9 @@ function renderTxList(){
   }));
   let txs=[...S.transactions,...ndisTxsForList].sort((a,b)=>b.date.localeCompare(a.date));
   const scf=document.getElementById('f-subcat')?.value||'';
-  if(cf)txs=txs.filter(t=>t.category===cf);
+  const additionalAliases=['Additional','Additional Money','Renovations','💰 Additional'];
+  if(cf==='Additional Money')txs=txs.filter(t=>additionalAliases.includes(t.category));
+  else if(cf)txs=txs.filter(t=>t.category===cf);
   if(scf==='__blank__')txs=txs.filter(t=>!t.subcat||t.subcat==='');
   else if(scf)txs=txs.filter(t=>(t.subcat||'')=== scf);
   if(sf)txs=txs.filter(t=>t.status===sf);
@@ -1358,16 +1360,15 @@ function renderTxList(){
   // Always repopulate to pick up new categories
   const currentVal=sel.value;
   sel.innerHTML='<option value="">All categories</option>';
-  // Use clean CATS names, exclude noGrid/specialAction/isAdditional (Additional handled separately)
   const catNames=[...new Set([
     ...CATS.filter(c=>!c.noGrid&&!c.specialAction&&!c.isAdditional).map(c=>c.name),
-    'Additional',
     ...S.transactions.filter(t=>t.category&&!['💰 Add to Money Owed','➕ Add to Cash Savings'].includes(t.category)).map(t=>{
-      // Normalise old category names
-      if(t.category==='Renovations'||t.category==='Additional Money'||t.category==='💰 Additional')return'Additional';
+      if(['Renovations','Additional Money','Additional','💰 Additional'].includes(t.category))return'Additional Money';
       return t.category;
     })
-  ])].sort().filter(c=>c&&!c.includes('Add to')&&!c.includes('NDIS')&&c!=='Split'&&!c.includes('💰')&&!c.includes('➕'));
+  ])].sort().filter(c=>c&&!c.includes('Add to')&&!c.includes('NDIS')&&c!=='Split'&&c!=='Additional'&&!c.includes('💰 Add')&&!c.includes('➕'));
+  catNames.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  if(currentVal)sel.value=currentVal;
   catNames.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
   if(currentVal)sel.value=currentVal;
 }
