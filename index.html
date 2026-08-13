@@ -1223,7 +1223,7 @@ function renderOverall(){
     <div class="stat private-sensitive"><div class="stat-label">Target</div><div class="stat-value">$10,000</div></div>
     <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openActualSavingsDetail()"><div class="stat-label">Actual savings ↗</div><div class="stat-value ${calcActualSavings()>=10000?'pos':'neg'}">${fmt(calcActualSavings())}</div></div>
     <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openModal('moneyOwedDetail')"><div class="stat-label">Money owed ↗</div><div class="stat-value pos">${fmt((S.moneyOwedItems||[]).reduce((a,o)=>a+o.amount,0)+getNegativeBudgets().reduce((a,b)=>a+b.amount,0))}</div></div>
-    <div class="stat private-sensitive" style="cursor:pointer" onclick="openAdditionalMoneyDetail()"><div class="stat-label">Additional ↗</div><div class="stat-value pos">${fmt((S.overall.renovationsBalance||0)+(S.overall.maternityBalance||0)+(S.overall.additionalCategories||[]).reduce((a,e)=>a+(e.balance||0),0))}</div></div>
+    <div class="stat private-sensitive" style="cursor:pointer" onclick="openAdditionalMoneyDetail()"><div class="stat-label">Additional ↗</div><div class="stat-value pos">${fmt(calcAMBalance('Renovations')+calcAMBalance('Maternity')+(S.overall.additionalCategories||[]).reduce((a,e)=>a+calcAMBalance(e.name),0))}</div></div>
     <div class="stat" style="grid-column:1/-1">
       <div class="stat-label">Budget year progress</div>
       <div style="position:relative;height:20px;background:var(--surface2);border-radius:var(--radius-sm);overflow:hidden;margin-top:6px;border:1px solid var(--border)">
@@ -1377,9 +1377,9 @@ function renderTxList(){
   if(infoEl){
     if(cf==='Additional Money'&&scf&&scf!=='__blank__'){
       let catData=null;
-      if(scf==='Renovations')catData={name:'Renovations',balance:S.overall.renovationsBalance||0,startingBalance:S.overall.renovationsStarting||0,dateAdded:S.overall.renovationsDate||''};
-      else if(scf==='Maternity')catData={name:'Maternity',balance:S.overall.maternityBalance||0,startingBalance:S.overall.maternityStarting||0,dateAdded:S.overall.maternityDate||''};
-      else catData=(S.overall.additionalCategories||[]).find(e=>e.name===scf);
+      if(scf==='Renovations')catData={name:'Renovations',balance:calcAMBalance('Renovations'),startingBalance:S.overall.renovationsStarting||0,dateAdded:S.overall.renovationsDate||''};
+      else if(scf==='Maternity')catData={name:'Maternity',balance:calcAMBalance('Maternity'),startingBalance:S.overall.maternityStarting||0,dateAdded:S.overall.maternityDate||''};
+      else{const e=(S.overall.additionalCategories||[]).find(e=>e.name===scf);if(e)catData={...e,balance:calcAMBalance(e.name)};}
       if(catData){
         infoEl.style.display='block';
         infoEl.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
@@ -3252,12 +3252,29 @@ function openAdditionalMoneyDetail(){
   renderAMBody();
   openModal('additionalMoney');
 }
+function calcAMBalance(subName){
+  const additionalAliases=['Additional','Additional Money','Renovations','💰 Additional'];
+  let dateAdded='';
+  if(subName==='Renovations')dateAdded=S.overall.renovationsDate||'';
+  else if(subName==='Maternity')dateAdded=S.overall.maternityDate||'';
+  else{const e=(S.overall.additionalCategories||[]).find(e=>e.name===subName);dateAdded=e?.dateAdded||'';}
+  const spent=S.transactions.filter(t=>
+    (additionalAliases.includes(t.category)||t.category?.includes('Additional'))&&
+    t.subcat===subName&&t.status==='accepted'&&
+    (!dateAdded||t.date>=dateAdded)
+  ).reduce((a,t)=>a+(t.amount||0),0);
+  let starting=0;
+  if(subName==='Renovations')starting=S.overall.renovationsStarting||0;
+  else if(subName==='Maternity')starting=S.overall.maternityStarting||0;
+  else{const e=(S.overall.additionalCategories||[]).find(e=>e.name===subName);starting=e?.startingBalance||0;}
+  return starting-spent;
+}
 function renderAMBody(){
   const extras=S.overall.additionalCategories||[];
   const allCats=[
-    {key:'reno',name:'Renovations',balance:S.overall.renovationsBalance||0,startingBalance:S.overall.renovationsStarting||0,dateAdded:S.overall.renovationsDate||''},
-    {key:'mat',name:'Maternity',balance:S.overall.maternityBalance||0,startingBalance:S.overall.maternityStarting||0,dateAdded:S.overall.maternityDate||''},
-    ...extras.map((e,i)=>({key:'extra_'+i,name:e.name,balance:e.balance||0,startingBalance:e.startingBalance||0,dateAdded:e.dateAdded||'',extra:true,idx:i}))
+    {key:'reno',name:'Renovations',balance:calcAMBalance('Renovations'),startingBalance:S.overall.renovationsStarting||0,dateAdded:S.overall.renovationsDate||''},
+    {key:'mat',name:'Maternity',balance:calcAMBalance('Maternity'),startingBalance:S.overall.maternityStarting||0,dateAdded:S.overall.maternityDate||''},
+    ...extras.map((e,i)=>({key:'extra_'+i,name:e.name,balance:calcAMBalance(e.name),startingBalance:e.startingBalance||0,dateAdded:e.dateAdded||'',extra:true,idx:i}))
   ];
   const total=allCats.reduce((a,c)=>a+c.balance,0);
   let html=`<div style="font-size:12px;color:var(--text2);margin-bottom:10px;text-align:right">Total: <strong id="am-total" style="color:var(--green)">${fmt(total)}</strong></div>`;
@@ -3293,9 +3310,8 @@ function renderAMBody(){
         ${c.extra?'<input type="text" id="am-name-'+c.key+'" value="'+c.name+'" placeholder="Name" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">':''}
         <label style="font-size:10px;color:var(--text2)">Date added</label><input type="date" id="am-date-${c.key}" value="${c.dateAdded||localISODate()}" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">
         <label style="font-size:10px;color:var(--text2)">Starting balance ($)</label><input type="number" id="am-start-${c.key}" value="${c.startingBalance.toFixed(2)}" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">
-        <label style="font-size:10px;color:var(--text2)">Current balance ($)</label>
-        <input type="number" id="am-val-${c.key}" value="${c.balance.toFixed(2)}" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:13px;padding:4px 6px">
-        <button class="btn btn-sm btn-primary" style="margin-top:6px;width:100%" onclick="event.stopPropagation();saveAMTile('${c.key}')">✓</button>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Current balance is calculated automatically from transactions.</div>
+        <button class="btn btn-sm btn-primary" style="margin-top:6px;width:100%" onclick="event.stopPropagation();saveAMTile('${c.key}')">✓ Save</button>
       </div>
     </div>`;
   });
@@ -3321,13 +3337,11 @@ function editAMTile(key){
 function saveAMTile(key){
   const val=parseFloat(document.getElementById('am-val-'+key)?.value)||0;
   if(key==='reno'){
-    S.overall.renovationsBalance=val;
     const dateEl=document.getElementById('am-date-reno');
     if(dateEl)S.overall.renovationsDate=dateEl.value;
     const startEl=document.getElementById('am-start-reno');
     if(startEl)S.overall.renovationsStarting=parseFloat(startEl.value)||0;
   } else if(key==='mat'){
-    S.overall.maternityBalance=val;
     const dateEl=document.getElementById('am-date-mat');
     if(dateEl)S.overall.maternityDate=dateEl.value;
     const startEl=document.getElementById('am-start-mat');
@@ -3337,7 +3351,6 @@ function saveAMTile(key){
     const idx=parseInt(key.replace('extra_',''));
     const extras=S.overall.additionalCategories||[];
     if(extras[idx]){
-      extras[idx].balance=val;
       const nameEl=document.getElementById('am-name-'+key);
       if(nameEl)extras[idx].name=nameEl.value.trim()||extras[idx].name;
       const dateEl=document.getElementById('am-date-'+key);
