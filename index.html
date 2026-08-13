@@ -907,19 +907,11 @@ async function loadFromSheets(){
     // (they're already included via getNdisTransactions() merge)
     const importIds=new Set(NDIS_IMPORT.map(t=>t.id));
     const beforeCount=S.ndisTransactions.length;
-    // Only keep user-added entries (not NDIS_IMPORT ids) and deduplicate by invoiceNo+provider
+    // Only deduplicate by id - remove exact duplicate ids
     const seenNdisIds=new Set();
-    const seenInvKeys=new Set();
     S.ndisTransactions=S.ndisTransactions.filter(t=>{
-      // Remove any entry whose id matches NDIS_IMPORT - these are handled by getNdisTransactions() merge
-      if(importIds.has(t.id))return false;
-      // Deduplicate user-added entries by id
       if(seenNdisIds.has(t.id))return false;
       seenNdisIds.add(t.id);
-      // Deduplicate by invoiceNo+provider
-      const invKey=t.invoiceNo&&t.provider?t.invoiceNo+'|'+t.provider:'';
-      if(invKey&&seenInvKeys.has(invKey))return false;
-      if(invKey)seenInvKeys.add(invKey);
       return true;
     });
     if(S.ndisTransactions.length<beforeCount){
@@ -998,9 +990,8 @@ function scheduleSave(){
 }
 
 async function migrateNdisImports(){
-  // One-time migration: move NDIS_IMPORT entries into S.ndisTransactions
-  // so Drive links can be saved against them. Only adds entries not already present.
-  if(S.workflowData?.ndisImportMigrated)return;
+  // Migrate NDIS_IMPORT entries into S.ndisTransactions so Drive links can be saved
+  // Only adds entries not already present by id
   const existingIds=new Set((S.ndisTransactions||[]).map(t=>t.id));
   let migrated=0;
   NDIS_IMPORT.forEach(t=>{
@@ -1012,12 +1003,7 @@ async function migrateNdisImports(){
   });
   if(migrated>0){
     console.log('Migrated '+migrated+' NDIS import transactions');
-    S.workflowData=S.workflowData||{};
-    S.workflowData.ndisImportMigrated=true;
     await saveToSheets();
-  } else {
-    S.workflowData=S.workflowData||{};
-    S.workflowData.ndisImportMigrated=true;
   }
 }
 function applyKnownSplitFixes(){
@@ -3936,10 +3922,9 @@ function exportCSV(){
 // ─── NDIS FUNCTIONS ──────────────────────────────────────────────────────────
 
 function getNdisTransactions(){
+  // All entries are in S.ndisTransactions after migration
+  // Still merge NDIS_IMPORT as fallback for any not yet migrated
   const existing=S.ndisTransactions||[];
-  // If migration has run, all entries are in S.ndisTransactions
-  if(S.workflowData?.ndisImportMigrated)return [...existing].sort((a,b)=>a.cat.localeCompare(b.cat)||a.num-b.num);
-  // Otherwise merge NDIS_IMPORT for backwards compatibility
   const existingIds=new Set(existing.map(t=>t.id));
   const imported=NDIS_IMPORT.filter(t=>!existingIds.has(t.id));
   return [...imported,...existing].sort((a,b)=>a.cat.localeCompare(b.cat)||a.num-b.num);
