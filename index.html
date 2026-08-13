@@ -1362,13 +1362,12 @@ function renderTxList(){
   sel.innerHTML='<option value="">All categories</option>';
   const catNames=[...new Set([
     ...CATS.filter(c=>!c.noGrid&&!c.specialAction&&!c.isAdditional).map(c=>c.name),
+    'Additional Money',
     ...S.transactions.filter(t=>t.category&&!['💰 Add to Money Owed','➕ Add to Cash Savings'].includes(t.category)).map(t=>{
       if(['Renovations','Additional Money','Additional','💰 Additional'].includes(t.category))return'Additional Money';
       return t.category;
     })
   ])].sort().filter(c=>c&&!c.includes('Add to')&&!c.includes('NDIS')&&c!=='Split'&&c!=='Additional'&&!c.includes('💰 Add')&&!c.includes('➕'));
-  catNames.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
-  if(currentVal)sel.value=currentVal;
   catNames.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
   if(currentVal)sel.value=currentVal;
 }
