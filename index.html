@@ -841,6 +841,10 @@ async function loadFromSheets(){
         moneyOwed:cfgNum(cfg.moneyOwed),
         renovationsBalance:cfg.renovationsBalance&&cfg.renovationsBalance!=='null'&&cfg.renovationsBalance!=='undefined'?cfgNum(cfg.renovationsBalance):0,
         maternityBalance:cfgNum(cfg.maternityBalance),
+        renovationsDate:cfg.renovationsDate||'',
+        renovationsStarting:cfgNum(cfg.renovationsStarting)||0,
+        maternityDate:cfg.maternityDate||'',
+        maternityStarting:cfgNum(cfg.maternityStarting)||0,
         additionalCategories:cfg.additionalCategories?JSON.parse(cfg.additionalCategories):[]
       };
     }
@@ -3214,8 +3218,8 @@ function openAdditionalMoneyDetail(){
 function renderAMBody(){
   const extras=S.overall.additionalCategories||[];
   const allCats=[
-    {key:'reno',name:'Renovations',balance:S.overall.renovationsBalance||0},
-    {key:'mat',name:'Maternity',balance:S.overall.maternityBalance||0},
+    {key:'reno',name:'Renovations',balance:S.overall.renovationsBalance||0,startingBalance:S.overall.renovationsStarting||0,dateAdded:S.overall.renovationsDate||''},
+    {key:'mat',name:'Maternity',balance:S.overall.maternityBalance||0,startingBalance:S.overall.maternityStarting||0,dateAdded:S.overall.maternityDate||''},
     ...extras.map((e,i)=>({key:'extra_'+i,name:e.name,balance:e.balance||0,startingBalance:e.startingBalance||0,dateAdded:e.dateAdded||'',extra:true,idx:i}))
   ];
   const total=allCats.reduce((a,c)=>a+c.balance,0);
@@ -3227,12 +3231,32 @@ function renderAMBody(){
       </div>
       <div id="am-tile-${c.key}">
         <div class="stat-value pos">${fmt(c.balance)}</div>
-        ${c.extra&&c.dateAdded?`<div style="font-size:10px;color:var(--text2);margin-top:2px">From ${fmtDate(c.dateAdded)}</div>`:''}
-        ${c.extra&&c.startingBalance?`<div style="font-size:10px;color:var(--text2)">Started ${fmt(c.startingBalance)}</div>`:''}
-        <div style="font-size:11px;color:var(--blue);margin-top:4px">Tap to edit</div>
+        ${c.dateAdded?`<div style="font-size:10px;color:var(--text2);margin-top:2px">From ${fmtDate(c.dateAdded)}</div>`:''}
+        ${c.startingBalance?`<div style="font-size:10px;color:var(--text2)">Started ${fmt(c.startingBalance)}</div>`:''}
+        <div style="font-size:11px;color:var(--blue);margin-top:4px">Tap to edit · view transactions</div>
+      </div>
+      <div id="am-txs-${c.key}" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
+        ${(()=>{
+          const additionalAliases=['Additional','Additional Money','Renovations','💰 Additional'];
+          const subName=c.name;
+          const txs=S.transactions.filter(t=>
+            (additionalAliases.includes(t.category)||t.category?.includes('Additional'))&&
+            t.subcat===subName&&t.status==='accepted'
+          ).sort((a,b)=>b.date.localeCompare(a.date));
+          if(!txs.length)return`<div style="font-size:12px;color:var(--text2);text-align:center;padding:8px">No transactions yet</div>`;
+          const total=txs.reduce((a,t)=>a+t.amount,0);
+          return txs.map(t=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
+            <span style="color:var(--text2)">${fmtDate(t.date)}</span>
+            <span style="flex:1;margin:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.description}</span>
+            <span style="font-weight:500">${fmt(t.amount)}</span>
+          </div>`).join('')+`<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding-top:6px"><span>Total spent</span><span>${fmt(total)}</span></div>`;
+        })()}
       </div>
       <div id="am-edit-${c.key}" style="display:none">
-        ${c.extra?'<input type="text" id="am-name-'+c.key+'" value="'+c.name+'" placeholder="Name" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px"><label style="font-size:10px;color:var(--text2)">Date added</label><input type="date" id="am-date-'+c.key+'" value="'+(c.dateAdded||localISODate())+'" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px"><label style="font-size:10px;color:var(--text2)">Starting balance ($)</label><input type="number" id="am-start-'+c.key+'" value="'+c.startingBalance.toFixed(2)+'" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px"><label style="font-size:10px;color:var(--text2)">Current balance ($)</label>':''}
+        ${c.extra?'<input type="text" id="am-name-'+c.key+'" value="'+c.name+'" placeholder="Name" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">':''}
+        <label style="font-size:10px;color:var(--text2)">Date added</label><input type="date" id="am-date-${c.key}" value="${c.dateAdded||localISODate()}" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">
+        <label style="font-size:10px;color:var(--text2)">Starting balance ($)</label><input type="number" id="am-start-${c.key}" value="${c.startingBalance.toFixed(2)}" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">
+        <label style="font-size:10px;color:var(--text2)">Current balance ($)</label>
         <input type="number" id="am-val-${c.key}" value="${c.balance.toFixed(2)}" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:13px;padding:4px 6px">
         <button class="btn btn-sm btn-primary" style="margin-top:6px;width:100%" onclick="event.stopPropagation();saveAMTile('${c.key}')">✓</button>
       </div>
@@ -3242,20 +3266,36 @@ function renderAMBody(){
   document.getElementById('am-body').innerHTML=html;
 }
 function editAMTile(key){
-  // Hide all other edit forms first
-  document.querySelectorAll('[id^="am-edit-"]').forEach(el=>{
-    el.style.display='none';
-    const tileKey=el.id.replace('am-edit-','');
-    const tileEl=document.getElementById('am-tile-'+tileKey);
-    if(tileEl)tileEl.style.display='block';
-  });
-  document.getElementById('am-tile-'+key).style.display='none';
-  document.getElementById('am-edit-'+key).style.display='block';
+  // Toggle: if already editing, close it
+  const editEl=document.getElementById('am-edit-'+key);
+  const tileEl=document.getElementById('am-tile-'+key);
+  const txsEl=document.getElementById('am-txs-'+key);
+  const isOpen=editEl.style.display!=='none';
+  // Hide all first
+  document.querySelectorAll('[id^="am-edit-"]').forEach(el=>{el.style.display='none';});
+  document.querySelectorAll('[id^="am-txs-"]').forEach(el=>{el.style.display='none';});
+  document.querySelectorAll('[id^="am-tile-"]').forEach(el=>{el.style.display='block';});
+  if(!isOpen){
+    tileEl.style.display='none';
+    editEl.style.display='block';
+    if(txsEl)txsEl.style.display='block';
+  }
 }
 function saveAMTile(key){
   const val=parseFloat(document.getElementById('am-val-'+key)?.value)||0;
-  if(key==='reno')S.overall.renovationsBalance=val;
-  else if(key==='mat')S.overall.maternityBalance=val;
+  if(key==='reno'){
+    S.overall.renovationsBalance=val;
+    const dateEl=document.getElementById('am-date-reno');
+    if(dateEl)S.overall.renovationsDate=dateEl.value;
+    const startEl=document.getElementById('am-start-reno');
+    if(startEl)S.overall.renovationsStarting=parseFloat(startEl.value)||0;
+  } else if(key==='mat'){
+    S.overall.maternityBalance=val;
+    const dateEl=document.getElementById('am-date-mat');
+    if(dateEl)S.overall.maternityDate=dateEl.value;
+    const startEl=document.getElementById('am-start-mat');
+    if(startEl)S.overall.maternityStarting=parseFloat(startEl.value)||0;
+  }
   else if(key.startsWith('extra_')){
     const idx=parseInt(key.replace('extra_',''));
     const extras=S.overall.additionalCategories||[];
