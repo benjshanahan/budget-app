@@ -1308,8 +1308,8 @@ function updateSubcatFilter(){
       definedSubs=cat?.subs||[];
     }
     // Get historical subcategories from transactions (match both old and new category names)
-    const additionalCatNames=['Additional','Additional Money','Renovations','💰 Additional'];
-    const historicalSubs=[...new Set(S.transactions.filter(t=>(matchedCat==='Additional Money'?additionalCatNames.includes(t.category):t.category===matchedCat)&&t.subcat).map(t=>t.subcat))];
+    const additionalCatNames=['Additional','Additional Money','Renovations','💰 Additional','🗜 Additional Money'];
+    const historicalSubs=[...new Set(S.transactions.filter(t=>(matchedCat==='Additional Money'?(additionalCatNames.includes(t.category)||t.category?.includes('Additional')):t.category===matchedCat)&&t.subcat).map(t=>t.subcat))];
     const allSubs=[...new Set([...definedSubs.filter(s=>s),...historicalSubs])].sort();
     subcatSel.innerHTML=`<option value="">All subcategories</option><option value="__blank__">— No subcategory —</option>`+allSubs.map(s=>`<option value="${s}">${s}</option>`).join('');
     subcatSel.style.display='';
@@ -1359,17 +1359,24 @@ function renderTxList(){
   const sel=document.getElementById('f-cat');
   const currentVal=sel.value;
   sel.innerHTML='<option value="">All categories</option>';
-  const catNames=[...new Set([
+  // Standard categories sorted
+  const standardCats=[...new Set([
     ...CATS.filter(c=>!c.noGrid&&!c.specialAction&&!c.isAdditional).map(c=>c.name),
-    'Additional Money',
     ...S.transactions.map(t=>{
       if(!t.category)return null;
-      if(['Renovations','Additional Money','Additional','💰 Additional','🗜 Additional Money'].includes(t.category)||t.category.includes('Additional'))return'Additional Money';
+      if(['Renovations','Additional Money','Additional','💰 Additional','🗜 Additional Money'].includes(t.category)||t.category?.includes('Additional'))return null;
       if(['💰 Add to Money Owed','➕ Add to Cash Savings','Split','NDIS'].includes(t.category))return null;
       return t.category;
     }).filter(Boolean)
-  ])].sort().filter(c=>c&&c!=='Additional');
-  catNames.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  ])].sort().filter(c=>c&&c!=='Additional'&&!c.includes('Split'));
+  standardCats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  // Special categories at bottom with icons (matching add transaction form)
+  [
+    {value:'NDIS',text:'🏥 NDIS'},
+    {value:'Additional Money',text:'🗜 Additional'},
+    {value:'➕ Add to Cash Savings',text:'➕ Add to Cash Savings'},
+    {value:'💰 Add to Money Owed',text:'💰 Add to Money Owed'},
+  ].forEach(({value,text})=>{const o=document.createElement('option');o.value=value;o.textContent=text;sel.appendChild(o);});
   if(currentVal)sel.value=currentVal;
 }
 
