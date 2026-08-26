@@ -1327,16 +1327,14 @@ function renderTxList(){
 function renderWorkflow(){
   const steps=[
     {n:1,title:'Upload credit card statement',desc:'Upload your MyCard CSV statement for this fortnight.',action:'upload'},
-    {n:2,title:'Review & assign transactions',desc:'Check auto-assigned categories and sub-categories. Edit as needed.',action:'review'},
-    {n:3,title:'Add manual transactions',desc:'Add any cash or non-credit-card expenses for this fortnight.',action:'manual'},
-    {n:4,title:'Accept all transactions',desc:'Post all pending transactions to your budgets.',action:'accept'},
-    {n:5,title:'Pay credit card',desc:'Pay your MyCard balance now.',action:'confirm',ct:'I have paid the credit card ✓'},
-    {n:6,title:'Tithe',desc:'Enter gross income — 10% calculated. Records tithing transaction only (budgets update at finalise step).',action:'tithe'},
-    {n:7,title:'Benj & Kasie spending balances',desc:'Enter current debit card balances to calculate positions and transfer amounts.',action:'spending'},
-    {n:8,title:'Money owed to you',desc:'Review people who owe you money and mark any as paid.',action:'moneyowed'},
-    {n:9,title:'Review & pay bills',desc:'Check emails, mail, and apps for any bills due this fortnight.',action:'confirm',ct:'I have reviewed and paid all bills ✓'},
-    {n:10,title:'Process NDIS',desc:'Process all NDIS transactions for this fortnight — upload invoices, pay, categorise and claim.',action:'ndis'},
-    {n:11,title:'Update mortgage position',desc:'Enter how much you are currently ahead on the mortgage.',action:'mortgage'},
+    {n:2,title:'Accept all transactions',desc:'Post all pending transactions to your budgets.',action:'accept'},
+    {n:3,title:'Pay credit card',desc:'Pay your MyCard balance now.',action:'confirm',ct:'I have paid the credit card ✓'},
+    {n:4,title:'Tithe',desc:'Enter gross income — 10% calculated. Records tithing transaction only (budgets update at finalise step).',action:'tithe'},
+    {n:5,title:'Benj & Kasie spending balances',desc:'Enter current debit card balances to calculate positions and transfer amounts.',action:'spending'},
+    {n:6,title:'Money owed to you',desc:'Review people who owe you money and mark any as paid.',action:'moneyowed'},
+    {n:7,title:'Review & pay bills',desc:'Check emails, mail, and apps for any bills due this fortnight.',action:'confirm',ct:'I have reviewed and paid all bills ✓'},
+    {n:8,title:'Process NDIS',desc:'Process all NDIS transactions for this fortnight — upload invoices, pay, categorise and claim.',action:'ndis'},
+    {n:9,title:'Update mortgage position',desc:'Enter how much you are currently ahead on the mortgage.',action:'mortgage'},
   ];
   const wd=S.workflowData||{};
   const pending=S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').length;
