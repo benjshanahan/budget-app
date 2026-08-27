@@ -2636,7 +2636,7 @@ function openCSVReview(data){
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${m.csv.date}" onchange="S.csvPending.merged[${i}].csv.date=this.value"></div>
           <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].csv.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.map(c=>'<option value="'+c.name+'"'+(c.name===m.csv.category?' selected':'')+'>'+c.name+'</option>').join('')}<option value="Other">Other</option></select></div>
         </div>
-        <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)}</div>
+        <div id="csv-sub-m${i}" style="margin-top:8px">`+renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)+`</div>
         <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.manual?.description||m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value;if(S.csvPending.merged[${i}].manual)S.csvPending.merged[${i}].manual.description=this.value" style="width:100%"></div>
         <details style="margin-top:8px;margin-bottom:4px">
           <summary style="font-size:11px;color:var(--blue);cursor:pointer;padding:4px 0">Edit manual entry details</summary>
@@ -2759,17 +2759,7 @@ function toggleAddFromUnmatched(elId,idx,type){
   }
   el.innerHTML=`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);overflow:hidden">
     <div style="font-size:11px;font-weight:600;color:var(--text2);padding:8px 10px;background:var(--surface2);text-transform:uppercase;letter-spacing:.04em">Select to link</div>
-    ${unmatched.map((t,j)=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1px solid var(--border);gap:8px">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.description}</div>
-          <div style="font-size:11px;color:var(--text2)">${t.category} · ${fmtDate(t.date)}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-          <span style="font-size:13px;font-weight:600">${fmt(t.amount)}</span>
-          <button class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 8px" onclick="addUnmatchedToGroup('${elId}',${j},'${type}',${idx})">Link</button>
-        </div>
-      </div>`).join('')}
+    `+unmatched.map((t,j)=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1px solid var(--border);gap:8px"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+t.description+'</div><div style="font-size:11px;color:var(--text2)">'+t.category+' · '+fmtDate(t.date)+'</div></div><div style="display:flex;align-items:center;gap:8px;flex-shrink:0"><span style="font-size:13px;font-weight:600">'+fmt(t.amount)+'</span><button class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 8px" onclick="addUnmatchedToGroup(\''+elId+'\','+j+',\''+type+'\','+idx+')">Link</button></div></div>').join('')+`
   </div>`;
   el.style.display='block';
 }
