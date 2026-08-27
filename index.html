@@ -606,7 +606,7 @@ const CATS = [
   {name:'➕ Add to Cash Savings',fn:0,yearly:0,noGrid:true,specialAction:'cash-add'},
   {name:'💰 Add to Money Owed',fn:0,yearly:0,noGrid:true,specialAction:'owed-add'},
   {name:'NDIS',fn:0,yearly:0,noGrid:true,specialAction:'ndis'},
-  {name:'Renovations',fn:0,yearly:0,isRenovations:true},
+  {name:'Renovations',fn:0,yearly:0,isRenovations:true,noGrid:true},
 ];
 
 // ─── STARTING BALANCES (as at app creation, after 3 fortnights) ──────────────
@@ -1353,6 +1353,20 @@ function renderWorkflow(){
     renderWorkflow();
     return;
   }
+  // Auto-reset if workflowData is stale (from a previous fortnight)
+  const lastCycle=S.completedCycles?.length?S.completedCycles[S.completedCycles.length-1]:null;
+  const wfDate=wd.currentDate||'';
+  const anyStepDone=steps.some(s=>!!wd['s'+s.n]);
+  const stale=lastCycle&&anyStepDone&&(
+    (wfDate&&wfDate<=lastCycle.date)||
+    (!wfDate&&anyStepDone) // steps done but no date = definitely old session
+  );
+  if(stale){
+    S.workflowData={};
+    saveS();
+    renderWorkflow();
+    return;
+  }
   const pending=S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').length;
   const newWd=S.workflowData||{};
   const allStepsDone=steps.every(s=>!!newWd['s'+s.n]);
@@ -1366,7 +1380,7 @@ function renderWorkflow(){
       const active=!done&&(s.n===1||!!newWd['s'+(s.n-1)]);
       const nc=done?'sn-d':active?'sn-a':'sn-p';
       if(done){
-        return'<div class="step"><div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);cursor:pointer" onclick="toggleStep('+s.n+')"><div style="width:24px;height:24px;border-radius:50%;background:var(--green);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">✓</div><span style="font-size:13px;font-weight:600;color:var(--gd);flex:1">'+s.title+'</span><span style="font-size:11px;color:var(--green);cursor:pointer" onclick="event.stopPropagation();undoStep('+s.n+')">Done ↩</span></div><div class="step-body" id="sb'+s.n+'" style="padding:8px 12px;border:1px solid var(--green);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);background:var(--gl)"><button class="btn btn-sm" onclick="undoStep('+s.n+')">↩ Mark undone</button></div></div>';
+        return'<div class="step"><div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);cursor:pointer" onclick="toggleStep('+s.n+')"><div style="width:24px;height:24px;border-radius:50%;background:var(--green);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">✓</div><span style="font-size:13px;font-weight:600;color:var(--gd);flex:1">'+s.title+'</span><span style="font-size:11px;color:var(--green);cursor:pointer" onclick="event.stopPropagation();undoStep('+s.n+')">Done ↩</span></div><div class="step-body open" id="sb'+s.n+'" style="padding:8px 12px;border:1px solid var(--green);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);background:var(--gl)"><button class="btn btn-sm" onclick="undoStep('+s.n+')">↩ Mark undone</button></div></div>';
       }
       return'<div class="step"><div class="step-hdr" onclick="toggleStep('+s.n+')">'+'<div class="step-num '+nc+'">'+s.n+'</div><div class="step-title">'+s.title+'</div><span>'+(active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>')+'</span></div><div class="step-body'+(active?' open':'')+'" id="sb'+s.n+'"><div class="step-desc">'+s.desc+'</div>'+renderStepBody(s,done,pending)+'</div></div>';
     }).join('')}
@@ -2569,17 +2583,33 @@ function handleCSV(e){
         matchedManualIds.add(manualMatch.id);
         merged.push({csv,manual:manualMatch,action:'merge'});
       } else {
-        // Try matching split transactions — find all pending txs on same date that sum to CSV amount
+        // Try matching split transactions — only match transactions from the same splitGroupId group
         const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&m.date===csv.date);
-        // Also include same-date accepted manual Money Owed transactions
+        // Group by splitGroupId
+        const splitGroups={};
+        for(const m of sameDatePending){
+          if(m.splitGroupId){
+            if(!splitGroups[m.splitGroupId])splitGroups[m.splitGroupId]=[];
+            splitGroups[m.splitGroupId].push(m);
+          }
+        }
+        // Also include same-date accepted manual Money Owed transactions that share a splitGroupId
         const sameDateAccepted=S.transactions.filter(t=>
           t.status==='accepted'&&t.source==='manual'&&t.date===csv.date&&
-          !matchedManualIds.has(t.id)&&
+          !matchedManualIds.has(t.id)&&t.splitGroupId&&
           (t.category==='💰 Add to Money Owed'||t.notes==='Added to Money Owed on dashboard')
         );
-        const sameDateAll=[...sameDatePending,...sameDateAccepted];
-        // Try all subsets of same-date transactions to find one that sums to CSV amount
-        const matchedSubset=findMatchingSubset(sameDateAll,csv.amount);
+        for(const m of sameDateAccepted){
+          if(!splitGroups[m.splitGroupId])splitGroups[m.splitGroupId]=[];
+          splitGroups[m.splitGroupId].push(m);
+        }
+        // Check if any split group sums to CSV amount
+        let matchedSubset=null;
+        for(const grpId of Object.keys(splitGroups)){
+          const grp=splitGroups[grpId];
+          const sum=grp.reduce((a,t)=>a+(t.splitTotal||t.amount),0);
+          if(Math.abs(sum-csv.amount)<2){matchedSubset=grp;break;}
+        }
         if(matchedSubset){
           matchedSubset.forEach(m=>matchedManualIds.add(m.id));
           const pendingInSubset=matchedSubset.filter(m=>m.status==='pending');
@@ -2779,9 +2809,9 @@ function addCSVSplitRow(key){
   if(!container)return;
   const div=document.createElement('div');
   div.className='csv-split-row split-row';
-  div.style.marginBottom='6px';
+  div.style.cssText='margin-bottom:8px;display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
   const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
-  div.innerHTML='<select onchange="autoFillCSVSplit(\''+key+'\')" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>'+sortedCats.map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'<option value="Other">Other</option><option value="Renovations">🏗 Renovations</option></select><input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" oninput="autoFillCSVSplit(\''+key+'\')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit(\''+key+'\')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button>';
+  div.innerHTML='<div style="display:flex;gap:4px;align-items:center"><select onchange="autoFillCSVSplit(\''+key+'\')" style="flex:1;min-width:0;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>'+sortedCats.map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'<option value="Other">Other</option><option value="Renovations">🏗 Renovations</option></select><button class="btn btn-sm" onclick="this.parentNode.parentNode.remove();autoFillCSVSplit(\''+key+'\')" style="color:var(--red);border-color:var(--red);padding:5px 8px;flex-shrink:0">✕</button></div><input type="text" placeholder="Summary" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" oninput="autoFillCSVSplit(\''+key+'\')" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">';
   container.appendChild(div);
   autoFillCSVSplit(key);
 }
@@ -3111,20 +3141,16 @@ function closeModal(id){document.getElementById('modal-'+id).classList.remove('o
 function openActualSavingsDetail(){
   const{actualSavings,ndisOwed,cashSavings,mortgageAhead}=S.overall;
   const cycles=getTithingCycles();
-  // Calculate positive budget balances (excluding special cats)
-  const includeCats=['Bills','Food','School','Petrol','House','Presents','Entertainment','Child','Maintenance','Clothing','Medical'];
+  // Use same logic as calcActualSavings
   let positiveBudgets=0;
   const budgetBreakdown=[];
   for(const cat of CATS){
-    if(!includeCats.includes(cat.name))continue;
+    if(cat.noGrid||cat.isSpending||cat.isRenovations)continue;
     const appCycles3=Math.max(0,cycles-PRE_APP_CYCLES);
     const startBal3=STARTING_BALANCES[cat.name]||0;
     const appSpent3=getAppCatSpent(cat.name);
     const bal=startBal3+(appCycles3*cat.fn)-appSpent3;
-    if(bal>0){
-      positiveBudgets+=bal;
-      budgetBreakdown.push({name:cat.name,bal});
-    }
+    if(bal>0){positiveBudgets+=bal;budgetBreakdown.push({name:cat.name,bal});}
   }
   const netSavings=mortgageAhead-positiveBudgets;
   document.getElementById('txd-title').textContent='Savings breakdown';
@@ -3214,7 +3240,7 @@ function addSplitRow(){
   const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
   div.innerHTML=`
     <div style="display:flex;gap:6px;align-items:center">
-      <select onchange="autoFillLastSplit()" style="flex:2;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
+      <select onchange="autoFillLastSplit()" style="flex:1;min-width:0;font-size:13px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
         <option value="">-- Category --</option>
         ${sortedCats.map(n=>'<option value="'+n+'">'+n+'</option>').join('')}
         <option value="Other">Other</option>
@@ -3222,8 +3248,10 @@ function addSplitRow(){
         <option value="Renovations">🏗 Renovations</option>
         <option value="💰 Add to Money Owed">💰 Add to Money Owed</option>
       </select>
-      <input type="number" placeholder="Amount $" step="0.01" min="0" oninput="autoFillLastSplit()" style="flex:1;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
       <button class="btn btn-sm" onclick="this.closest('.split-row').remove();autoFillLastSplit()" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input type="number" placeholder="Amount $" step="0.01" min="0" oninput="autoFillLastSplit()" style="flex:1;min-width:0;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
     </div>
     <input type="text" placeholder="Description for this split" style="width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">`;
   document.getElementById('split-rows').appendChild(div);
