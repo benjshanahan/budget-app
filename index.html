@@ -1372,18 +1372,9 @@ function renderWorkflow(){
       const active=!done&&(s.n===1||!!newWd['s'+(s.n-1)]);
       const nc=done?'sn-d':active?'sn-a':'sn-p';
       if(done){
-        return`<div class="step">
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);cursor:pointer" onclick="toggleStep(${s.n})">
-            <div style="width:24px;height:24px;border-radius:50%;background:var(--green);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">✓</div>
-            <span style="font-size:13px;font-weight:600;color:var(--gd);flex:1">${s.title}</span>
-            <span style="font-size:11px;color:var(--green);cursor:pointer" onclick="event.stopPropagation();undoStep(${s.n})">Done ↩</span>
-          </div>
-          <div class="step-body" id="sb${s.n}" style="padding:8px 12px;border:1px solid var(--green);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);background:var(--gl)">
-            <button class="btn btn-sm" onclick="undoStep(${s.n})">↩ Mark undone</button>
-          </div>
-        </div>`;
+        return'<div class="step"><div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);cursor:pointer" onclick="toggleStep('+s.n+')"><div style="width:24px;height:24px;border-radius:50%;background:var(--green);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">✓</div><span style="font-size:13px;font-weight:600;color:var(--gd);flex:1">'+s.title+'</span><span style="font-size:11px;color:var(--green);cursor:pointer" onclick="event.stopPropagation();undoStep('+s.n+')">Done ↩</span></div><div class="step-body" id="sb'+s.n+'" style="padding:8px 12px;border:1px solid var(--green);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);background:var(--gl)"><button class="btn btn-sm" onclick="undoStep('+s.n+')">↩ Mark undone</button></div></div>';
       }
-      return`<div class="step"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${s.n}</div><div class="step-title">${s.title}</div><span>${active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div><div class="step-body${active?' open':''}" id="sb${s.n}"><div class="step-desc">${s.desc}</div>${renderStepBody(s,done,pending)}</div></div>`;
+      return'<div class="step"><div class="step-hdr" onclick="toggleStep('+s.n+')">'+'<div class="step-num '+nc+'">'+s.n+'</div><div class="step-title">'+s.title+'</div><span>'+(active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>')+'</span></div><div class="step-body'+(active?' open':'')+'" id="sb'+s.n+'"><div class="step-desc">'+s.desc+'</div>'+renderStepBody(s,done,pending)+'</div></div>';
     }).join('')}
     ${allStepsDone?'<div style="margin-top:16px;padding:16px;background:var(--gl);border:1px solid #5DBB99;border-radius:var(--radius);text-align:center"><div style="font-size:14px;font-weight:600;color:var(--gd);margin-bottom:8px">All steps complete!</div><div style="font-size:12px;color:var(--green);margin-bottom:12px">Press below to allocate this fortnight\'s amounts to all budgets.</div><button class="btn btn-primary" onclick="finaliseWorkflow()" style="font-size:15px;padding:12px 24px">Finalise and Update Budgets</button></div>':''}`;
 }
@@ -1443,11 +1434,7 @@ function renderStepBody(s,done,pending){
           const thisfnInvoices=(S.ndisTransactions||[]).filter(t=>t.date>cutoff);
           if(!thisfnInvoices.length)return'';
           const total=thisfnInvoices.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
-          return`<div style="margin-bottom:12px">
-            <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invoices added this fortnight (${thisfnInvoices.length})</div>
-            ${thisfnInvoices.map(t=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px"><div><div style="font-weight:500">'+t.provider+'</div><div style="font-size:11px;color:var(--text2)">'+fmtDate(t.date)+(t.invoiceNo?' · '+t.invoiceNo:'')+(t.driveLink?' · <a href="'+t.driveLink+'" target="_blank" style="color:var(--blue)">Drive</a>':'')+'</div></div><span style="font-weight:600;color:var(--green)">'+fmt(t.amount)+'</span></div>').join('')}
-            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding-top:6px"><span>Total</span><span style="color:var(--green)">${fmt(total)}</span></div>
-          </div>`;
+          return'<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invoices added this fortnight ('+thisfnInvoices.length+')</div>'+thisfnInvoices.map(t=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px"><div><div style="font-weight:500">'+t.provider+'</div><div style="font-size:11px;color:var(--text2)">'+fmtDate(t.date)+(t.invoiceNo?' · '+t.invoiceNo:'')+(t.driveLink?' · <a href="'+t.driveLink+'" target="_blank" style="color:var(--blue)">Drive</a>':'')+'</div></div><span style="font-weight:600;color:var(--green)">'+fmt(t.amount)+'</span></div>').join('')+'<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding-top:6px"><span>Total</span><span style="color:var(--green)">'+fmt(total)+'</span></div></div>';
         })()}
         <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Add new invoice</div>
         <button class="btn btn-sm" onclick="openNdisModal()">+ Add invoice not yet in transactions</button>
@@ -3752,17 +3739,7 @@ function renderNDIS(){
         const remaining=cat.budget-spent;
         const pct=Math.min(spent/cat.budget*100,100);
         const unpaid=catTxs.filter(t=>t.status==='unpaid').length;
-        return`<div class="bc" onclick="openNdisCatDetail('${cat.id}')">
-          <div class="bc-header">
-            <span class="bc-name">${cat.name}</span>
-            <span class="bc-bal ${remaining>=0?'pos':'neg'}">${fmt(remaining)}</span>
-          </div>
-          <div class="pbar"><div class="pfill ${pct>90?'over':pct>70?'warn':'good'}" style="width:${pct.toFixed(1)}%"></div></div>
-          <div class="bc-meta">
-            <span>Spent ${fmt(spent)}</span>
-            <span>${catTxs.length} invoice${catTxs.length!==1?'s':''}</span>
-          </div>
-        </div>`;
+        return'<div class="bc" onclick="openNdisCatDetail(\''+cat.id+'\')"><div class="bc-header"><span class="bc-name">'+cat.name+'</span><span class="bc-bal '+(remaining>=0?'pos':'neg')+'">'+fmt(remaining)+'</span></div><div class="pbar"><div class="pfill '+(pct>90?'over':pct>70?'warn':'good')+'" style="width:'+pct.toFixed(1)+'%"></div></div><div class="bc-meta"><span>Spent '+fmt(spent)+'</span><span>'+catTxs.length+' invoice'+(catTxs.length!==1?'s':'')+'</span></div></div>';
       }).join('')}
     </div>`;
 }
