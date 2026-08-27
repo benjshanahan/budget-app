@@ -1373,7 +1373,10 @@ function renderWorkflow(){
   document.getElementById('workflow-area').innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Fortnightly workflow · ${getTithingCycles()} cycles</div>
-      <button class="btn btn-sm" onclick="openModal('cycleHistory')">📅 History</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="resetWorkflow()">↩ Start over</button>
+        <button class="btn btn-sm" onclick="openModal('cycleHistory')">📅 History</button>
+      </div>
     </div>
     ${steps.map(s=>{
       const done=!!newWd['s'+s.n];
@@ -3174,7 +3177,7 @@ function openActualSavingsDetail(){
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:var(--gl);border-radius:var(--radius-sm);border:1px solid #5DBB99;margin-top:4px">
         <div style="font-size:14px;font-weight:700;color:var(--gd)">Total actual savings</div>
-        <div style="font-size:22px;font-weight:700;color:var(--gd)">${fmt(ndisOwed+cashSavings+Math.max(0,netSavings))}</div>
+        <div style="font-size:22px;font-weight:700;color:var(--gd)">${fmt(ndisOwed+cashSavings+netSavings)}</div>
       </div>
     </div>`;
   document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="closeModal('txDetail');setTimeout(()=>openModal('editOverall'),150)">✏️ Edit figures</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
