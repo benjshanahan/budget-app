@@ -1385,11 +1385,7 @@ function renderWorkflow(){
       }
       return`<div class="step"><div class="step-hdr" onclick="toggleStep(${s.n})"><div class="step-num ${nc}">${s.n}</div><div class="step-title">${s.title}</div><span>${active?'<span class="badge bb">Ready</span>':'<span class="badge bgray">Waiting</span>'}</span></div><div class="step-body${active?' open':''}" id="sb${s.n}"><div class="step-desc">${s.desc}</div>${renderStepBody(s,done,pending)}</div></div>`;
     }).join('')}
-    ${allStepsDone?`<div style="margin-top:16px;padding:16px;background:var(--gl);border:1px solid #5DBB99;border-radius:var(--radius);text-align:center">
-      <div style="font-size:14px;font-weight:600;color:var(--gd);margin-bottom:8px">All steps complete!</div>
-      <div style="font-size:12px;color:var(--green);margin-bottom:12px">Press below to allocate this fortnight's amounts to all budgets.</div>
-      <button class="btn btn-primary" onclick="finaliseWorkflow()" style="font-size:15px;padding:12px 24px">Finalise and Update Budgets</button>
-    </div>`:''}`;
+    ${allStepsDone?'<div style="margin-top:16px;padding:16px;background:var(--gl);border:1px solid #5DBB99;border-radius:var(--radius);text-align:center"><div style="font-size:14px;font-weight:600;color:var(--gd);margin-bottom:8px">All steps complete!</div><div style="font-size:12px;color:var(--green);margin-bottom:12px">Press below to allocate this fortnight\'s amounts to all budgets.</div><button class="btn btn-primary" onclick="finaliseWorkflow()" style="font-size:15px;padding:12px 24px">Finalise and Update Budgets</button></div>':''}`;
 }
 
 function renderStepBody(s,done,pending){
@@ -1433,22 +1429,13 @@ function renderStepBody(s,done,pending){
         <a href="https://login.my.gov.au/las/mygov-login?execution=e1s1" target="_blank" class="btn btn-sm">🔗 MyGov</a>
       </div>
 
-    ${pendingNdis.length?`<div class="banner banner-warn" style="margin-bottom:10px">⚠ ${pendingNdis.length} NDIS transaction${pendingNdis.length>1?'s are':' is'} still pending — accept them in Step 4 first</div>`:''}
-      ${unprocessed.length?`
-        <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Transactions to process (${unprocessed.length})</div>
-        <div class="tx-list" style="margin-bottom:12px">
-          ${unprocessed.map(t=>`
-            <div class="tx ${processedIds.includes(t.id)?'accepted':'pending'}" style="cursor:pointer" onclick="openNdisProcessModal('${t.id}')">
-              <div style="flex:1">
-                <div style="font-size:13px;font-weight:500">${t.description}</div>
-                <div style="font-size:11px;color:var(--text2)">${fmtDate(t.date)} · ${t.method}</div>
-              </div>
-              <div style="text-align:right">
-                <div style="font-size:13px;font-weight:700">${fmt(t.amount)}</div>
-                <div style="font-size:11px;color:var(--amber)">⏳ Needs processing</div>
-              </div>
-            </div>`).join('')}
-        </div>`:'<div style="font-size:13px;color:var(--green);margin-bottom:12px">✓ All NDIS transactions processed!</div>'}
+    ${pendingNdis.length?'<div class="banner banner-warn" style="margin-bottom:10px">⚠ '+pendingNdis.length+' NDIS transaction'+(pendingNdis.length>1?'s are':' is')+' still pending — accept them in Step 4 first</div>':''}
+      ${unprocessed.length?
+        '<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Transactions to process ('+unprocessed.length+')</div>'+
+        '<div class="tx-list" style="margin-bottom:12px">'+
+        unprocessed.map(t=>'<div class="tx '+(processedIds.includes(t.id)?'accepted':'pending')+'" style="cursor:pointer" onclick="openNdisProcessModal(\''+t.id+'\')"><div style="flex:1"><div style="font-size:13px;font-weight:500">'+t.description+'</div><div style="font-size:11px;color:var(--text2)">'+fmtDate(t.date)+' · '+t.method+'</div></div><div style="text-align:right"><div style="font-size:13px;font-weight:700">'+fmt(t.amount)+'</div><div style="font-size:11px;color:var(--amber)">⏳ Needs processing</div></div></div>').join('')+
+        '</div>'
+        :'<div style="font-size:13px;color:var(--green);margin-bottom:12px">✓ All NDIS transactions processed!</div>'}
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
         ${(()=>{
           const tithes=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').sort((a,b)=>a.date.localeCompare(b.date));
@@ -1458,17 +1445,14 @@ function renderStepBody(s,done,pending){
           const total=thisfnInvoices.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
           return`<div style="margin-bottom:12px">
             <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invoices added this fortnight (${thisfnInvoices.length})</div>
-            ${thisfnInvoices.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
-              <div><div style="font-weight:500">${t.provider}</div><div style="font-size:11px;color:var(--text2)">${fmtDate(t.date)}${t.invoiceNo?' · '+t.invoiceNo:''}${t.driveLink?' · <a href="'+t.driveLink+'" target="_blank" style="color:var(--blue)">Drive</a>':''}</div></div>
-              <span style="font-weight:600;color:var(--green)">${fmt(t.amount)}</span>
-            </div>`).join('')}
+            ${thisfnInvoices.map(t=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px"><div><div style="font-weight:500">'+t.provider+'</div><div style="font-size:11px;color:var(--text2)">'+fmtDate(t.date)+(t.invoiceNo?' · '+t.invoiceNo:'')+(t.driveLink?' · <a href="'+t.driveLink+'" target="_blank" style="color:var(--blue)">Drive</a>':'')+'</div></div><span style="font-weight:600;color:var(--green)">'+fmt(t.amount)+'</span></div>').join('')}
             <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding-top:6px"><span>Total</span><span style="color:var(--green)">${fmt(total)}</span></div>
           </div>`;
         })()}
         <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Add new invoice</div>
         <button class="btn btn-sm" onclick="openNdisModal()">+ Add invoice not yet in transactions</button>
       </div>
-      ${unprocessed.length===0?`<button class="btn btn-primary btn-sm" style="margin-top:12px;width:100%" onclick="finaliseNdisStep()">✓ Done — update NDIS owed & continue</button>`:''}`;
+      ${unprocessed.length===0?'<button class="btn btn-primary btn-sm" style="margin-top:12px;width:100%" onclick="finaliseNdisStep()">✓ Done — update NDIS owed & continue</button>':''}`;
   }
   if(s.action==='moneyowed'){
     const items=S.moneyOwedItems||[];
@@ -1481,7 +1465,7 @@ function renderStepBody(s,done,pending){
       <div class="tx accepted" style="cursor:default;flex-wrap:wrap;gap:6px;margin-bottom:6px">
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500">${o.description}</div>
-          ${o.date?`<div style="font-size:11px;color:var(--text2)">Added: ${fmtDate(o.date)}</div>`:''}
+          ${o.date?'<div style="font-size:11px;color:var(--text2)">Added: '+fmtDate(o.date)+'</div>':''}
         </div>
         <span style="font-size:14px;font-weight:700;color:var(--green)">${fmt(o.amount)}</span>
         <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="markOwedPaidFromWorkflow('${o.id}')">✓ Paid</button>
@@ -1493,7 +1477,7 @@ function renderStepBody(s,done,pending){
       </div>`).join('');
     return`
       ${itemRows}
-      ${negBudgets.length?`<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">Overspent budgets</div>${negRows}`:''}
+      ${negBudgets.length?'<div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">Overspent budgets</div>'+negRows:''}
       <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="doneStep(5)">✓ Done — continue</button>`;
   }
   if(s.action==='cash')return`<div class="field"><label>Cash added to savings ($)</label><input type="number" id="cash-in" step="0.01" placeholder="0.00"><div class="field-hint">Current cash savings: ${fmt(S.overall.cashSavings||0)}</div></div><button class="btn btn-primary btn-sm" onclick="addCash()">✓ Update & done</button>`;
@@ -1526,22 +1510,12 @@ function renderCycleHistory(){
         </div>
         <div style="display:flex;gap:6px">
           <button class="btn btn-sm" onclick="toggleCycleDetail('cycle-detail-${c.id}')">📋 Review</button>
-          ${isLast?`<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="confirmRevertCycle('${c.id}')">↩ Revert</button>`:''}
+          ${isLast?'<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="confirmRevertCycle(\''+c.id+'\')">↩ Revert</button>':''}
         </div>
       </div>
       <div id="cycle-detail-${c.id}" style="display:none;margin-top:10px">
         <div class="tx-list">
-          ${cycTxs.length?cycTxs.map(t=>`
-            <div class="tx ${t.status}" style="cursor:pointer" onclick="closeModal('cycleHistory');setTimeout(()=>openTxDetail('${t.id}'),100)">
-              <div style="flex:1;min-width:0">
-                <div style="font-size:13px;font-weight:500">${t.description}</div>
-                <div style="font-size:11px;color:var(--text2)">${fmtDate(t.date)} · ${t.category}${t.subcat?' · '+t.subcat:''}</div>
-              </div>
-              <div style="text-align:right;flex-shrink:0">
-                <div style="font-size:13px;font-weight:700">${fmt(t.amount)}</div>
-                <div style="font-size:10px;color:var(--blue)">tap to edit</div>
-              </div>
-            </div>`).join(''):'<div style="text-align:center;padding:10px;font-size:12px;color:var(--text2)">No transactions recorded for this fortnight</div>'}
+          ${cycTxs.length?cycTxs.map(t=>'<div class="tx '+t.status+'" style="cursor:pointer" onclick="closeModal(\'cycleHistory\');setTimeout(()=>openTxDetail(\''+t.id+'\'),100)"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">'+t.description+'</div><div style="font-size:11px;color:var(--text2)">'+fmtDate(t.date)+' · '+t.category+(t.subcat?' · '+t.subcat:'')+'</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:13px;font-weight:700">'+fmt(t.amount)+'</div><div style="font-size:10px;color:var(--blue)">tap to edit</div></div></div>').join(''):'<div style="text-align:center;padding:10px;font-size:12px;color:var(--text2)">No transactions recorded for this fortnight</div>'}
         </div>
       </div>
     </div>`;
@@ -1757,10 +1731,10 @@ function openTxDetail(id){
     ${tx.flag?'<div class="banner banner-err" style="margin-bottom:10px">⚠ '+tx.flag+'</div>':''}
     <div class="field"><label>Description / summary</label><input type="text" id="edit-desc" value="${tx.description}" style="width:100%"></div>
     <div class="frow">
-      <div class="field"><label>Category</label><select id="edit-cat" onchange="updateEditSubcat()">${CATS.map(c=>`<option value="${c.name}"${c.name===tx.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other"${tx.category==='Other'?' selected':''}>Other</option></select></div>
+      <div class="field"><label>Category</label><select id="edit-cat" onchange="updateEditSubcat()">${CATS.map(c=>'<option value="'+c.name+'"'+(c.name===tx.category?' selected':'')+'>'+c.name+'</option>').join('')}<option value="Other"${tx.category==='Other'?' selected':''}>Other</option></select></div>
       <div class="field"><label>Date</label><input type="date" id="fix-date" value="${tx.date}"></div>
     </div>
-    <div id="edit-subcat-wrap" class="field" style="${txCat?.subs?'':'display:none'}"><label>Sub-category</label><select id="edit-subcat">${txCat?.subs?txCat.subs.map(s=>`<option value="${s}"${s===tx.subcat?' selected':''}>${s}</option>`).join(''):''}</select></div>
+    <div id="edit-subcat-wrap" class="field" style="${txCat?.subs?'':'display:none'}"><label>Sub-category</label><select id="edit-subcat">${txCat?.subs?txCat.subs.map(s=>'<option value="'+s+'"'+(s===tx.subcat?' selected':'')+'>'+s+'</option>').join(''):''}</select></div>
     ${tx.notes?'<div class="field"><label>Notes</label><input type="text" id="edit-notes" value="'+tx.notes+'" style="width:100%"></div>':''}
     `;
   const actions=document.getElementById('txd-actions');
@@ -1791,7 +1765,8 @@ function openNdisProcessModal(txId){
 
   document.getElementById('ndis-proc-actions').innerHTML=`
     <button class="btn btn-sm" onclick="closeModal('ndisProcess')">Close</button>
-    ${doneSteps.length>=3?`<button class="btn btn-primary btn-sm" onclick="completeNdisTx('${txId}')">✓ Mark as complete</button>`:''}`;
+    ${doneSteps.length>=3?'<button class="btn btn-primary btn-sm" onclick="completeNdisTx(\''+txId+'\')">✓ Mark as complete</button>':''}`;
+
   openModal('ndisProcess');
 }
 
@@ -1857,7 +1832,7 @@ function renderNdisStepAction(stepId,txId){
         <div class="field" style="margin:0"><label>Category</label>
           <select id="ndis-cat-select-${txId}">
             <option value="">-- Select --</option>
-            ${NDIS_CATS.map(c=>`<option value="${c.id}"${c.id===catVal?' selected':''}>${c.name}</option>`).join('')}
+            ${NDIS_CATS.map(c=>'<option value="'+c.id+'"'+(c.id===catVal?' selected':'')+'>'+c.name+'</option>').join('')}
           </select>
         </div>
         <div class="field" style="margin:0"><label>Date</label><input type="date" id="ndis-date-${txId}" value="${dateVal}"></div>
@@ -1881,9 +1856,9 @@ function renderNdisStepAction(stepId,txId){
     return`
       <div class="banner banner-info" style="margin-bottom:10px;flex-direction:column;align-items:flex-start">
         <div style="font-weight:600;margin-bottom:4px">💳 Pay this invoice</div>
-        ${invNo?`<div style="font-size:12px">Invoice: <strong>${invNo}</strong></div>`:''}
-        ${comments?`<div style="font-size:12px">For: <strong>${comments}</strong></div>`:''}
-        ${driveLink?`<a href="${driveLink}" target="_blank" style="font-size:12px;color:var(--blue);margin-top:4px">📄 View invoice for bank details</a>`:'<div style="font-size:12px;color:var(--text2)">No invoice uploaded — check provider email for bank details</div>'}
+        ${invNo?'<div style="font-size:12px">Invoice: <strong>'+invNo+'</strong></div>':''}
+        ${comments?'<div style="font-size:12px">For: <strong>'+comments+'</strong></div>':''}
+        ${driveLink?'<a href="'+driveLink+'" target="_blank" style="font-size:12px;color:var(--blue);margin-top:4px">📄 View invoice for bank details</a>':'<div style="font-size:12px;color:var(--text2)">No invoice uploaded — check provider email for bank details</div>'}
       </div>
       <a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 RACQ Bank</a>
       <button class="btn btn-primary btn-sm" style="display:block" onclick="markNdisStep('${txId}','pay')">✓ Invoice paid</button>`;
@@ -1895,7 +1870,7 @@ function renderNdisStepAction(stepId,txId){
       <div class="banner banner-info" style="margin-bottom:10px;flex-direction:column;align-items:flex-start">
         <div style="font-weight:600;margin-bottom:4px">🏛 Claim in MyGov</div>
         <div style="font-size:12px">Log in to MyGov, go to NDIS and submit the claim.</div>
-        ${driveLink?`<a href="${driveLink}" target="_blank" style="font-size:12px;color:var(--blue);margin-top:4px">📄 Download invoice to upload to MyGov</a>`:'<div style="font-size:12px;color:var(--text2);margin-top:4px">Tip: upload the invoice you saved in Step 1</div>'}
+        ${driveLink?'<a href="'+driveLink+'" target="_blank" style="font-size:12px;color:var(--blue);margin-top:4px">📄 Download invoice to upload to MyGov</a>':'<div style="font-size:12px;color:var(--text2);margin-top:4px">Tip: upload the invoice you saved in Step 1</div>'}
       </div>
       <a href="https://login.my.gov.au/las/mygov-login?execution=e1s1" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 Open MyGov</a>
       <button class="btn btn-primary btn-sm" style="display:block" onclick="markNdisStep('${txId}','claim')">✓ Claimed in MyGov</button>`;
@@ -2298,7 +2273,7 @@ async function saveNdisInvoice(){
         <div style="padding:16px">
           <div style="font-size:15px;font-weight:600;margin-bottom:4px">Invoice saved${tx.driveLink?' & uploaded to Drive':''}</div>
           <div style="font-size:12px;color:var(--text2);margin-bottom:14px">${tx.provider} · ${fmt(tx.amount)} · ${fmtDate(tx.date)}</div>
-          ${tx.driveLink?`<div style="margin-bottom:12px"><a href="${tx.driveLink}" target="_blank" class="btn btn-sm">View in Drive</a></div>`:''}
+          ${tx.driveLink?'<div style="margin-bottom:12px"><a href="'+tx.driveLink+'" target="_blank" class="btn btn-sm">View in Drive</a></div>':''}
           <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Next steps</div>
           <div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px">
             <div style="padding:10px;border-bottom:1px solid var(--border)">
@@ -2446,7 +2421,7 @@ function openCatDetail(catName){
     headerStats=`<div class="stat"><div class="stat-label">Balance</div><div class="stat-value ${bal>=0?'pos':'neg'}">${fmtS(bal)}</div></div><div class="stat"><div class="stat-label">Total spent</div><div class="stat-value">${fmt(getCatSpent(catName))}</div></div><div class="stat"><div class="stat-label">Yearly budget</div><div class="stat-value">${fmt(cat?.yearly||0)}</div></div>`;
   }
   document.getElementById('txd-title').textContent=catName;
-  document.getElementById('txd-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">${headerStats}</div><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">Transactions (${txs.length})</div><div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}</div>`;
+  document.getElementById('txd-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">${headerStats}</div><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">Transactions (${txs.length})</div><div class="tx-list">`+(txs.length?txs.map(t=>'<div class="tx accepted" style="cursor:default"><span class="tx-date">'+fmtDate(t.date)+'</span><span class="tx-desc">'+t.description+'</span><span class="tx-amt '+(t.amount<0?'pos':'')+'">'+(t.amount<0?'-':'')+fmt(Math.abs(t.amount))+'</span></div>').join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>')+`</div>`;
   document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   openModal('txDetail');
 }
@@ -2497,7 +2472,7 @@ function openSubcatDashboard(catName){
         <span style="font-size:13px;font-weight:600">${sub}</span>
         <span style="font-size:14px;font-weight:700;color:var(--text)">${fmt(subSpent)}</span>
       </div>
-      ${subYearly>0?`<div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${subPct.toFixed(1)}%;background:var(--green);border-radius:2px"></div></div><div style="font-size:11px;color:var(--text2)">${Math.round(subPct)}% of ${fmt(subYearly)} yearly budget</div>`:''}
+      ${subYearly>0?'<div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:'+subPct.toFixed(1)+'%;background:var(--green);border-radius:2px"></div></div><div style="font-size:11px;color:var(--text2)">'+Math.round(subPct)+'% of '+fmt(subYearly)+' yearly budget</div>':''}
       <div style="font-size:11px;color:var(--text2);margin-top:3px">${subTxs.length} transaction${subTxs.length!==1?'s':''}</div>
     </div>`;
   }).join('');
@@ -2524,7 +2499,7 @@ function openSubcatDetail(catName, sub){
       <div class="stat"><div class="stat-label">Total spent</div><div class="stat-value">${fmt(spent)}</div></div>
     </div>
     <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Transactions (${txs.length})</div>
-    <div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}</span><span class="tx-amt">${fmt(t.amount)}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions</div>'}</div>`;
+    <div class="tx-list">`+(txs.length?txs.map(t=>'<div class="tx accepted" style="cursor:default"><span class="tx-date">'+fmtDate(t.date)+'</span><span class="tx-desc">'+t.description+'</span><span class="tx-amt">'+fmt(t.amount)+'</span></div>').join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions</div>')+`</div>`;
   document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="openSubcatDashboard('${catName}')">← Back</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
 }
 
@@ -2699,7 +2674,7 @@ function openCSVReview(data){
         </div>
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${m.csv.date}" onchange="S.csvPending.merged[${i}].csv.date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].csv.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.map(c=>`<option value="${c.name}"${c.name===m.csv.category?' selected':''}>${c.name}</option>`).join('')}<option value="Other">Other</option></select></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].csv.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.map(c=>'<option value="'+c.name+'"'+(c.name===m.csv.category?' selected':'')+'>'+c.name+'</option>').join('')}<option value="Other">Other</option></select></div>
         </div>
         <div id="csv-sub-m${i}" style="margin-top:8px">${renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)}</div>
         <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.manual?.description||m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value;if(S.csvPending.merged[${i}].manual)S.csvPending.merged[${i}].manual.description=this.value" style="width:100%"></div>
@@ -2711,7 +2686,7 @@ function openCSVReview(data){
               <div><label style="font-size:11px;color:var(--text2)">Amount ($)</label><input type="number" value="${m.manual?.amount||m.csv.amount}" step="0.01" onchange="if(S.csvPending.merged[${i}].manual)S.csvPending.merged[${i}].manual.amount=parseFloat(this.value)" style="width:100%;font-size:12px;padding:4px 6px"></div>
             </div>
             <div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Description</label><input type="text" value="${m.manual?.description||''}" onchange="if(S.csvPending.merged[${i}].manual)S.csvPending.merged[${i}].manual.description=this.value" style="width:100%;font-size:12px;padding:4px 6px"></div>
-            <div style="margin-bottom:4px"><label style="font-size:11px;color:var(--text2)">Category</label><select onchange="if(S.csvPending.merged[${i}].manual){S.csvPending.merged[${i}].manual.category=this.value;}" style="width:100%;font-size:12px;padding:4px 6px">${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===(m.manual?.category||m.csv.category)?' selected':''}>${n}</option>`).join('')}</select></div>
+            <div style="margin-bottom:4px"><label style="font-size:11px;color:var(--text2)">Category</label><select onchange="if(S.csvPending.merged[${i}].manual){S.csvPending.merged[${i}].manual.category=this.value;}" style="width:100%;font-size:12px;padding:4px 6px">${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>'<option value="'+n+'"'+(n===(m.manual?.category||m.csv.category)?' selected':'')+'>'+n+'</option>').join('')}</select></div>
           </div>
         </details>
         <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: credit card transaction matched — manual entry will be updated with edits above</div>
@@ -2735,15 +2710,15 @@ function openCSVReview(data){
         <div style="display:flex;justify-content:space-between;margin-bottom:8px">
           <div>
             <span style="font-size:13px;font-weight:600">${t.description}</span>
-            ${t.cardLast4?`<span style="font-size:11px;color:var(--text2);margin-left:6px">****${t.cardLast4}</span>`:''}
+            ${t.cardLast4?'<span style="font-size:11px;color:var(--text2);margin-left:6px">****'+t.cardLast4+'</span>':''}
             <span style="font-size:11px;color:var(--text2);margin-left:6px">${fmtDate(t.date)}</span>
           </div>
           <span style="font-size:14px;font-weight:700">${fmt(t.amount)}</span>
         </div>
-      ${t.isDuplicate?`<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — ${fmt(t.amount)} on ${fmtDate(t.date)} already exists: "${t.duplicateOf?.description}". Check carefully.</div>`:''}
+      ${t.isDuplicate?'<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — '+fmt(t.amount)+' on '+fmtDate(t.date)+' already exists: "'+t.duplicateOf?.description+'". Check carefully.</div>':''}
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option><option value="Money Owed"${t.category==='Money Owed'?' selected':''}>💰 Money owed to you</option></select></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>'<option value="'+n+'"'+(n===t.category?' selected':'')+'>'+n+'</option>').join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option><option value="Money Owed"${t.category==='Money Owed'?' selected':''}>💰 Money owed to you</option></select></div>
         </div>
         <div id="csv-sub-c${i}" style="margin-top:8px">${renderCSVSubcatNamed('c'+i,t.category,t.subcat)}</div>
         <div id="csv-split-c${i}" style="display:none;margin-top:8px">
@@ -2768,14 +2743,14 @@ function openCSVReview(data){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">⚠ Manual entries — no credit card match found (${unmatchedManual.length})</div>`;
     unmatchedManual.forEach((t,i)=>{
       const cats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
-      const catOptions=cats.map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('');
+      const catOptions=cats.map(n=>'<option value="'+n+'"'+(n===t.category?' selected':'')+'>'+n+'</option>').join('');
       // Build subcategory options
       const getSubOpts=(catName,selVal)=>{
         let subs=[];
         if(catName==='Bills'||catName==='Presents'){const c=CATS.find(x=>x.name===catName);subs=c?.subs||[];}
         else if(['Additional','Additional Money'].includes(catName)){subs=['Renovations','Maternity',...(S.overall?.additionalCategories||[]).map(e=>e.name)];}
         if(!subs.length)return'';
-        return`<div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Sub-category</label><select id="um-sub-${i}" onchange="S.csvPending.unmatchedManual[${i}].subcat=this.value" style="width:100%;font-size:12px;padding:4px 6px"><option value="">-- Select --</option>${subs.map(s=>`<option value="${s}"${s===selVal?' selected':''}>${s}</option>`).join('')}</select></div>`;
+        return'<div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Sub-category</label><select id="um-sub-'+i+'" onchange="S.csvPending.unmatchedManual['+i+'].subcat=this.value" style="width:100%;font-size:12px;padding:4px 6px"><option value="">-- Select --</option>'+subs.map(s=>'<option value="'+s+'"'+(s===selVal?' selected':'')+'>'+s+'</option>').join('')+'</select></div>';
       };
       const subHtml=getSubOpts(t.category,t.subcat);
       if(t.keepAction){
@@ -2897,7 +2872,7 @@ function deleteFromCSVReview(type, idx){
 function renderCSVSubcatNamed(key,catName,selected){
   const cat=CATS.find(c=>c.name===catName);
   if(!cat?.subs)return'';
-  return`<div class="field" style="margin:0"><label>Sub-category</label><select onchange="updateSubcatValue('${key}',this.value)">${cat.subs.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('')}</select></div>`;
+  return'<div class="field" style="margin:0"><label>Sub-category</label><select onchange="updateSubcatValue(\''+key+'\',this.value)">'+cat.subs.map(s=>'<option value="'+s+'"'+(s===selected?' selected':'')+'>'+s+'</option>').join('')+'</select></div>';
 }
 function learnMerchant(desc,category){
   if(!desc||!category||category==='Split')return;
@@ -2941,7 +2916,7 @@ function addCSVSplitRow(key){
   div.className='csv-split-row split-row';
   div.style.marginBottom='6px';
   const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
-  div.innerHTML=`<select onchange="autoFillCSVSplit('${key}')" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}<option value="Other">Other</option><option value="Renovations">🏗 Renovations</option></select><input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" oninput="autoFillCSVSplit('${key}')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit('${key}')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button>`;
+  div.innerHTML='<select onchange="autoFillCSVSplit(\''+key+'\')" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>'+sortedCats.map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'<option value="Other">Other</option><option value="Renovations">🏗 Renovations</option></select><input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" oninput="autoFillCSVSplit(\''+key+'\')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit(\''+key+'\')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button>';
   container.appendChild(div);
   autoFillCSVSplit(key);
 }
@@ -2981,7 +2956,7 @@ function getCSVSplitRows(key){
   });
   return splits;
 }
-function renderCSVSubcat(i,catName,selected){const cat=CATS.find(c=>c.name===catName);if(!cat?.subs)return'';return`<div class="field" style="margin:0"><label>Sub-category</label><select>${cat.subs.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('')}</select></div>`;}
+function renderCSVSubcat(i,catName,selected){const cat=CATS.find(c=>c.name===catName);if(!cat?.subs)return'';return'<div class="field" style="margin:0"><label>Sub-category</label><select>'+cat.subs.map(s=>'<option value="'+s+'"'+(s===selected?' selected':'')+'>'+s+'</option>').join('')+'</select></div>';}
 function updateCSVSubcat(i,catName){const el=document.getElementById('csv-sub-'+i);if(el)el.innerHTML=renderCSVSubcat(i,catName,'');}
 
 function acceptCSVReview(){
@@ -3102,12 +3077,12 @@ function renderAMBody(){
   html+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px">`;
   allCats.forEach(c=>{
     html+=`<div class="stat" style="cursor:pointer;position:relative" onclick="editAMTile('${c.key}')">
-      <div class="stat-label">${c.name}${c.extra?` <span style="font-size:10px;color:var(--red);cursor:pointer" onclick="event.stopPropagation();removeAMExtra(${c.idx})">✕</span>`:''}
+      <div class="stat-label">${c.name}${c.extra?' <span style="font-size:10px;color:var(--red);cursor:pointer" onclick="event.stopPropagation();removeAMExtra('+c.idx+')">✕</span>':''}
       </div>
       <div id="am-tile-${c.key}">
         <div class="stat-value pos">${fmt(c.balance)}</div>
-        ${c.dateAdded?`<div style="font-size:10px;color:var(--text2);margin-top:2px">From ${fmtDate(c.dateAdded)}</div>`:''}
-        ${c.startingBalance?`<div style="font-size:10px;color:var(--text2)">Started ${fmt(c.startingBalance)}</div>`:''}
+        ${c.dateAdded?'<div style="font-size:10px;color:var(--text2);margin-top:2px">From '+fmtDate(c.dateAdded)+'</div>':''}
+        ${c.startingBalance?'<div style="font-size:10px;color:var(--text2)">Started '+fmt(c.startingBalance)+'</div>':''}
         <div style="font-size:11px;color:var(--blue);margin-top:4px">Tap to edit</div>
       </div>
       <div id="am-edit-${c.key}" style="display:none">
@@ -3355,12 +3330,12 @@ function updateQTSubcat(){
     if(val==='Bills'||val==='Presents'){
       if(cat?.subs){
         wrap.style.display='block';
-        sel.innerHTML='<option value="">-- Select sub-category --</option>'+cat.subs.map(s=>`<option value="${s}">${s}</option>`).join('');
+        sel.innerHTML='<option value="">-- Select sub-category --</option>'+cat.subs.map(s=>'<option value="'+s+'">'+s+'</option>').join('');
       } else {wrap.style.display='none';}
     } else if(val==='Additional'||val==='Additional Money'){
       const amSubs=['Renovations','Maternity',...(S.overall?.additionalCategories||[]).map(e=>e.name)];
       wrap.style.display='block';
-      sel.innerHTML='<option value="">-- Select sub-category --</option>'+amSubs.map(s=>`<option value="${s}">${s}</option>`).join('');
+      sel.innerHTML='<option value="">-- Select sub-category --</option>'+amSubs.map(s=>'<option value="'+s+'">'+s+'</option>').join('');
     } else {
       wrap.style.display='none';
     }
@@ -3376,7 +3351,7 @@ function addSplitRow(){
     <div style="display:flex;gap:6px;align-items:center">
       <select onchange="autoFillLastSplit()" style="flex:2;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
         <option value="">-- Category --</option>
-        ${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}
+        ${sortedCats.map(n=>'<option value="'+n+'">'+n+'</option>').join('')}
         <option value="Other">Other</option>
         <option value="NDIS">🏥 NDIS</option>
         <option value="Renovations">🏗 Renovations</option>
@@ -3870,18 +3845,7 @@ function openNdisCatDetail(catId){
     </div>
     <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Invoices (${allTxs.length})</div>
     <div class="tx-list">
-      ${allTxs.length?allTxs.map(t=>`
-        <div class="tx" style="border-left:3px solid ${NDIS_STATUS_COLORS[t.status]};background:${t.status==='unpaid'?'var(--rl)':'var(--surface)'}" onclick="closeModal('txDetail');setTimeout(()=>openNdisTxDetail('${t.id}'),100)">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:500">${t.num}. ${t.provider}${t.invoiceNo?' — '+t.invoiceNo:''}</div>
-            <div style="font-size:11px;color:var(--text2)">${fmtDate(t.date)} · ${t.comments}</div>
-          </div>
-          <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-            <div style="font-size:13px;font-weight:700">${fmt(t.amount)}</div>
-
-            ${(S.workflowData?.['ndisFileLink_'+t.id]||t.driveLink)?`<a href="${S.workflowData?.['ndisFileLink_'+t.id]||t.driveLink}" target="_blank" style="font-size:10px;color:var(--blue)" onclick="event.stopPropagation()">📄 Invoice</a>`:''}
-          </div>
-        </div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No invoices yet</div>'}
+      ${allTxs.length?allTxs.map(t=>'<div class="tx" style="border-left:3px solid '+NDIS_STATUS_COLORS[t.status]+';background:'+(t.status==='unpaid'?'var(--rl)':'var(--surface)')+'" onclick="closeModal(\'txDetail\');setTimeout(()=>openNdisTxDetail(\''+t.id+'\'),100)"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">'+t.num+'. '+t.provider+(t.invoiceNo?' — '+t.invoiceNo:'')+'</div><div style="font-size:11px;color:var(--text2)">'+fmtDate(t.date)+' · '+t.comments+'</div></div><div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div style="font-size:13px;font-weight:700">'+fmt(t.amount)+'</div>'+(S.workflowData?.['ndisFileLink_'+t.id]||t.driveLink?'<a href="'+(S.workflowData?.['ndisFileLink_'+t.id]||t.driveLink)+'" target="_blank" style="font-size:10px;color:var(--blue)" onclick="event.stopPropagation()">📄 Invoice</a>':'')+'</div></div>').join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No invoices yet</div>'}
     </div>`;
   document.getElementById('txd-actions').innerHTML=`
     <button class="btn btn-sm btn-primary" onclick="closeModal('txDetail');openModal('addNdis')">+ Add invoice</button>
@@ -3905,17 +3869,10 @@ function openNdisTxDetail(id){
       <div class="stat"><div class="stat-label">Category</div><div class="stat-value" style="font-size:12px">${cat?.name||''}</div></div>
 
     </div>
-    ${t.comments?`<div style="font-size:13px;color:var(--text2);margin-bottom:12px">📝 ${t.comments}</div>`:''}
+    ${t.comments?'<div style="font-size:13px;color:var(--text2);margin-bottom:12px">📝 '+t.comments+'</div>':''}
     ${(t.driveLink||S.workflowData?.['ndisFileLink_'+t.id])?
-      `<a href="${t.driveLink||S.workflowData['ndisFileLink_'+t.id]}" target="_blank" class="btn btn-sm" style="margin-bottom:12px;display:inline-flex">📄 View invoice in Drive</a>`:
-      `<div style="margin-bottom:12px">
-        <div style="font-size:12px;color:var(--text2);margin-bottom:6px">No invoice uploaded yet</div>
-        <label for="ndis-retro-up-${t.id}" class="upload-zone" style="padding:8px 12px;text-align:center;display:block;cursor:pointer">
-          <div style="font-size:12px">📎 Upload invoice to Drive</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px">PDF or image</div>
-        </label>
-        <input type="file" id="ndis-retro-up-${t.id}" accept=".pdf,image/*" onchange="handleRetroNdisUpload(event,'${t.id}','${t.cat}')" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
-      </div>`}
+      '<a href="'+(t.driveLink||S.workflowData['ndisFileLink_'+t.id])+'" target="_blank" class="btn btn-sm" style="margin-bottom:12px;display:inline-flex">📄 View invoice in Drive</a>':
+      '<div style="margin-bottom:12px"><div style="font-size:12px;color:var(--text2);margin-bottom:6px">No invoice uploaded yet</div><label for="ndis-retro-up-'+t.id+'" class="upload-zone" style="padding:8px 12px;text-align:center;display:block;cursor:pointer"><div style="font-size:12px">📎 Upload invoice to Drive</div><div style="font-size:11px;color:var(--text2);margin-top:2px">PDF or image</div></label><input type="file" id="ndis-retro-up-'+t.id+'" accept=".pdf,image/*" onchange="handleRetroNdisUpload(event,\''+t.id+'\',\''+t.cat+'\')" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none"></div>'}
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px">
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Suggested filename</div>
       <div style="font-size:12px;font-family:monospace;word-break:break-all;color:var(--text)">${filename}</div>
@@ -3925,7 +3882,7 @@ function openNdisTxDetail(id){
 
   document.getElementById('txd-actions').innerHTML=`
     <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="if(confirm('Delete this NDIS invoice?')){deleteNdisTx('${t.id}');closeModal('txDetail');}">🗑 Delete</button>
-    ${(t.driveLink||S.workflowData?.['ndisFileLink_'+t.id])?`<a href="${t.driveLink||S.workflowData?.['ndisFileLink_'+t.id]}" target="_blank" class="btn btn-sm">📄 View invoice</a>`:''}
+    ${(t.driveLink||S.workflowData?.['ndisFileLink_'+t.id])?'<a href="'+(t.driveLink||S.workflowData?.['ndisFileLink_'+t.id])+'" target="_blank" class="btn btn-sm">📄 View invoice</a>':''}
     <button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   openModal('txDetail');
 }
