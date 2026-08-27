@@ -2580,14 +2580,20 @@ function handleCSV(e){
     const prevTxs=S.transactions.filter(t=>t.status==='accepted'&&prevCycleIds.has(t.id));
 
     for(const csv of csvTxs){
-      // First try exact amount match on single transaction
+      // First try exact amount match on single transaction (same date)
       const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<2&&m.date===csv.date);
       if(manualMatch){
         matchedManualIds.add(manualMatch.id);
         merged.push({csv,manual:manualMatch,action:'merge'});
       } else {
-        // Try matching split transactions — only match transactions from the same splitGroupId group
-        const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&m.date===csv.date);
+        // Try matching split transactions — allow ±1 day for date (CSV date may differ from entry date)
+        const csvDateObj=new Date(csv.date+'T00:00:00');
+        const dayBefore=new Date(csvDateObj);dayBefore.setDate(dayBefore.getDate()-1);
+        const dayAfter=new Date(csvDateObj);dayAfter.setDate(dayAfter.getDate()+1);
+        const d0=csv.date;
+        const d1=dayBefore.toISOString().split('T')[0];
+        const d2=dayAfter.toISOString().split('T')[0];
+        const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&(m.date===d0||m.date===d1||m.date===d2));
         // Group by splitGroupId
         const splitGroups={};
         for(const m of sameDatePending){
@@ -2598,7 +2604,7 @@ function handleCSV(e){
         }
         // Also include same-date accepted manual Money Owed transactions that share a splitGroupId
         const sameDateAccepted=S.transactions.filter(t=>
-          t.status==='accepted'&&t.source==='manual'&&t.date===csv.date&&
+          t.status==='accepted'&&t.source==='manual'&&(t.date===d0||t.date===d1||t.date===d2)&&
           !matchedManualIds.has(t.id)&&t.splitGroupId&&
           (t.category==='💰 Add to Money Owed'||t.notes==='Added to Money Owed on dashboard')
         );
@@ -2610,8 +2616,19 @@ function handleCSV(e){
         let matchedSubset=null;
         for(const grpId of Object.keys(splitGroups)){
           const grp=splitGroups[grpId];
-          const sum=grp.reduce((a,t)=>a+(t.splitTotal||t.amount),0);
+          const sum=grp.reduce((a,t)=>a+t.amount,0);
           if(Math.abs(sum-csv.amount)<2){matchedSubset=grp;break;}
+        }
+        // Fallback: for transactions without splitGroupId, try any subset matching
+        if(!matchedSubset){
+          const noGroupPending=sameDatePending.filter(m=>!m.splitGroupId);
+          const noGroupAccepted=S.transactions.filter(t=>
+            t.status==='accepted'&&t.source==='manual'&&(t.date===d0||t.date===d1||t.date===d2)&&
+            !t.splitGroupId&&!matchedManualIds.has(t.id)&&
+            (t.category==='💰 Add to Money Owed'||t.notes==='Added to Money Owed on dashboard')
+          );
+          const noGroupAll=[...noGroupPending,...noGroupAccepted];
+          if(noGroupAll.length)matchedSubset=findMatchingSubset(noGroupAll,csv.amount);
         }
         if(matchedSubset){
           matchedSubset.forEach(m=>matchedManualIds.add(m.id));
