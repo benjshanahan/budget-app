@@ -1360,9 +1360,6 @@ function renderWorkflow(){
     return;
   }
   const pending=S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').length;
-  const allDone=steps.every(s=>!!wd['s'+s.n]);
-  document.getElementById('workflow-area').innerHTML=`
-  const pending=S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').length;
   const newWd=S.workflowData||{};
   const allStepsDone=steps.every(s=>!!newWd['s'+s.n]);
   document.getElementById('workflow-area').innerHTML=`
