@@ -1270,7 +1270,7 @@ function renderBudgetGrid(){
         <div style="position:absolute;top:-2px;height:8px;width:2px;background:var(--text2);border-radius:1px;left:${fnMarkerPct.toFixed(1)}%;transform:translateX(-50%)"></div>
       </div>
       <div class="bc-meta"><span class="${pvBlur}">${cat.isSpending?'Current balance':''}</span><span class="${pvBlur}">${cat.isSpending?'':note||Math.round(yPct)+'% of '+fmt(cat.yearly)+' yearly'}</span></div>
-      ${cat.isSpending?`<button class="btn btn-sm" style="margin-top:4px;font-size:11px;width:100%" onclick="event.stopPropagation();editSpendingBalance('${cat.person}')">✏ Edit balance</button>`:''}`;
+      ${cat.isSpending?'<button class="btn btn-sm" style="margin-top:4px;font-size:11px;width:100%" onclick="event.stopPropagation();editSpendingBalance(\''+cat.person+'\')">✏ Edit balance</button>':''}`;
     el.onclick=()=>openCatDetail(cat.name);
     grid.appendChild(el);
   }
@@ -2205,11 +2205,6 @@ function openNdisModal(catId){
   if(sel){sel.innerHTML=`<option value="">-- Select category --</option>`+NDIS_CATS.map(c=>`<option value="${c.id}"${c.id===catId?' selected':''}>${c.name}</option>`).join('');}
   document.getElementById('modal-addNdis').classList.add('open');
 }
-  // Preview filename on input
-  ['ndis-provider','ndis-invno','ndis-date','ndis-amount'].forEach(id=>{
-    document.getElementById(id)?.addEventListener('input',previewNdisFilename);
-  });
-}
 function previewNdisFilename(){
   const provider=document.getElementById('ndis-provider')?.value||'';
   const invNo=document.getElementById('ndis-invno')?.value||'';
@@ -2812,7 +2807,7 @@ function openCSVReview(data){
           <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='remove';setTimeout(()=>openCSVReview(S.csvPending),300)">Remove</button>
         </div>
       </div>`;
-  }
+  });
 
   document.getElementById('csv-review-body').innerHTML=html;
   openModal('csvReview');
@@ -3074,13 +3069,6 @@ function acceptCSVReview(){
   }
 }
 
-function openAdditionalMoneyDetail(){
-  document.getElementById('am-reno').value=(S.overall.renovationsBalance||0).toFixed(2);
-  document.getElementById('am-mat').value=(S.overall.maternityBalance||0).toFixed(2);
-  document.getElementById('am-reno-display').textContent=fmt(S.overall.renovationsBalance||0);
-  document.getElementById('am-mat-display').textContent=fmt(S.overall.maternityBalance||0);
-  openModal('additionalMoney');
-}
 function openAdditionalMoneyDetail(){
   renderAMBody();
   openModal('additionalMoney');
