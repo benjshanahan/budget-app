@@ -1152,13 +1152,7 @@ function renderBudgetOverview(){
           </tr>
         </thead>
         <tbody>
-          ${rows.map((r,i)=>`
-            <tr style="border-bottom:1px solid var(--border);background:${i%2===0?'var(--surface)':'var(--surface2)'}">
-              <td style="padding:7px 10px">${r.name}</td>
-              <td style="text-align:right;padding:7px 10px" class="${blur}">${fmt(r.weekly)}</td>
-              <td style="text-align:right;padding:7px 10px;font-weight:500" class="${blur}">${fmt(r.fn)}</td>
-              <td style="text-align:right;padding:7px 10px;font-weight:500" class="${blur}">${fmt(r.yearly)}</td>
-            </tr>`).join('')}
+          ${rows.map((r,i)=>'<tr style="border-bottom:1px solid var(--border);background:'+(i%2===0?'var(--surface)':'var(--surface2)')+'"><td style="padding:7px 10px">'+r.name+'</td><td style="text-align:right;padding:7px 10px" class="'+blur+'">'+fmt(r.weekly)+'</td><td style="text-align:right;padding:7px 10px;font-weight:500" class="'+blur+'">'+fmt(r.fn)+'</td><td style="text-align:right;padding:7px 10px;font-weight:500" class="'+blur+'">'+fmt(r.yearly)+'</td></tr>').join('')}
           <tr style="border-top:2px solid var(--border);background:var(--gl);font-weight:700">
             <td style="padding:8px 10px">Total</td>
             <td style="text-align:right;padding:8px 10px" class="${blur}">${fmt(rows.reduce((a,r)=>a+r.weekly,0))}</td>
