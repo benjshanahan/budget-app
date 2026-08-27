@@ -2513,6 +2513,18 @@ function parseMyCardDate(str){
   return s;
 }
 
+function findMatchingSubset(txs,target,tolerance=2){
+  const total=txs.reduce((a,t)=>a+t.amount,0);
+  if(Math.abs(total-target)<tolerance)return txs;
+  const n=Math.min(txs.length,8);
+  for(let mask=1;mask<(1<<n);mask++){
+    const subset=txs.filter((_,i)=>mask&(1<<i));
+    if(subset.length<2)continue;
+    const sum=subset.reduce((a,t)=>a+t.amount,0);
+    if(Math.abs(sum-target)<tolerance)return subset;
+  }
+  return null;
+}
 function handleCSV(e){
   const file=e.target.files[0];if(!file)return;
   const reader=new FileReader();
@@ -2567,20 +2579,6 @@ function handleCSV(e){
         );
         const sameDateAll=[...sameDatePending,...sameDateAccepted];
         // Try all subsets of same-date transactions to find one that sums to CSV amount
-        function findMatchingSubset(txs,target,tolerance=2){
-          // Try full set first
-          const total=txs.reduce((a,t)=>a+t.amount,0);
-          if(Math.abs(total-target)<tolerance)return txs;
-          // Try subsets (up to 8 items for performance)
-          const n=Math.min(txs.length,8);
-          for(let mask=1;mask<(1<<n);mask++){
-            const subset=txs.filter((_,i)=>mask&(1<<i));
-            if(subset.length<2)continue;
-            const sum=subset.reduce((a,t)=>a+t.amount,0);
-            if(Math.abs(sum-target)<tolerance)return subset;
-          }
-          return null;
-        }
         const matchedSubset=findMatchingSubset(sameDateAll,csv.amount);
         if(matchedSubset){
           matchedSubset.forEach(m=>matchedManualIds.add(m.id));
@@ -2614,93 +2612,32 @@ function handleCSV(e){
 function openCSVReview(data){
   const{merged,unmatchedCSV,unmatchedManual}=data;
   const total=merged.length+unmatchedCSV.length+unmatchedManual.length;
-  let html=`<div style="font-size:13px;color:var(--text2);margin-bottom:14px">${total} transactions to review — ${merged.length} matched to manual entries, ${unmatchedCSV.length} new from CSV, ${unmatchedManual.length} manual with no CSV match.</div>`;
+  let html='<div style="font-size:13px;color:var(--text2);margin-bottom:14px">'+total+' transactions to review — '+merged.length+' matched to manual entries, '+unmatchedCSV.length+' new from CSV, '+unmatchedManual.length+' manual with no CSV match.</div>';
 
   // Section 1: Merged (manual + CSV match)
   if(merged.length){
-    html+=`<div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">✓ Matched — manual entry + credit card (${merged.length})</div>`;
+    html+='<div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">✓ Matched — manual entry + credit card ('+merged.length+')</div>';
     merged.forEach((m,i)=>{
-      if(m._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('m${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${m.csv.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(m.csv.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${m.csv.category} · Matched</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
+      if(m._reviewed){html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed(\'m'+i+'\')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">'+m.csv.description+'</span><span style="font-size:13px;color:var(--gd);font-weight:600">'+fmt(m.csv.amount)+'</span><span style="font-size:11px;color:var(--text2);margin-left:8px">'+m.csv.category+' · Matched</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>';return;}
       const manualDesc=m.action==='merge-split'
         ? m.manualGroup.map(t=>t.description+' ('+fmt(t.amount)+')').join(', ')
         : '"'+m.manual.description+'" · '+m.manual.category+' · '+fmt(m.manual.amount);
-      html+=`<div style="border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--gl)">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
-          <div>
-            <div style="font-size:13px;font-weight:700;color:var(--gd)">${m.csv.description}</div>
-            <div style="font-size:11px;color:var(--green)">${m.action==='merge-split'?'Split match: ':' Manual entry: '}${manualDesc}</div>
-          </div>
-          <span style="font-size:15px;font-weight:700;color:var(--gd)">${fmt(m.csv.amount)}</span>
-        </div>
-        <div class="frow">
-          <div class="field" style="margin:0"><label>Date</label><input type="date" value="${m.csv.date}" onchange="S.csvPending.merged[${i}].csv.date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged[${i}].csv.category=this.value;updateMergedSubcat('m${i}',this.value)">${CATS.map(c=>'<option value="'+c.name+'"'+(c.name===m.csv.category?' selected':'')+'>'+c.name+'</option>').join('')}<option value="Other">Other</option></select></div>
-        </div>
-        <div id="csv-sub-m${i}" style="margin-top:8px">`+renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)+`</div>
-        <div id="csv-desc-m${i}" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="${m.manual?.description||m.csv.description}" onchange="S.csvPending.merged[${i}].csv.description=this.value;if(S.csvPending.merged[${i}].manual)S.csvPending.merged[${i}].manual.description=this.value" style="width:100%"></div>
-        <details style="margin-top:8px;margin-bottom:4px">
-          <summary style="font-size:11px;color:var(--blue);cursor:pointer;padding:4px 0">Edit manual entry details</summary>
-          <div style="padding:8px;background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border);margin-top:4px">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-              <div><label style="font-size:11px;color:var(--text2)">Date</label><input type="date" value="${m.manual?.date||m.csv.date}" onchange="if(S.csvPending.merged[${i}].manual)S.csvPending.merged[${i}].manual.date=this.value" style="width:100%;font-size:12px;padding:4px 6px"></div>
-              <div><label style="font-size:11px;color:var(--text2)">Amount ($)</label><input type="number" value="${m.manual?.amount||m.csv.amount}" step="0.01" onchange="if(S.csvPending.merged[${i}].manual)S.csvPending.merged[${i}].manual.amount=parseFloat(this.value)" style="width:100%;font-size:12px;padding:4px 6px"></div>
-            </div>
-            <div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Description</label><input type="text" value="${m.manual?.description||''}" onchange="if(S.csvPending.merged[${i}].manual)S.csvPending.merged[${i}].manual.description=this.value" style="width:100%;font-size:12px;padding:4px 6px"></div>
-            <div style="margin-bottom:4px"><label style="font-size:11px;color:var(--text2)">Category</label><select onchange="if(S.csvPending.merged[${i}].manual){S.csvPending.merged[${i}].manual.category=this.value;}" style="width:100%;font-size:12px;padding:4px 6px">${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>'<option value="'+n+'"'+(n===(m.manual?.category||m.csv.category)?' selected':'')+'>'+n+'</option>').join('')}</select></div>
-          </div>
-        </details>
-        <div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: credit card transaction matched — manual entry will be updated with edits above</div>
-        <button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue);margin-top:8px;width:100%" onclick="toggleAddFromUnmatched('m${i}',${i},'merged')">+ Add from unmatched transactions</button>
-        <div id="csv-add-unmatched-m${i}" style="display:none;margin-top:6px"></div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="unmatchFromCSVReview(${i})">↩ Unmatch</button>
-          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('merged',${i})">🗑 Remove</button>
-          <button class="btn btn-sm btn-primary" style="background:var(--green);border-color:var(--gd);flex:1" onclick="markCSVReviewed('m${i}',this.closest('div'))">✓ Reviewed</button>
-        </div>
-      </div>`;
+      html+='<div style="border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--gl)"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px"><div><div style="font-size:13px;font-weight:700;color:var(--gd)">'+m.csv.description+'</div><div style="font-size:11px;color:var(--green)">'+(m.action==='merge-split'?'Split match: ':' Manual entry: ')+manualDesc+'</div></div><span style="font-size:15px;font-weight:700;color:var(--gd)">'+fmt(m.csv.amount)+'</span></div><div class="frow"><div class="field" style="margin:0"><label>Date</label><input type="date" value="'+m.csv.date+'" onchange="S.csvPending.merged['+i+'].csv.date=this.value"></div><div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.merged['+i+'].csv.category=this.value;updateMergedSubcat(\'m'+i+'\',this.value)">'+CATS.map(c=>'<option value="'+c.name+'"'+(c.name===m.csv.category?' selected':'')+'>'+c.name+'</option>').join('')+'<option value="Other">Other</option></select></div></div><div id="csv-sub-m'+i+'" style="margin-top:8px">'+renderCSVSubcatNamed('m'+i,m.csv.category,m.csv.subcat)+'</div><div id="csv-desc-m'+i+'" class="field" style="margin-top:8px;margin-bottom:4px"><label>Summary / description</label><input type="text" value="'+(m.manual?.description||m.csv.description)+'" onchange="S.csvPending.merged['+i+'].csv.description=this.value;if(S.csvPending.merged['+i+'].manual)S.csvPending.merged['+i+'].manual.description=this.value" style="width:100%"></div><details style="margin-top:8px;margin-bottom:4px"><summary style="font-size:11px;color:var(--blue);cursor:pointer;padding:4px 0">Edit manual entry details</summary><div style="padding:8px;background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border);margin-top:4px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px"><div><label style="font-size:11px;color:var(--text2)">Date</label><input type="date" value="'+(m.manual?.date||m.csv.date)+'" onchange="if(S.csvPending.merged['+i+'].manual)S.csvPending.merged['+i+'].manual.date=this.value" style="width:100%;font-size:12px;padding:4px 6px"></div><div><label style="font-size:11px;color:var(--text2)">Amount ($)</label><input type="number" value="'+(m.manual?.amount||m.csv.amount)+'" step="0.01" onchange="if(S.csvPending.merged['+i+'].manual)S.csvPending.merged['+i+'].manual.amount=parseFloat(this.value)" style="width:100%;font-size:12px;padding:4px 6px"></div></div><div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Description</label><input type="text" value="'+(m.manual?.description||'')+'" onchange="if(S.csvPending.merged['+i+'].manual)S.csvPending.merged['+i+'].manual.description=this.value" style="width:100%;font-size:12px;padding:4px 6px"></div><div style="margin-bottom:4px"><label style="font-size:11px;color:var(--text2)">Category</label><select onchange="if(S.csvPending.merged['+i+'].manual){S.csvPending.merged['+i+'].manual.category=this.value;}" style="width:100%;font-size:12px;padding:4px 6px">'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>'<option value="'+n+'"'+(n===(m.manual?.category||m.csv.category)?' selected':'')+'>'+n+'</option>').join('')+'</select></div></div></details><div style="font-size:11px;color:var(--green);margin-top:4px">Will merge: credit card transaction matched — manual entry will be updated with edits above</div><button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue);margin-top:8px;width:100%" onclick="toggleAddFromUnmatched(\'m'+i+'\','+i+',\'merged\')">+ Add from unmatched transactions</button><div id="csv-add-unmatched-m'+i+'" style="display:none;margin-top:6px"></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="unmatchFromCSVReview('+i+')">↩ Unmatch</button><button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview(\'merged\','+i+')">🗑 Remove</button><button class="btn btn-sm btn-primary" style="background:var(--green);border-color:var(--gd);flex:1" onclick="markCSVReviewed(\'m'+i+'\',this.closest(\'div\'))">✓ Reviewed</button></div></div>';
     });
   }
 
   // Section 2: Unmatched CSV transactions
   if(unmatchedCSV.length){
-    html+=`<div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">New credit card transactions (${unmatchedCSV.length})</div>`;
+    html+='<div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">New credit card transactions ('+unmatchedCSV.length+')</div>';
     unmatchedCSV.forEach((t,i)=>{
-      if(t._reviewed){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed('c${i}')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${t.description}</span><span style="font-size:13px;color:var(--gd);font-weight:600">${fmt(t.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">${t.category}${t.cardLast4?' · ****'+t.cardLast4:''}</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
-      html+=`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px">
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-          <div>
-            <span style="font-size:13px;font-weight:600">${t.description}</span>
-            ${t.cardLast4?'<span style="font-size:11px;color:var(--text2);margin-left:6px">****'+t.cardLast4+'</span>':''}
-            <span style="font-size:11px;color:var(--text2);margin-left:6px">${fmtDate(t.date)}</span>
-          </div>
-          <span style="font-size:14px;font-weight:700">${fmt(t.amount)}</span>
-        </div>
-      ${t.isDuplicate?'<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — '+fmt(t.amount)+' on '+fmtDate(t.date)+' already exists: "'+t.duplicateOf?.description+'". Check carefully.</div>':''}
-        <div class="frow">
-          <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>'<option value="'+n+'"'+(n===t.category?' selected':'')+'>'+n+'</option>').join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option><option value="Money Owed"${t.category==='Money Owed'?' selected':''}>💰 Money owed to you</option></select></div>
-        </div>
-        <div id="csv-sub-c${i}" style="margin-top:8px">`+renderCSVSubcatNamed('c'+i,t.category,t.subcat)+`</div>
-        <div id="csv-split-c${i}" style="display:none;margin-top:8px">
-          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Split amounts</div>
-          <div id="csv-split-rows-c${i}"></div>
-          <button class="btn btn-sm" onclick="addCSVSplitRow('c${i}')" style="margin-top:4px">+ Add split</button>
-        </div>
-        <div id="csv-desc-c${i}" class="field" style="margin-top:8px;margin-bottom:0"><label>Summary / description</label><input type="text" value="${t.description}" onchange="S.csvPending.unmatchedCSV[${i}].description=this.value" style="width:100%"></div>
-        <div id="csv-owed-c${i}" class="field" style="margin-top:8px;margin-bottom:0;display:${t.category==='Money Owed'?'block':'none'}"><label>Who owes you?</label><input type="text" id="csv-owed-desc-c${i}" placeholder="e.g. John owes for dinner" value="${t.owedDesc||''}" onchange="S.csvPending.unmatchedCSV[${i}].owedDesc=this.value" style="width:100%"></div>
-        <button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue);margin-top:8px;width:100%" onclick="toggleAddFromUnmatched('c${i}',${i},'csv')">+ Add from unmatched transactions</button>
-        <div id="csv-add-unmatched-c${i}" style="display:none;margin-top:6px"></div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview('csv',${i})">🗑 Remove</button>
-          <button class="btn btn-sm btn-primary" style="background:var(--green);border-color:var(--gd);flex:1" onclick="markCSVReviewed('c${i}',this.closest('div'))">✓ Reviewed</button>
-        </div>
-      </div>`;
+      if(t._reviewed){html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed(\'c'+i+'\')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">'+t.description+'</span><span style="font-size:13px;color:var(--gd);font-weight:600">'+fmt(t.amount)+'</span><span style="font-size:11px;color:var(--text2);margin-left:8px">'+t.category+(t.cardLast4?' · ****'+t.cardLast4:'')+'</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>';return;}
+      html+='<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:8px"><div><span style="font-size:13px;font-weight:600">'+t.description+'</span>'+(t.cardLast4?'<span style="font-size:11px;color:var(--text2);margin-left:6px">****'+t.cardLast4+'</span>':'')+'<span style="font-size:11px;color:var(--text2);margin-left:6px">'+fmtDate(t.date)+'</span></div><span style="font-size:14px;font-weight:700">'+fmt(t.amount)+'</span></div>'+(t.isDuplicate?'<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — '+fmt(t.amount)+' on '+fmtDate(t.date)+' already exists: "'+t.duplicateOf?.description+'". Check carefully.</div>':'')+'<div class="frow"><div class="field" style="margin:0"><label>Date</label><input type="date" value="'+t.date+'" onchange="S.csvPending.unmatchedCSV['+i+'].date=this.value"></div><div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV['+i+'].category=this.value;updateMergedSubcat(\'c'+i+'\',this.value);toggleCSVSplit(\'c'+i+'\',this.value,'+i+',\'unmatched\');learnMerchant(\''+t.description+'\',this.value)"><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>'<option value="'+n+'"'+(n===t.category?' selected':'')+'>'+n+'</option>').join('')+'<option value="Other"'+(t.category==='Other'?' selected':'')+'>Other</option><option value="NDIS"'+(t.category==='NDIS'?' selected':'')+'>🏥 NDIS</option><option value="Renovations"'+(t.category==='Renovations'?' selected':'')+'>🏗 Renovations</option><option value="Money Owed"'+(t.category==='Money Owed'?' selected':'')+'>💰 Money owed to you</option></select></div></div><div id="csv-sub-c'+i+'" style="margin-top:8px">'+renderCSVSubcatNamed('c'+i,t.category,t.subcat)+'</div><div id="csv-split-c'+i+'" style="display:none;margin-top:8px"><div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Split amounts</div><div id="csv-split-rows-c'+i+'"></div><button class="btn btn-sm" onclick="addCSVSplitRow(\'c'+i+'\')" style="margin-top:4px">+ Add split</button></div><div id="csv-desc-c'+i+'" class="field" style="margin-top:8px;margin-bottom:0"><label>Summary / description</label><input type="text" value="'+t.description+'" onchange="S.csvPending.unmatchedCSV['+i+'].description=this.value" style="width:100%"></div><div id="csv-owed-c'+i+'" class="field" style="margin-top:8px;margin-bottom:0;display:'+(t.category==='Money Owed'?'block':'none')+'"><label>Who owes you?</label><input type="text" id="csv-owed-desc-c'+i+'" placeholder="e.g. John owes for dinner" value="'+(t.owedDesc||'')+'" onchange="S.csvPending.unmatchedCSV['+i+'].owedDesc=this.value" style="width:100%"></div><button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue);margin-top:8px;width:100%" onclick="toggleAddFromUnmatched(\'c'+i+'\','+i+',\'csv\')">+ Add from unmatched transactions</button><div id="csv-add-unmatched-c'+i+'" style="display:none;margin-top:6px"></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteFromCSVReview(\'csv\','+i+')">🗑 Remove</button><button class="btn btn-sm btn-primary" style="background:var(--green);border-color:var(--gd);flex:1" onclick="markCSVReviewed(\'c'+i+'\',this.closest(\'div\'))">✓ Reviewed</button></div></div>';
     });
   }
 
   // Section 3: Manual transactions with no CSV match
   if(unmatchedManual.length){
-    html+=`<div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">⚠ Manual entries — no credit card match found (${unmatchedManual.length})</div>`;
+    html+='<div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">⚠ Manual entries — no credit card match found ('+unmatchedManual.length+')</div>';
     unmatchedManual.forEach((t,i)=>{
       const cats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
       const catOptions=cats.map(n=>'<option value="'+n+'"'+(n===t.category?' selected':'')+'>'+n+'</option>').join('');
@@ -2715,34 +2652,12 @@ function openCSVReview(data){
       const subHtml=getSubOpts(t.category,t.subcat);
       if(t.keepAction){
         const isKeep=t.keepAction==='keep';
-        html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ${isKeep?'var(--green)':'var(--red)'};border-radius:var(--radius-sm);background:${isKeep?'var(--gl)':'var(--rl)'};margin-bottom:6px;cursor:pointer;opacity:0.8" onclick="S.csvPending.unmatchedManual[${i}].keepAction=undefined;openCSVReview(S.csvPending)">
-          <span style="color:${isKeep?'var(--green)':'var(--red)'};font-size:16px">${isKeep?'✓':'✕'}</span>
-          <span style="font-size:13px;font-weight:500;flex:1">${t.description}</span>
-          <span style="font-size:13px;font-weight:600">${fmt(t.amount)}</span>
-          <span style="font-size:11px;color:var(--text2);margin-left:8px">${fmtDate(t.date)} · ${t.category}${t.subcat?' · '+t.subcat:''} · ${isKeep?'Keep':'Remove'}</span>
-          <span style="font-size:11px;color:var(--text2)">tap to edit</span>
-        </div>`;
+        html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid '+(isKeep?'var(--green)':'var(--red)')+';border-radius:var(--radius-sm);background:'+(isKeep?'var(--gl)':'var(--rl)')+';margin-bottom:6px;cursor:pointer;opacity:0.8" onclick="S.csvPending.unmatchedManual['+i+'].keepAction=undefined;openCSVReview(S.csvPending)"><span style="color:'+(isKeep?'var(--green)':'var(--red)')+';font-size:16px">'+(isKeep?'✓':'✕')+'</span><span style="font-size:13px;font-weight:500;flex:1">'+t.description+'</span><span style="font-size:13px;font-weight:600">'+fmt(t.amount)+'</span><span style="font-size:11px;color:var(--text2);margin-left:8px">'+fmtDate(t.date)+' · '+t.category+(t.subcat?' · '+t.subcat:'')+' · '+(isKeep?'Keep':'Remove')+'</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>';
         return;
       }
-      html+=`<div style="border:1px solid #E8C060;border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--al)">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
-          <div style="font-size:11px;color:var(--amber)">Manual entry · no credit card match</div>
-          <span style="font-size:13px;font-weight:700">${fmt(t.amount)}</span>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-          <div><label style="font-size:11px;color:var(--text2)">Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedManual[${i}].date=this.value" style="width:100%;font-size:12px;padding:4px 6px"></div>
-          <div><label style="font-size:11px;color:var(--text2)">Amount ($)</label><input type="number" value="${t.amount}" step="0.01" onchange="S.csvPending.unmatchedManual[${i}].amount=parseFloat(this.value)" style="width:100%;font-size:12px;padding:4px 6px"></div>
-        </div>
-        <div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Description</label><input type="text" value="${t.description}" onchange="S.csvPending.unmatchedManual[${i}].description=this.value" style="width:100%;font-size:12px;padding:4px 6px"></div>
-        <div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Category</label><select onchange="S.csvPending.unmatchedManual[${i}].category=this.value;S.csvPending.unmatchedManual[${i}].subcat='';openCSVReview(S.csvPending)" style="width:100%;font-size:12px;padding:4px 6px">${catOptions}</select></div>
-        ${subHtml}
-        <div style="font-size:12px;color:#7A5A10;margin-bottom:8px">No matching credit card entry — was it paid by cash/debit, or still to appear on your statement?</div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='keep';setTimeout(()=>openCSVReview(S.csvPending),300)">Keep as-is</button>
-          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='remove';setTimeout(()=>openCSVReview(S.csvPending),300)">Remove</button>
-        </div>
-      </div>`;
+      html+='<div style="border:1px solid #E8C060;border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--al)"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px"><div style="font-size:11px;color:var(--amber)">Manual entry · no credit card match</div><span style="font-size:13px;font-weight:700">'+fmt(t.amount)+'</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px"><div><label style="font-size:11px;color:var(--text2)">Date</label><input type="date" value="'+t.date+'" onchange="S.csvPending.unmatchedManual['+i+'].date=this.value" style="width:100%;font-size:12px;padding:4px 6px"></div><div><label style="font-size:11px;color:var(--text2)">Amount ($)</label><input type="number" value="'+t.amount+'" step="0.01" onchange="S.csvPending.unmatchedManual['+i+'].amount=parseFloat(this.value)" style="width:100%;font-size:12px;padding:4px 6px"></div></div><div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Description</label><input type="text" value="'+t.description+'" onchange="S.csvPending.unmatchedManual['+i+'].description=this.value" style="width:100%;font-size:12px;padding:4px 6px"></div><div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text2)">Category</label><select onchange="S.csvPending.unmatchedManual['+i+'].category=this.value;S.csvPending.unmatchedManual['+i+'].subcat=\'\';openCSVReview(S.csvPending)" style="width:100%;font-size:12px;padding:4px 6px">'+catOptions+'</select></div>'+subHtml+'<div style="font-size:12px;color:#7A5A10;margin-bottom:8px">No matching credit card entry — was it paid by cash/debit, or still to appear on your statement?</div><div style="display:flex;gap:8px"><button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="S.csvPending.unmatchedManual['+i+'].keepAction=\'keep\';setTimeout(()=>openCSVReview(S.csvPending),300)">Keep as-is</button><button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="S.csvPending.unmatchedManual['+i+'].keepAction=\'remove\';setTimeout(()=>openCSVReview(S.csvPending),300)">Remove</button></div></div>';
   });
+  }
 
   document.getElementById('csv-review-body').innerHTML=html;
   openModal('csvReview');
