@@ -1742,7 +1742,7 @@ function openNdisProcessModal(txId){
       <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(tx.amount)}</div></div>
       <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:15px">${fmtDate(tx.date)}</div></div>
     </div>
-    ${renderNdisProcessSteps(txId,doneSteps)}`;
+    `+renderNdisProcessSteps(txId,doneSteps);
 
   document.getElementById('ndis-proc-actions').innerHTML=`
     <button class="btn btn-sm" onclick="closeModal('ndisProcess')">Close</button>
