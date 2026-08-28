@@ -2614,6 +2614,9 @@ function handleCSV(e){
         }
         // PRIORITY 1: Check split groups — exact sum match within $0.50
         let matchedSubset=null;
+        console.log('CSV',csv.description,csv.amount,'d0:',d0,'d1:',d1,'d2:',d2);
+        console.log('sameDatePending:',sameDatePending.map(m=>m.description+' $'+m.amount+' '+m.date+' sgid:'+m.splitGroupId));
+        console.log('splitGroups:',Object.keys(splitGroups).map(k=>k+':'+splitGroups[k].map(t=>t.amount).join('+')));
         for(const grpId of Object.keys(splitGroups)){
           const grp=splitGroups[grpId];
           const sum=grp.reduce((a,t)=>a+t.amount,0);
