@@ -2574,11 +2574,13 @@ function handleCSV(e){
     // Get all unaccepted manual transactions from this fortnight
     const prevCycleIds=new Set((S.completedCycles||[]).flatMap(c=>c.transactionIds||[]));
     const manualPending=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending');
+    console.log('ALL PENDING MANUAL:',JSON.stringify(manualPending.map(t=>({id:t.id,desc:t.description,amt:t.amount,date:t.date,sgid:t.splitGroupId||'NONE'}))));
     const matchedManualIds=new Set();
     const merged=[];
     const unmatchedCSV=[];
     const prevTxs=S.transactions.filter(t=>t.status==='accepted'&&prevCycleIds.has(t.id));
 
+    console.log('CSV TXS:',JSON.stringify(csvTxs.map(t=>({desc:t.description,amt:t.amount,date:t.date}))));
     for(const csv of csvTxs){
       // First try exact amount match on single transaction (same date)
       const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<2&&m.date===csv.date);
