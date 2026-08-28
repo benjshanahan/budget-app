@@ -2574,13 +2574,11 @@ function handleCSV(e){
     // Get all unaccepted manual transactions from this fortnight
     const prevCycleIds=new Set((S.completedCycles||[]).flatMap(c=>c.transactionIds||[]));
     const manualPending=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending');
-    console.log('ALL PENDING MANUAL:',JSON.stringify(manualPending.map(t=>({id:t.id,desc:t.description,amt:t.amount,date:t.date,sgid:t.splitGroupId||'NONE'}))));
     const matchedManualIds=new Set();
     const merged=[];
     const unmatchedCSV=[];
     const prevTxs=S.transactions.filter(t=>t.status==='accepted'&&prevCycleIds.has(t.id));
 
-    console.log('CSV TXS:',JSON.stringify(csvTxs.map(t=>({desc:t.description,amt:t.amount,date:t.date}))));
     for(const csv of csvTxs){
       // First try exact amount match on single transaction (same date)
       const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<2&&m.date===csv.date);
@@ -2589,13 +2587,12 @@ function handleCSV(e){
         merged.push({csv,manual:manualMatch,action:'merge'});
       } else {
         // Try matching split transactions — allow ±1 day for date (CSV date may differ from entry date)
-        const csvDateObj=new Date(csv.date+'T00:00:00');
+        const csvDateObj=new Date(csv.date+'T12:00:00');
         const dayBefore=new Date(csvDateObj);dayBefore.setDate(dayBefore.getDate()-1);
         const dayAfter=new Date(csvDateObj);dayAfter.setDate(dayAfter.getDate()+1);
         const d0=csv.date;
         const d1=dayBefore.toISOString().split('T')[0];
         const d2=dayAfter.toISOString().split('T')[0];
-        console.log('CSV split matching:',csv.description,csv.amount,'dates:',d0,d1,d2);
         const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&(m.date===d0||m.date===d1||m.date===d2));
         // Group by splitGroupId
         const splitGroups={};
