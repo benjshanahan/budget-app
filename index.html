@@ -2593,6 +2593,7 @@ function handleCSV(e){
         const d0=csv.date;
         const d1=dayBefore.toISOString().split('T')[0];
         const d2=dayAfter.toISOString().split('T')[0];
+        console.log('CSV split matching:',csv.description,csv.amount,'dates:',d0,d1,d2);
         const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&(m.date===d0||m.date===d1||m.date===d2));
         // Group by splitGroupId
         const splitGroups={};
@@ -3346,10 +3347,8 @@ function saveQuickTx(){
     const splitGroupId='sg_'+Date.now();
     document.getElementById('split-rows').querySelectorAll('.split-row').forEach(row=>{
       const cat=row.querySelector('select').value;
-      const inputs=row.querySelectorAll('input');
-      const amt=parseFloat(inputs[0]?.value)||0;
-      // inputs[0] = amount, inputs[1] = description text field
-      const splitDesc=inputs[1]?.value?.trim()||desc||row.querySelector('input[type=text]')?.value?.trim()||'Split transaction';
+      const amt=parseFloat(row.querySelector('input[type=number]')?.value)||0;
+      const splitDesc=row.querySelector('input[type=text]')?.value?.trim()||desc||'Split transaction';
       if(!amt)return;
       if(cat==='💰 Add to Money Owed'){
         // Add directly to money owed dashboard
