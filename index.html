@@ -2571,6 +2571,8 @@ function handleCSV(e){
       csvTxs.push({id:'csv_'+Date.now()+'_'+i,date,description,amount:amt,category:cat,subcat,method:'credit',status:'pending',source:'csv',rawDetails:txDetails,cardLast4});
     }
 
+    console.log('CSV lines:',lines.length,'csvTxs parsed:',csvTxs.length);
+    if(csvTxs.length)console.log('First CSV tx:',JSON.stringify(csvTxs[0]));
     // Get all unaccepted manual transactions from this fortnight
     const prevCycleIds=new Set((S.completedCycles||[]).flatMap(c=>c.transactionIds||[]));
     const manualPending=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending');
@@ -3307,6 +3309,7 @@ function saveQuickTx(){
   const notes=document.getElementById('qt-notes').value.trim();
   const cat=document.getElementById('qt-cat').value;
   const isSplitCat=cat==='Split';
+  console.log('saveQuickTx: cat=',cat,'isSplitCat=',isSplitCat,'amount=',amount);
   if(!date||!amount){alert('Please fill in date and amount.');return;}
   if(!isSplitCat&&!desc){alert('Please fill in a description.');return;}
   if(!cat){alert('Please select a category.');return;}
@@ -3347,10 +3350,12 @@ function saveQuickTx(){
   const isSplit=isSplitCat;
   if(isSplit){
     const splitGroupId='sg_'+Date.now();
+    console.log('Saving split group:',splitGroupId);
     document.getElementById('split-rows').querySelectorAll('.split-row').forEach(row=>{
       const cat=row.querySelector('select').value;
       const amt=parseFloat(row.querySelector('input[type=number]')?.value)||0;
       const splitDesc=row.querySelector('input[type=text]')?.value?.trim()||desc||'Split transaction';
+      console.log('Split row: cat=',cat,'amt=',amt,'desc=',splitDesc);
       if(!amt)return;
       if(cat==='💰 Add to Money Owed'){
         // Add directly to money owed dashboard
