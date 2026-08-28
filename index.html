@@ -910,6 +910,7 @@ async function loadFromSheets(){
     }
     // Repair any split transactions
     repairSplitTransactions();
+    migrateSplitGroupIds();
     // One-time fix for known split transactions
     applyKnownSplitFixes();
   } catch(e){
@@ -990,6 +991,40 @@ async function migrateNdisImports(){
     await saveToSheets();
   }
 }
+function migrateSplitGroupIds(){
+  // Pass 1: Group by date+splitTotal (transactions that have splitTotal saved)
+  const withTotal=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending'&&!t.splitGroupId&&t.splitTotal);
+  const groups1={};
+  withTotal.forEach(t=>{
+    const key=t.date+'_'+t.splitTotal;
+    if(!groups1[key])groups1[key]=[];
+    groups1[key].push(t);
+  });
+  let changed=false;
+  Object.values(groups1).forEach(grp=>{
+    if(grp.length<2)return;
+    const sgid='sg_mig_'+grp[0].date+'_'+grp[0].splitTotal;
+    grp.forEach(t=>{t.splitGroupId=sgid;});
+    changed=true;
+  });
+  // Pass 2: Group pending manual txs on same date with same description pattern (e.g. 'Split transaction' or 'TEST')
+  const withoutTotal=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending'&&!t.splitGroupId&&!t.splitTotal);
+  const groups2={};
+  withoutTotal.forEach(t=>{
+    // Group by date + description (split parts often share description)
+    const key=t.date+'_'+t.description;
+    if(!groups2[key])groups2[key]=[];
+    groups2[key].push(t);
+  });
+  Object.values(groups2).forEach(grp=>{
+    if(grp.length<2)return;
+    const sgid='sg_mig2_'+grp[0].date+'_'+grp[0].description.replace(/\s/g,'');
+    grp.forEach(t=>{t.splitGroupId=sgid;});
+    changed=true;
+  });
+  if(changed)scheduleSave();
+}
+
 function applyKnownSplitFixes(){
   const fixes=[
     {
@@ -2571,8 +2606,7 @@ function handleCSV(e){
       csvTxs.push({id:'csv_'+Date.now()+'_'+i,date,description,amount:amt,category:cat,subcat,method:'credit',status:'pending',source:'csv',rawDetails:txDetails,cardLast4});
     }
 
-    console.log('CSV lines:',lines.length,'csvTxs parsed:',csvTxs.length);
-    if(csvTxs.length)console.log('First CSV tx:',JSON.stringify(csvTxs[0]));
+
     // Get all unaccepted manual transactions from this fortnight
     const prevCycleIds=new Set((S.completedCycles||[]).flatMap(c=>c.transactionIds||[]));
     const manualPending=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending');
@@ -2616,9 +2650,9 @@ function handleCSV(e){
         }
         // PRIORITY 1: Check split groups — exact sum match within $0.50
         let matchedSubset=null;
-        console.log('CSV',csv.description,csv.amount,'d0:',d0,'d1:',d1,'d2:',d2);
-        console.log('sameDatePending:',JSON.stringify(sameDatePending.map(m=>({desc:m.description,amt:m.amount,date:m.date,sgid:m.splitGroupId||'NONE'}))));
-        console.log('splitGroups keys:',Object.keys(splitGroups));
+
+
+
         for(const grpId of Object.keys(splitGroups)){
           const grp=splitGroups[grpId];
           const sum=grp.reduce((a,t)=>a+t.amount,0);
@@ -3309,7 +3343,6 @@ function saveQuickTx(){
   const notes=document.getElementById('qt-notes').value.trim();
   const cat=document.getElementById('qt-cat').value;
   const isSplitCat=cat==='Split';
-  console.log('saveQuickTx: cat=',cat,'isSplitCat=',isSplitCat,'amount=',amount);
   if(!date||!amount){alert('Please fill in date and amount.');return;}
   if(!isSplitCat&&!desc){alert('Please fill in a description.');return;}
   if(!cat){alert('Please select a category.');return;}
@@ -3350,12 +3383,10 @@ function saveQuickTx(){
   const isSplit=isSplitCat;
   if(isSplit){
     const splitGroupId='sg_'+Date.now();
-    console.log('Saving split group:',splitGroupId);
     document.getElementById('split-rows').querySelectorAll('.split-row').forEach(row=>{
       const cat=row.querySelector('select').value;
       const amt=parseFloat(row.querySelector('input[type=number]')?.value)||0;
       const splitDesc=row.querySelector('input[type=text]')?.value?.trim()||desc||'Split transaction';
-      console.log('Split row: cat=',cat,'amt=',amt,'desc=',splitDesc);
       if(!amt)return;
       if(cat==='💰 Add to Money Owed'){
         // Add directly to money owed dashboard
