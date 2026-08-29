@@ -2731,17 +2731,12 @@ function openCSVReview(data){
           const miPath='S.csvPending.merged['+i+'].'+(m.action==='merge-split'?'manualGroup['+si+']':'manual');
           return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px;position:relative">'
             +(manualParts.length>1?'<button onclick="S.csvPending.merged['+i+'].manualGroup.splice('+si+',1);openCSVReview(S.csvPending)" style="position:absolute;top:6px;right:6px;background:none;border:none;color:var(--text-danger);font-size:16px;cursor:pointer;padding:0;line-height:1" title="Remove this part">✕</button>':'')
-            +'<div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px">'
-            +'<div style="flex:1"><label style="font-size:11px;color:var(--text-secondary)">Date</label><input type="date" value="'+mt.date+'" onchange="'+miPath+'.date=this.value" style="width:100%;font-size:11px;padding:5px 3px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
-            +'<div style="width:76px;margin-right:22px"><label style="font-size:11px;color:var(--text-secondary)">Amount ($)</label><input type="number" value="'+mt.amount+'" step="0.01" onchange="'+miPath+'.amount=parseFloat(this.value)" style="width:100%;font-size:12px;padding:5px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+            +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:end;margin-bottom:6px;padding-right:'+(manualParts.length>1?'20px':'0')+'">'
+            +'<div><label style="font-size:11px;color:var(--text-secondary)">Date</label><input type="date" value="'+mt.date+'" onchange="'+miPath+'.date=this.value" style="width:110px;font-size:11px;padding:5px 3px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+            +'<div><label style="font-size:11px;color:var(--text-secondary)">Category</label><select onchange="'+miPath+'.category=this.value;openCSVReview(S.csvPending)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>'<option value="'+c.name+'"'+(c.name===mt.category?' selected':'')+'>'+c.name+'</option>').join('')+'<option value="Other"'+(mt.category==='Other'?' selected':'')+'>Other</option></select></div>'
+            +'<div><label style="font-size:11px;color:var(--text-secondary)">Amount ($)</label><input type="number" value="'+mt.amount+'" step="0.01" onchange="'+miPath+'.amount=parseFloat(this.value)" style="width:75px;font-size:12px;padding:5px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
             +'</div>'
-            +(()=>{
-              const cat=CATS.find(c=>c.name===mt.category);
-              const subSelect=cat?.subs?'<div><label style="font-size:11px;color:var(--text-secondary)">Sub-category</label><select onchange="'+miPath+'.subcat=this.value" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+cat.subs.map(s=>'<option value="'+s+'"'+(s===mt.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':'';
-              return'<div style="display:grid;grid-template-columns:'+(cat?.subs?'1fr 1fr':'1fr')+';gap:6px;margin-bottom:6px">'
-                +'<div><label style="font-size:11px;color:var(--text-secondary)">Category</label><select onchange="'+miPath+'.category=this.value;openCSVReview(S.csvPending)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>'<option value="'+c.name+'"'+(c.name===mt.category?' selected':'')+'>'+c.name+'</option>').join('')+'<option value="Other"'+(mt.category==='Other'?' selected':'')+'>Other</option></select></div>'
-                +subSelect+'</div>';
-            })()
+            +(()=>{const cat=CATS.find(c=>c.name===mt.category);return cat?.subs?'<div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text-secondary)">Sub-category</label><select onchange="'+miPath+'.subcat=this.value" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+cat.subs.map(s=>'<option value="'+s+'"'+(s===mt.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':''})()
             +'<div><label style="font-size:11px;color:var(--text-secondary)">Description</label><input type="text" value="'+mt.description+'" onchange="'+miPath+'.description=this.value" style="width:100%;font-size:13px;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
             +'</div>';
         }).join('')
@@ -3055,7 +3050,7 @@ function acceptCSVReview(){
 }
 
 function openAdditionalMoneyDetail(){
-  renderAMBody();
+  try{renderAMBody();}catch(e){console.error('renderAMBody error:',e);}
   openModal('additionalMoney');
 }
 function calcAMBalance(subName){
