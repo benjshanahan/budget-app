@@ -2731,13 +2731,13 @@ function openCSVReview(data){
           const miPath='S.csvPending.merged['+i+'].'+(m.action==='merge-split'?'manualGroup['+si+']':'manual');
           return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px;position:relative">'
             +(manualParts.length>1?'<button onclick="S.csvPending.merged['+i+'].manualGroup.splice('+si+',1);openCSVReview(S.csvPending)" style="position:absolute;top:6px;right:6px;background:none;border:none;color:var(--text-danger);font-size:16px;cursor:pointer;padding:0;line-height:1" title="Remove this part">✕</button>':'')
-            +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:end;margin-bottom:6px;padding-right:'+(manualParts.length>1?'20px':'0')+'">'
-            +'<div><label style="font-size:11px;color:var(--text-secondary)">Date</label><input type="date" value="'+mt.date+'" onchange="'+miPath+'.date=this.value" style="width:110px;font-size:11px;padding:5px 3px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
-            +'<div><label style="font-size:11px;color:var(--text-secondary)">Category</label><select onchange="'+miPath+'.category=this.value;openCSVReview(S.csvPending)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>'<option value="'+c.name+'"'+(c.name===mt.category?' selected':'')+'>'+c.name+'</option>').join('')+'<option value="Other"'+(mt.category==='Other'?' selected':'')+'>Other</option></select></div>'
-            +'<div><label style="font-size:11px;color:var(--text-secondary)">Amount ($)</label><input type="number" value="'+mt.amount+'" step="0.01" onchange="'+miPath+'.amount=parseFloat(this.value)" style="width:75px;font-size:12px;padding:5px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+            +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:6px;margin-bottom:6px;padding-right:'+(manualParts.length>1?'20px':'0')+'">'
+            +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Date</div><input type="date" value="'+mt.date+'" onchange="'+miPath+'.date=this.value" style="width:110px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+            +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Category</div><select onchange="'+miPath+'.category=this.value;openCSVReview(S.csvPending)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>'<option value="'+c.name+'"'+(c.name===mt.category?' selected':'')+'>'+c.name+'</option>').join('')+'<option value="Other"'+(mt.category==='Other'?' selected':'')+'>Other</option></select></div>'
+            +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Amount ($)</div><input type="number" value="'+mt.amount+'" step="0.01" onchange="'+miPath+'.amount=parseFloat(this.value)" style="width:75px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
             +'</div>'
-            +(()=>{const cat=CATS.find(c=>c.name===mt.category);return cat?.subs?'<div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text-secondary)">Sub-category</label><select onchange="'+miPath+'.subcat=this.value" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+cat.subs.map(s=>'<option value="'+s+'"'+(s===mt.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':''})()
-            +'<div><label style="font-size:11px;color:var(--text-secondary)">Description</label><input type="text" value="'+mt.description+'" onchange="'+miPath+'.description=this.value" style="width:100%;font-size:13px;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+            +(()=>{const cat=CATS.find(c=>c.name===mt.category);return cat?.subs?'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="'+miPath+'.subcat=this.value" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+cat.subs.map(s=>'<option value="'+s+'"'+(s===mt.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':''})()
+            +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Description</div><input type="text" value="'+mt.description+'" onchange="'+miPath+'.description=this.value" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
             +'</div>';
         }).join('')
         +'</div>'
@@ -2800,10 +2800,23 @@ function toggleAddFromUnmatched(elId,idx,type){
     el.innerHTML='<div style="font-size:12px;color:var(--text2);padding:8px;text-align:center">No unmatched transactions available.</div>';
     el.style.display='block';return;
   }
-  el.innerHTML=`<div style="border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);overflow:hidden">
-    <div style="font-size:11px;font-weight:600;color:var(--text2);padding:8px 10px;background:var(--surface2);text-transform:uppercase;letter-spacing:.04em">Select to link</div>
-    `+unmatched.map((t,j)=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1px solid var(--border);gap:8px"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+t.description+'</div><div style="font-size:11px;color:var(--text2)">'+t.category+' · '+fmtDate(t.date)+'</div></div><div style="display:flex;align-items:center;gap:8px;flex-shrink:0"><span style="font-size:13px;font-weight:600">'+fmt(t.amount)+'</span><button class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 8px" onclick="addUnmatchedToGroup(\''+elId+'\','+j+',\''+type+'\','+idx+')">Link</button></div></div>').join('')+`
-  </div>`;
+  let html='<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">';
+  unmatched.forEach((t,j)=>{
+    const cat=CATS.find(c=>c.name===t.category);
+    const subRow=cat?.subs?'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="S.csvPending.unmatchedManual['+j+'].subcat=this.value" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+cat.subs.map(s=>'<option value="'+s+'"'+(s===t.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':'';
+    html+='<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px">'
+      +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:6px;margin-bottom:6px">'
+      +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Date</div><input type="date" value="'+t.date+'" onchange="S.csvPending.unmatchedManual['+j+'].date=this.value" style="width:110px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+      +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Category</div><select onchange="S.csvPending.unmatchedManual['+j+'].category=this.value;toggleAddFromUnmatched(\''+elId+'\','+idx+',\''+type+'\')" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>'<option value="'+c.name+'"'+(c.name===t.category?' selected':'')+'>'+c.name+'</option>').join('')+'<option value="Other"'+(t.category==='Other'?' selected':'')+'>Other</option></select></div>'
+      +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Amount ($)</div><input type="number" value="'+t.amount+'" step="0.01" onchange="S.csvPending.unmatchedManual['+j+'].amount=parseFloat(this.value)" style="width:75px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+      +'</div>'
+      +subRow
+      +'<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Description</div><input type="text" value="'+t.description+'" onchange="S.csvPending.unmatchedManual['+j+'].description=this.value" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+      +'<button class="btn btn-sm btn-primary" style="width:100%;background:var(--green);border-color:var(--gd)" onclick="addUnmatchedToGroup(\''+elId+'\','+j+',\''+type+'\','+idx+')">+ Link this transaction</button>'
+      +'</div>';
+  });
+  html+='</div>';
+  el.innerHTML=html;
   el.style.display='block';
 }
 function addUnmatchedToGroup(elId,unmatchedIdx,type,idx){
@@ -2815,14 +2828,18 @@ function addUnmatchedToGroup(elId,unmatchedIdx,type,idx){
     S.csvPending.unmatchedCSV.splice(idx,1);
     S.csvPending.unmatchedManual.splice(unmatchedIdx,1);
     S.csvPending.merged.push({csv,manualGroup:[t],action:'merge-split'});
+    openCSVReview(S.csvPending);
   } else {
     const m=S.csvPending.merged[idx];
     if(!m)return;
     if(m.action==='merge'){m.manualGroup=[m.manual];m.action='merge-split';delete m.manual;}
     m.manualGroup.push(t);
     S.csvPending.unmatchedManual.splice(unmatchedIdx,1);
+    // Re-render just the unmatched panel so more can be linked
+    const el=document.getElementById('csv-add-unmatched-'+elId);
+    if(el)el.style.display='none';
+    toggleAddFromUnmatched(elId,idx,type);
   }
-  openCSVReview(S.csvPending);
 }
 function unmarkCSVReviewed(key){
   const prefix=key[0];
@@ -3073,9 +3090,9 @@ function calcAMBalance(subName){
 function renderAMBody(){
   const extras=S.overall.additionalCategories||[];
   const allCats=[
-    {key:'reno',name:'Renovations',balance:calcAMBalance('Renovations'),startingBalance:S.overall.renovationsStarting||0,dateAdded:S.overall.renovationsDate||''},
-    {key:'mat',name:'Maternity',balance:calcAMBalance('Maternity'),startingBalance:S.overall.maternityStarting||0,dateAdded:S.overall.maternityDate||''},
-    ...extras.map((e,i)=>({key:'extra_'+i,name:e.name,balance:calcAMBalance(e.name),startingBalance:e.startingBalance||0,dateAdded:e.dateAdded||'',extra:true,idx:i}))
+    {key:'reno',name:'Renovations',balance:calcAMBalance('Renovations'),startingBalance:parseFloat(S.overall.renovationsStarting)||0,dateAdded:S.overall.renovationsDate||''},
+    {key:'mat',name:'Maternity',balance:calcAMBalance('Maternity'),startingBalance:parseFloat(S.overall.maternityStarting)||0,dateAdded:S.overall.maternityDate||''},
+    ...extras.map((e,i)=>({key:'extra_'+i,name:e.name,balance:calcAMBalance(e.name),startingBalance:parseFloat(e.startingBalance)||0,dateAdded:e.dateAdded||'',extra:true,idx:i}))
   ];
   const total=allCats.reduce((a,c)=>a+c.balance,0);
   let html='<div style="font-size:12px;color:var(--text2);margin-bottom:10px;text-align:right">Total: <strong style="color:var(--green)">'+fmt(total)+'</strong></div>';
@@ -3092,7 +3109,7 @@ function renderAMBody(){
       +'<div id="am-edit-'+c.key+'" style="display:none">'
       +(c.extra?'<input type="text" id="am-name-'+c.key+'" value="'+c.name+'" placeholder="Name" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px"><br>':'')
       +'<label style="font-size:10px;color:var(--text2)">Date added</label><input type="date" id="am-date-'+c.key+'" value="'+(c.dateAdded||localISODate())+'" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">'
-      +'<label style="font-size:10px;color:var(--text2)">Starting balance ($)</label><input type="number" id="am-start-'+c.key+'" value="'+c.startingBalance.toFixed(2)+'" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">'
+      +'<label style="font-size:10px;color:var(--text2)">Starting balance ($)</label><input type="number" id="am-start-'+c.key+'" value="'+(c.startingBalance||0).toFixed(2)+'" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">'
       +'<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Current balance is calculated from transactions.</div>'
       +'<button class="btn btn-sm btn-primary" style="margin-top:4px;width:100%" onclick="event.stopPropagation();saveAMTile(\''+c.key+'\')">✓ Save</button>'
       +'</div>'
