@@ -3109,7 +3109,13 @@ function acceptCSVReview(){
 }
 
 function openAdditionalMoneyDetail(){
-  try{renderAMBody();}catch(e){console.error('renderAMBody error:',e);}
+  try{
+    renderAMBody();
+  }catch(e){
+    console.error('renderAMBody error:',e);
+    const body=document.getElementById('am-body');
+    if(body)body.innerHTML='<div style="color:var(--red);font-size:12px;padding:8px">Error: '+e.message+'</div>';
+  }
   openModal('additionalMoney');
 }
 function calcAMBalance(subName){
