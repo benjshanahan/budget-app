@@ -3135,6 +3135,11 @@ function calcAMBalance(subName){
   else{const e=(S.overall.additionalCategories||[]).find(e=>e.name===subName);starting=e?.startingBalance||0;}
   return starting-spent;
 }
+function localISODate(d){
+  const dt=d?new Date(d):new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  return dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate());
+}
 function renderAMBody(){
   const extras=S.overall.additionalCategories||[];
   const allCats=[
