@@ -2733,10 +2733,10 @@ function openCSVReview(data){
             +(manualParts.length>1?'<button onclick="S.csvPending.merged['+i+'].manualGroup.splice('+si+',1);openCSVReview(S.csvPending)" style="position:absolute;top:6px;right:6px;background:none;border:none;color:var(--text-danger);font-size:16px;cursor:pointer;padding:0;line-height:1" title="Remove this part">✕</button>':'')
             +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:6px;margin-bottom:6px;padding-right:'+(manualParts.length>1?'20px':'0')+'">'
             +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Date</div><input type="date" value="'+mt.date+'" onchange="'+miPath+'.date=this.value" style="width:110px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
-            +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Category</div><select onchange="'+miPath+'.category=this.value;openCSVReview(S.csvPending)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>'<option value="'+c.name+'"'+(c.name===mt.category?' selected':'')+'>'+c.name+'</option>').join('')+'<option value="Other"'+(mt.category==='Other'?' selected':'')+'>Other</option></select></div>'
+            +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Category</div><select onchange="'+miPath+'.category=this.value;openCSVReview(S.csvPending)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>'<option value="'+c.name+'"'+(c.name===mt.category?' selected':'')+'>'+c.name+'</option>').join('')+'<option value="Other"'+(mt.category==='Other'?' selected':'')+'>Other</option><option value="NDIS"'+(mt.category==='NDIS'?' selected':'')+'">🏥 NDIS</option><option value="Additional Money"'+(mt.category==='Additional Money'?' selected':'')+'>💰 Additional Money</option><option value="💰 Add to Money Owed"'+(mt.category==='💰 Add to Money Owed'?' selected':'')+'>💰 Money Owed</option></select></div>'
             +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Amount ($)</div><input type="number" value="'+mt.amount+'" step="0.01" onchange="'+miPath+'.amount=parseFloat(this.value)" style="width:75px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
             +'</div>'
-            +(()=>{const catName=mt.category||'';const cat=CATS.find(c=>c.name===catName);const additionalSubs=['Renovations','Maternity',...(S.overall?.additionalCategories||[]).map(e=>e.name)];const subs=cat?.subs||(catName==='Additional Money'?additionalSubs:null);return subs?'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="'+miPath+'.subcat=this.value" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+subs.map(s=>'<option value="'+s+'"'+(s===mt.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':''})()
+            +(()=>{const catName=mt.category||'';const cat=CATS.find(c=>c.name===catName);const additionalSubs=['Renovations','Maternity',...(S.overall?.additionalCategories||[]).map(e=>e.name)];const subs=cat?.subs||(catName==='Additional Money'?additionalSubs:(catName==='Renovations'||catName==='Maternity')?null:null);return subs?'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="'+miPath+'.subcat=this.value" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+subs.map(s=>'<option value="'+s+'"'+(s===mt.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':''})()
             +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Description</div><input type="text" value="'+mt.description+'" onchange="'+miPath+'.description=this.value" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
             +'</div>';
         }).join('')
@@ -3417,26 +3417,27 @@ function addSplitRow(){
   div.className='split-row';
   div.style.cssText='display:flex;flex-direction:column;gap:6px;margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
   const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
-  div.innerHTML=`
-    <div style="display:flex;gap:6px;align-items:center">
-      <select onchange="autoFillLastSplit()" style="flex:1;min-width:0;font-size:13px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
-        <option value="">-- Category --</option>
-        ${sortedCats.map(n=>'<option value="'+n+'">'+n+'</option>').join('')}
-        <option value="Other">Other</option>
-        <option value="NDIS">🏥 NDIS</option>
-        <option value="Renovations">🏗 Renovations</option>
-        <option value="💰 Add to Money Owed">💰 Add to Money Owed</option>
-      </select>
-      <button class="btn btn-sm" onclick="this.closest('.split-row').remove();autoFillLastSplit()" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button>
-    </div>
-    <div style="display:flex;gap:6px;align-items:center">
-      <input type="number" placeholder="Amount $" step="0.01" min="0" oninput="autoFillLastSplit()" style="flex:1;min-width:0;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
-    </div>
-    <input type="text" placeholder="Description for this split" style="width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">`;
+  div.innerHTML='<div style="display:flex;gap:6px;align-items:center"><select onchange="autoFillLastSplit();autoShowSplitSubcat(this)" style="flex:1;min-width:0;font-size:13px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>'+sortedCats.map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS</option><option value="Additional Money">💰 Additional Money</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option></select><button class="btn btn-sm" onclick="this.closest(\'.split-row\').remove();autoFillLastSplit()" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button></div><div class="split-subcat-wrap" style="display:none"><select class="split-subcat-sel" style="width:100%;font-size:13px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"></select></div><div style="display:flex;gap:6px;align-items:center"><input type="number" placeholder="Amount $" step="0.01" min="0" oninput="autoFillLastSplit()" style="flex:1;min-width:0;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"></div><input type="text" placeholder="Description for this split" style="width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">';
   document.getElementById('split-rows').appendChild(div);
   autoFillLastSplit();
 }
 
+function autoShowSplitSubcat(sel){
+  const row=sel.closest('.split-row');
+  const wrap=row.querySelector('.split-subcat-wrap');
+  const subSel=row.querySelector('.split-subcat-sel');
+  if(!wrap||!subSel)return;
+  const val=sel.value;
+  const cat=CATS.find(c=>c.name===val);
+  const amSubs=['Renovations','Maternity',...(S.overall?.additionalCategories||[]).map(e=>e.name)];
+  const subs=cat?.subs||(val==='Additional Money'?amSubs:null);
+  if(subs){
+    subSel.innerHTML='<option value="">-- Sub-category --</option>'+subs.map(s=>'<option value="'+s+'">'+s+'</option>').join('');
+    wrap.style.display='block';
+  } else {
+    wrap.style.display='none';
+  }
+}
 function autoFillLastSplit(){
   const totalAmt=parseFloat(document.getElementById('qt-amount')?.value)||0;
   if(!totalAmt)return;
@@ -3500,6 +3501,7 @@ function saveQuickTx(){
       const cat=row.querySelector('select').value;
       const amt=parseFloat(row.querySelector('input[type=number]')?.value)||0;
       const splitDesc=row.querySelector('input[type=text]')?.value?.trim()||desc||'Split transaction';
+      const subcat=row.querySelector('.split-subcat-sel')?.value||'';
       if(!amt)return;
       if(cat==='💰 Add to Money Owed'){
         // Add directly to money owed dashboard
@@ -3509,7 +3511,7 @@ function saveQuickTx(){
         // Also record as transaction with note
         S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date,description:splitDesc,amount:amt,category:'💰 Add to Money Owed',subcat:'',method,notes:'Added to Money Owed on dashboard',status:'accepted',source:'manual',splitGroupId,splitTotal:amount});
       } else {
-        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random()+'_'+amt,date,description:splitDesc,amount:amt,category:cat,subcat:'',method,notes,status:'pending',source:'manual',splitGroupId,splitTotal:amount});
+        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random()+'_'+amt,date,description:splitDesc,amount:amt,category:cat,subcat:subcat,method,notes,status:'pending',source:'manual',splitGroupId,splitTotal:amount});
       }
     });
   }else{
