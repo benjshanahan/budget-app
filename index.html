@@ -2759,7 +2759,7 @@ function openCSVReview(data){
     html+='<div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">New credit card transactions ('+unmatchedCSV.length+')</div>';
     unmatchedCSV.forEach((t,i)=>{
       if(t._reviewed){html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--green);border-radius:var(--radius-sm);background:var(--gl);margin-bottom:6px;cursor:pointer" onclick="unmarkCSVReviewed(\'c'+i+'\')"><span style="color:var(--green);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">'+t.description+'</span><span style="font-size:13px;color:var(--gd);font-weight:600">'+fmt(t.amount)+'</span><span style="font-size:11px;color:var(--text2);margin-left:8px">'+t.category+(t.cardLast4?' · ****'+t.cardLast4:'')+'</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>';return;}
-      html+='<div style="border:1px solid var(--border-info);border-radius:12px;padding:12px;margin-bottom:8px;background:var(--bg-info)">'
+      html+='<div style="border:1px solid var(--blue);border-radius:12px;padding:12px;margin-bottom:8px;background:var(--bl)">'
         +'<div style="font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">New credit card transaction</div>'
         +'<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">'
         +'<div><div style="font-size:13px;font-weight:500">'+t.description+'</div><div style="font-size:11px;color:var(--text-secondary);margin-top:2px">'+fmtDate(t.date)+(t.cardLast4?' · ****'+t.cardLast4:'')+'</div></div>'
@@ -2808,7 +2808,7 @@ function openCSVReview(data){
       }
       const cat2=CATS.find(c=>c.name===t.category);
       const subHtml2=cat2?.subs?'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="S.csvPending.unmatchedManual['+i+'].subcat=this.value" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+cat2.subs.map(s=>'<option value="'+s+'"'+(s===t.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':'';
-      html+='<div style="border:1px solid var(--border-warning);border-radius:12px;padding:12px;margin-bottom:8px;background:var(--bg-warning)">'
+      html+='<div style="border:1px solid #E8C060;border-radius:12px;padding:12px;margin-bottom:8px;background:var(--al)">'
         +'<div style="font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Manual entry — no credit card match</div>'
         +'<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px;margin-bottom:10px">'
         +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:6px;margin-bottom:6px">'
@@ -2819,7 +2819,7 @@ function openCSVReview(data){
         +subHtml2
         +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Description</div><input type="text" value="'+t.description+'" onchange="S.csvPending.unmatchedManual['+i+'].description=this.value" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
         +'</div>'
-        +'<div style="font-size:11px;color:var(--text-warning);margin-bottom:8px">No matching credit card entry — was it paid by cash/debit, or still to appear on your statement?</div>'
+        +'<div style="font-size:11px;color:#7A5A10;margin-bottom:8px">No matching credit card entry — was it paid by cash/debit, or still to appear on your statement?</div>'
         +'<div style="display:flex;gap:8px;margin-bottom:4px">'
         +'<button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd);flex:1" onmouseenter="document.getElementById(\'umhint'+i+'\').textContent=\'Keeps this transaction as accepted\'" onmouseleave="document.getElementById(\'umhint'+i+'\').textContent=\'\'" onclick="S.csvPending.unmatchedManual['+i+'].keepAction=\'keep\';setTimeout(()=>openCSVReview(S.csvPending),300)">Keep as-is</button>'
         +'<button class="btn btn-sm" style="color:var(--red);border-color:var(--red);flex:1" onmouseenter="document.getElementById(\'umhint'+i+'\').textContent=\'Removes this manual entry\'" onmouseleave="document.getElementById(\'umhint'+i+'\').textContent=\'\'" onclick="S.csvPending.unmatchedManual['+i+'].keepAction=\'remove\';setTimeout(()=>openCSVReview(S.csvPending),300)">Remove</button>'
