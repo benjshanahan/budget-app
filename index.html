@@ -911,6 +911,7 @@ async function loadFromSheets(){
     // Repair any split transactions
     repairSplitTransactions();
     migrateSplitGroupIds();
+    migrateAdditionalMoneyData();
     // One-time fix for known split transactions
     applyKnownSplitFixes();
   } catch(e){
@@ -964,7 +965,10 @@ async function saveToSheets(){
 
 async function writeImportedData(){
   S.transactions=IMPORT_TXS.map(t=>({...t}));
-  S.overall={...IMPORT_OVERALL};
+  // Only reset overall if it hasn't been updated from defaults
+  if(!S.overall||S.overall.mortgageAhead===undefined){
+    S.overall={...IMPORT_OVERALL};
+  }
   S.moneyOwedItems=[];
   await saveToSheets();
 }
@@ -991,6 +995,21 @@ async function migrateNdisImports(){
     await saveToSheets();
   }
 }
+function migrateAdditionalMoneyData(){
+  // Restore Additional Money starting balances if missing
+  if(!S.overall.renovationsStarting){S.overall.renovationsStarting=3435.78;}
+  if(!S.overall.renovationsDate){S.overall.renovationsDate='2026-08-13';}
+  if(!S.overall.maternityStarting){S.overall.maternityStarting=7876.32;}
+  if(!S.overall.maternityDate){S.overall.maternityDate='2026-08-13';}
+  if(!S.overall.additionalCategories||!S.overall.additionalCategories.length){
+    S.overall.additionalCategories=[
+      {id:'amc_1782905896139',name:'Money from GG for movies',startingBalance:100,dateAdded:'2026-08-13'},
+      {id:'amc_1784112278803',name:'Holiday',startingBalance:3316.56,dateAdded:'2026-08-13'}
+    ];
+    scheduleSave();
+  }
+}
+
 function migrateSplitGroupIds(){
   // Pass 1: Group by date+splitTotal (transactions that have splitTotal saved)
   const withTotal=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending'&&!t.splitGroupId&&t.splitTotal);
