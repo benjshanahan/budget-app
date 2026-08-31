@@ -822,8 +822,12 @@ async function loadFromSheets(){
         status:r[7]||'accepted',source:r[8]||'',flag:r[9]||'',notes:r[10]||''
       })).filter(t=>t.id&&!deletedIds.has(t.id));
     } else {
-      await writeImportedData();
-      return;
+      // Only reset to import data if we have no existing live transactions
+      if(!S.transactions||S.transactions.length===0){
+        await writeImportedData();
+        return;
+      }
+      // Otherwise keep existing S.transactions and continue loading config
     }
     const cfg={};
     (ranges[1].values||[]).forEach(r=>{if(r[0])cfg[r[0]]=r[1];});
@@ -970,9 +974,12 @@ async function saveToSheets(){
 
 async function writeImportedData(){
   S.transactions=IMPORT_TXS.map(t=>({...t}));
-  // Only reset overall if it hasn't been updated from defaults
+  // Only reset overall and spendingBalances if not already set from live data
   if(!S.overall||S.overall.mortgageAhead===undefined){
     S.overall={...IMPORT_OVERALL};
+  }
+  if(!S.spendingBalances||S.spendingBalances.benj===undefined){
+    S.spendingBalances={benj:{current:-17.91},kasie:{current:-5.66}};
   }
   S.moneyOwedItems=[];
   await saveToSheets();
