@@ -835,7 +835,12 @@ async function loadFromSheets(){
         mortgageAhead:parseFloat(cfg.mortgageAhead)||0,
         moneyOwed:parseFloat(cfg.moneyOwed)||0,
         renovationsBalance:cfg.renovationsBalance!=null&&cfg.renovationsBalance!==''&&cfg.renovationsBalance!=='null'&&cfg.renovationsBalance!=='undefined'?parseFloat(cfg.renovationsBalance):null,
-        maternityBalance:parseFloat(cfg.maternityBalance)||0
+        maternityBalance:parseFloat(cfg.maternityBalance)||0,
+        renovationsStarting:parseFloat(cfg.renovationsStarting)||0,
+        renovationsDate:cfg.renovationsDate||'',
+        maternityStarting:parseFloat(cfg.maternityStarting)||0,
+        maternityDate:cfg.maternityDate||'',
+        additionalCategories:cfg.additionalCategories?JSON.parse(cfg.additionalCategories):undefined
       };
     }
     const owedRows=ranges[2].values||[];
@@ -996,18 +1001,19 @@ async function migrateNdisImports(){
   }
 }
 function migrateAdditionalMoneyData(){
-  // Restore Additional Money starting balances if missing
-  if(!S.overall.renovationsStarting){S.overall.renovationsStarting=3435.78;}
-  if(!S.overall.renovationsDate){S.overall.renovationsDate='2026-08-13';}
-  if(!S.overall.maternityStarting){S.overall.maternityStarting=7876.32;}
-  if(!S.overall.maternityDate){S.overall.maternityDate='2026-08-13';}
+  let changed=false;
+  if(!S.overall.renovationsStarting){S.overall.renovationsStarting=3435.78;changed=true;}
+  if(!S.overall.renovationsDate){S.overall.renovationsDate='2026-08-13';changed=true;}
+  if(!S.overall.maternityStarting){S.overall.maternityStarting=7876.32;changed=true;}
+  if(!S.overall.maternityDate){S.overall.maternityDate='2026-08-13';changed=true;}
   if(!S.overall.additionalCategories||!S.overall.additionalCategories.length){
     S.overall.additionalCategories=[
       {id:'amc_1782905896139',name:'Money from GG for movies',startingBalance:100,dateAdded:'2026-08-13'},
       {id:'amc_1784112278803',name:'Holiday',startingBalance:3316.56,dateAdded:'2026-08-13'}
     ];
-    scheduleSave();
+    changed=true;
   }
+  if(changed)scheduleSave();
 }
 
 function migrateSplitGroupIds(){
