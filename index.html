@@ -2768,7 +2768,7 @@ function openCSVReview(data){
         +(t.isDuplicate?'<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — '+fmt(t.amount)+' on '+fmtDate(t.date)+' already exists: "'+t.duplicateOf?.description+'". Check carefully.</div>':'')
         +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:6px;margin-bottom:6px">'
         +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Date</div><input type="date" value="'+t.date+'" onchange="S.csvPending.unmatchedCSV['+i+'].date=this.value" style="width:110px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
-        +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Category</div><select onchange="S.csvPending.unmatchedCSV['+i+'].category=this.value;updateMergedSubcat(\'c'+i+'\',this.value);toggleCSVSplit(\'c'+i+'\',this.value,'+i+',\'unmatched\');learnMerchant(\''+t.description+'\',this.value)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>'<option value="'+n+'"'+(n===t.category?' selected':'')+'>'+n+'</option>').join('')+'<option value="Other"'+(t.category==='Other'?' selected':'')+'>Other</option><option value="NDIS"'+(t.category==='NDIS'?' selected':'')+'>🏥 NDIS</option><option value="Renovations"'+(t.category==='Renovations'?' selected':'')+'>🏗 Renovations</option><option value="Money Owed"'+(t.category==='Money Owed'?' selected':'')+'>💰 Money owed to you</option></select></div>'
+        +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Category</div><select onchange="S.csvPending.unmatchedCSV['+i+'].category=this.value;updateMergedSubcat(\'c'+i+'\',this.value);toggleCSVSplit(\'c'+i+'\',this.value,'+i+',\'unmatched\');learnMerchant(\''+t.description+'\',this.value)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>'<option value="'+n+'"'+(n===t.category?' selected':'')+'>'+n+'</option>').join('')+'<option value="Other"'+(t.category==='Other'?' selected':'')+'>Other</option><option value="NDIS"'+(t.category==='NDIS'?' selected':'')+'>🏥 NDIS</option><option value="Additional Money"'+(t.category==='Additional Money'?' selected':'')+'>💰 Additional Money</option><option value="💰 Add to Money Owed"'+(t.category==='💰 Add to Money Owed'?' selected':'')+'>💰 Money owed to you</option></select></div>'
         +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Amount ($)</div><input type="number" value="'+t.amount+'" step="0.01" onchange="S.csvPending.unmatchedCSV['+i+'].amount=parseFloat(this.value)" style="width:75px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
         +'</div>'
         +'<div id="csv-sub-c'+i+'" style="margin-bottom:6px">'+renderCSVSubcatNamed('c'+i,t.category,t.subcat)+'</div>'
@@ -2791,7 +2791,7 @@ function openCSVReview(data){
     html+='<div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">⚠ Manual entries — no credit card match found ('+unmatchedManual.length+')</div>';
     unmatchedManual.forEach((t,i)=>{
       const cats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
-      const catOptions=cats.map(n=>'<option value="'+n+'"'+(n===t.category?' selected':'')+'>'+n+'</option>').join('');
+      const catOptions=cats.map(n=>'<option value="'+n+'"'+(n===t.category?' selected':'')+'>'+n+'</option>').join('')+'<option value="Other"'+(t.category==='Other'?' selected':'')+'>Other</option><option value="NDIS"'+(t.category==='NDIS'?' selected':'')+'>🏥 NDIS</option><option value="Additional Money"'+(t.category==='Additional Money'?' selected':'')+'>💰 Additional Money</option><option value="💰 Add to Money Owed"'+(t.category==='💰 Add to Money Owed'?' selected':'')+'>💰 Money owed to you</option>';
       // Build subcategory options
       const getSubOpts=(catName,selVal)=>{
         let subs=[];
@@ -2807,7 +2807,9 @@ function openCSVReview(data){
         return;
       }
       const cat2=CATS.find(c=>c.name===t.category);
-      const subHtml2=cat2?.subs?'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="S.csvPending.unmatchedManual['+i+'].subcat=this.value" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+cat2.subs.map(s=>'<option value="'+s+'"'+(s===t.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':'';
+      const amSubs2=['Renovations','Maternity',...(S.overall?.additionalCategories||[]).map(e=>e.name)];
+      const subs2=cat2?.subs||(t.category==='Additional Money'?amSubs2:null);
+      const subHtml2=subs2?'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="S.csvPending.unmatchedManual['+i+'].subcat=this.value" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+subs2.map(s=>'<option value="'+s+'"'+(s===t.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':'';
       html+='<div style="border:1px solid #E8C060;border-radius:12px;padding:12px;margin-bottom:8px;background:var(--al)">'
         +'<div style="font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Manual entry — no credit card match</div>'
         +'<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px;margin-bottom:10px">'
@@ -2923,8 +2925,10 @@ function deleteFromCSVReview(type, idx){
 }
 function renderCSVSubcatNamed(key,catName,selected){
   const cat=CATS.find(c=>c.name===catName);
-  if(!cat?.subs)return'';
-  return'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="updateSubcatValue(\''+key+'\',this.value)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+cat.subs.map(s=>'<option value="'+s+'"'+(s===selected?' selected':'')+'>'+s+'</option>').join('')+'</select></div>';
+  const amSubs=['Renovations','Maternity',...(S.overall?.additionalCategories||[]).map(e=>e.name)];
+  const subs=cat?.subs||(catName==='Additional Money'?amSubs:null);
+  if(!subs)return'';
+  return'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="updateSubcatValue(\''+key+'\',this.value)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+subs.map(s=>'<option value="'+s+'"'+(s===selected?' selected':'')+'>'+s+'</option>').join('')+'</select></div>';
 }
 function learnMerchant(desc,category){
   if(!desc||!category||category==='Split')return;
