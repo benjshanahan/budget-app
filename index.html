@@ -708,6 +708,17 @@ let syncTimeout = null;
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const fmt = n => '$'+(Math.abs(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 const fmtDate = iso => { if(!iso||iso.length<10)return iso||'—'; const[y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
+// Compares two ISO dates allowing up to 1 day difference. Anchors both at noon
+// (not midnight) so the comparison is immune to UTC/local timezone rollover —
+// using T00:00:00 in Brisbane (UTC+10) can push a date to the previous UTC day
+// and throw the ±1 day math off by a full day.
+const isWithinOneDay = (d1,d2) => {
+  if(!d1||!d2)return false;
+  const t1=new Date(d1+'T12:00:00').getTime();
+  const t2=new Date(d2+'T12:00:00').getTime();
+  if(isNaN(t1)||isNaN(t2))return false;
+  return Math.abs(t1-t2)<=24*60*60*1000;
+};
 const fmtS = n => (n<0?'-':'')+fmt(n);
 const getNextMoneyDay = () => MONEY_DAYS.find(d=>d>new Date())||MONEY_DAYS[MONEY_DAYS.length-1];
 const getTithingCycles = () => S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').length;
@@ -857,7 +868,8 @@ async function loadFromSheets(){
         id:r[0]||'',date:r[1]||'',description:r[2]||'',
         amount:parseFloat(String(r[3]).replace(/[^0-9.-]/g,''))||0,
         category:r[4]||'',subcat:r[5]||'',method:r[6]||'',
-        status:r[7]||'accepted',source:r[8]||'',flag:r[9]||'',notes:r[10]||''
+        status:r[7]||'accepted',source:r[8]||'',flag:r[9]||'',notes:r[10]||'',
+        splitGroupId:r[11]||'',splitTotal:r[12]!=null&&r[12]!==''?parseFloat(r[12])||0:null
       })).filter(t=>t.id&&!deletedIds.has(t.id));
     } else if(configRowsEarly.length===0){
       // Both Transactions AND Config are empty — genuinely a brand new sheet.
@@ -960,6 +972,8 @@ async function loadFromSheets(){
     await migrateNdisImports();
     // Repair any split transactions
     repairSplitTransactions();
+    // Backfill splitGroupId on splits saved before that field existed
+    migrateSplitGroupIds();
     // One-time fix for known split transactions
     applyKnownSplitFixes();
   } catch(e){
@@ -972,8 +986,8 @@ async function saveToSheets(){
   setSyncStatus('syncing');
   try{
     const data=[];
-    const txRows=[['id','date','description','amount','category','subcat','method','status','source','flag','notes']];
-    S.transactions.forEach(t=>txRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.source||'',t.flag||'',t.notes||'']));
+    const txRows=[['id','date','description','amount','category','subcat','method','status','source','flag','notes','splitGroupId','splitTotal']];
+    S.transactions.forEach(t=>txRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.source||'',t.flag||'',t.notes||'',t.splitGroupId||'',t.splitTotal!=null?t.splitTotal:'']));
     data.push({range:'Transactions!A1',values:txRows});
     data.push({range:'Config!A1',values:Object.entries(S.overall).filter(([k])=>k!=='additionalBudgets').map(([k,v])=>[k,v]).concat([['additionalBudgets',JSON.stringify(S.overall.additionalBudgets||[])]])});
     const owRows=[['id','description','amount','date']];
@@ -1101,6 +1115,28 @@ function applyKnownSplitFixes(){
     console.log('Fixed split: '+fix.oldId);
   });
   if(changed)scheduleSave();
+}
+function migrateSplitGroupIds(){
+  // Backfill splitGroupId/splitTotal on splits saved before this field existed.
+  // Heuristic: pending manual transactions sharing the same date AND description
+  // (per-split descriptions left blank fall back to the shared overall description)
+  // that don't already have a splitGroupId are almost certainly parts of the same
+  // original split entry.
+  const candidates=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending'&&!t.splitGroupId);
+  const groups={};
+  candidates.forEach(t=>{
+    const key=t.date+'|'+t.description;
+    (groups[key]=groups[key]||[]).push(t);
+  });
+  let migrated=0;
+  Object.values(groups).forEach(group=>{
+    if(group.length<2)return; // a lone transaction isn't a split
+    const groupId='sg_migrated_'+group[0].date+'_'+Math.random().toString(36).slice(2,8);
+    const total=group.reduce((a,t)=>a+(t.amount||0),0);
+    group.forEach(t=>{t.splitGroupId=groupId;t.splitTotal=total;});
+    migrated+=group.length;
+  });
+  if(migrated>0){scheduleSave();console.log('Migrated '+migrated+' split transactions to splitGroupId');}
 }
 function repairSplitTransactions(){
   // Find transactions with category='Split' and flag them for user review
@@ -2581,8 +2617,33 @@ function handleCSV(e){
       if(manualMatch){
         matchedManualIds.add(manualMatch.id);
         merged.push({csv,manual:manualMatch,action:'merge'});
-      } else {
-        // Try matching split transactions — find all pending txs on same date that sum to CSV amount
+        continue;
+      }
+      // Next, try matching a recorded split group — this is checked BEFORE the
+      // generic same-date subset search below, since a real splitGroupId is a
+      // deliberate, deterministic match rather than a coincidental sum. Allow
+      // ±1 day since the split may have been entered a day off from when the
+      // card actually posted.
+      const splitGroups={};
+      manualPending.forEach(m=>{
+        if(matchedManualIds.has(m.id)||!m.splitGroupId)return;
+        if(!isWithinOneDay(m.date,csv.date))return;
+        (splitGroups[m.splitGroupId]=splitGroups[m.splitGroupId]||[]).push(m);
+      });
+      let splitGroupMatch=null;
+      for(const groupId in splitGroups){
+        const group=splitGroups[groupId];
+        const total=group.reduce((a,t)=>a+(t.amount||0),0);
+        if(Math.abs(total-csv.amount)<0.5){splitGroupMatch=group;break;}
+      }
+      if(splitGroupMatch){
+        splitGroupMatch.forEach(m=>matchedManualIds.add(m.id));
+        merged.push({csv,manualGroup:splitGroupMatch,action:'merge-split'});
+        continue;
+      }
+      {
+        // Fallback: no splitGroupId available (e.g. entered outside the split
+        // flow) — try same-date transactions that happen to sum to the target.
         const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&m.date===csv.date);
         // Also include same-date accepted manual Money Owed transactions
         const sameDateAccepted=S.transactions.filter(t=>
@@ -2706,6 +2767,8 @@ function openCSVReview(data){
   if(unmatchedManual.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">⚠ Manual entries — no credit card match found (${unmatchedManual.length})</div>`;
     unmatchedManual.forEach((t,i)=>{
+      if(t.keepAction==='keep'){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #E8C060;border-radius:var(--radius-sm);background:var(--al);margin-bottom:6px;cursor:pointer" onclick="unmarkManualKeepAction(${i})"><span style="color:var(--amber);font-size:16px">✓</span><span style="font-size:13px;font-weight:500;flex:1">${t.description}</span><span style="font-size:13px;color:var(--amber);font-weight:600">${fmt(t.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">Kept as-is</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
+      if(t.keepAction==='remove'){html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--red);border-radius:var(--radius-sm);background:var(--rl);margin-bottom:6px;cursor:pointer" onclick="unmarkManualKeepAction(${i})"><span style="color:var(--red);font-size:16px">✕</span><span style="font-size:13px;font-weight:500;flex:1;text-decoration:line-through;opacity:0.7">${t.description}</span><span style="font-size:13px;color:var(--red);font-weight:600">${fmt(t.amount)}</span><span style="font-size:11px;color:var(--text2);margin-left:8px">Removed</span><span style="font-size:11px;color:var(--text2)">tap to edit</span></div>`;return;}
       html+=`<div style="border:1px solid #E8C060;border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--al)">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
           <div>
@@ -2716,8 +2779,8 @@ function openCSVReview(data){
         </div>
         <div style="font-size:12px;color:#7A5A10;margin-bottom:8px">This transaction has no matching credit card entry. Was it paid by cash/debit, or is it still to appear on your statement?</div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='keep'">Keep as-is</button>
-          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="S.csvPending.unmatchedManual[${i}].keepAction='remove'">Remove</button>
+          <button class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--gd)" onclick="setManualKeepAction(${i},'keep')">Keep as-is</button>
+          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="setManualKeepAction(${i},'remove')">Remove</button>
         </div>
       </div>`;
     });
@@ -2725,6 +2788,14 @@ function openCSVReview(data){
 
   document.getElementById('csv-review-body').innerHTML=html;
   openModal('csvReview');
+}
+function setManualKeepAction(idx,action){
+  if(S.csvPending.unmatchedManual[idx])S.csvPending.unmatchedManual[idx].keepAction=action;
+  openCSVReview(S.csvPending);
+}
+function unmarkManualKeepAction(idx){
+  if(S.csvPending.unmatchedManual[idx])delete S.csvPending.unmatchedManual[idx].keepAction;
+  openCSVReview(S.csvPending);
 }
 
 function unmarkCSVReviewed(key){
@@ -3277,6 +3348,7 @@ function saveQuickTx(){
   }
   const isSplit=isSplitCat;
   if(isSplit){
+    const splitGroupId='sg_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
     document.getElementById('split-rows').querySelectorAll('.split-row').forEach(row=>{
       const cat=row.querySelector('select').value;
       const inputs=row.querySelectorAll('input');
@@ -3292,7 +3364,7 @@ function saveQuickTx(){
         // Also record as transaction with note
         S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date,description:splitDesc,amount:amt,category:'💰 Add to Money Owed',subcat:'',method,notes:'Added to Money Owed on dashboard',status:'accepted',source:'manual'});
       } else {
-        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random()+'_'+amt,date,description:splitDesc,amount:amt,category:cat,subcat:'',method,notes,status:'pending',source:'manual'});
+        S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random()+'_'+amt,date,description:splitDesc,amount:amt,category:cat,subcat:'',method,notes,status:'pending',source:'manual',splitGroupId,splitTotal:amount});
       }
     });
   }else{
