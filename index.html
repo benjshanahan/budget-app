@@ -3532,21 +3532,22 @@ function syncSplitDescriptions(){
   });
 }
 function addSplitRow(){
+  const isFirstRow=document.getElementById('split-rows').children.length===0;
   const div=document.createElement('div');
   div.className='split-row';
-  div.style.cssText='margin-bottom:10px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
+  div.style.cssText='position:relative;margin-bottom:10px;padding:12px;'+(isFirstRow?'':'padding-right:36px;')+'border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
   const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
   const sharedDesc=document.getElementById('qt-desc')?.value||'';
   div.innerHTML=
-    '<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:0.75rem">'
-      +'<div class="field" style="flex:1;margin-bottom:0">'
+    (isFirstRow?'':'<button class="btn btn-sm" onclick="this.closest(\'.split-row\').remove();autoFillLastSplit()" style="position:absolute;top:10px;right:10px;color:var(--red);border-color:var(--red);padding:4px 8px;font-size:12px;line-height:1">✕</button>')
+    +'<div class="frow" style="margin-bottom:0.75rem">'
+      +'<div class="field" style="margin-bottom:0">'
         +'<label>Category</label>'
         +'<select onchange="autoFillLastSplit();autoShowSplitSubcat(this)"><option value="">-- Category --</option>'+sortedCats.map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS</option><option value="Additional Money">💰 Additional Money</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option></select>'
       +'</div>'
-      +'<button class="btn btn-sm" onclick="this.closest(\'.split-row\').remove();autoFillLastSplit()" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button>'
+      +'<div class="field" style="margin-bottom:0"><label>Amount ($)</label><input type="number" placeholder="0.00" step="0.01" min="0" oninput="autoFillLastSplit()"></div>'
     +'</div>'
     +'<div class="split-subcat-wrap field" style="display:none;margin-bottom:0.75rem"><label>Sub-category</label><select class="split-subcat-sel"></select></div>'
-    +'<div class="field" style="margin-bottom:0.75rem"><label>Amount ($)</label><input type="number" placeholder="0.00" step="0.01" min="0" oninput="autoFillLastSplit()"></div>'
     +'<div class="field" style="margin-bottom:0"><label>Description</label><input type="text" placeholder="Description for this split (required)" value="'+sharedDesc.replace(/"/g,'&quot;')+'"></div>';
   document.getElementById('split-rows').appendChild(div);
   autoFillLastSplit();
