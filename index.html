@@ -867,8 +867,13 @@ async function loadFromSheets(){
         kasie:{current:sp.kasieCurrent||0,prevDebt:sp.kasiePrevDebt||0}
       };
     }
-    S.workflowData={};
-    (ranges[4].values||[]).forEach(r=>{if(r[0]&&r[1]==='true')S.workflowData[r[0]]=true;});
+    // Workflow data is a mix of booleans, numbers, strings, and arrays (tithe
+    // amounts, NDIS invoice progress, the session date stamp, etc.) — stored
+    // as one JSON blob so every type survives a reload correctly, rather than
+    // the old per-row format which only ever restored plain "true" flags and
+    // silently dropped everything else (dates, amounts, NDIS progress) on
+    // every refresh.
+    S.workflowData=(()=>{try{return JSON.parse(ranges[4]?.values?.[0]?.[0]||'{}');}catch(e){return {};}})();
     // Load csvPending from sheet
     const csvPendingRaw=ranges[8]?.values?.[0]?.[0];
     if(csvPendingRaw){try{S.csvPending=JSON.parse(csvPendingRaw);}catch(e){S.csvPending={};}}
@@ -954,8 +959,8 @@ async function saveToSheets(){
       ['benjPrevDebt',S.spendingBalances?.benj?.prevDebt||0],
       ['kasiePrevDebt',S.spendingBalances?.kasie?.prevDebt||0]
     ]});
-    const wfRows=Object.entries(S.workflowData).map(([k,v])=>[k,String(v)]);
-    data.push({range:'Workflow!A1',values:wfRows.length?wfRows:[['','']]});
+    const wfJson=JSON.stringify(S.workflowData||{});
+    data.push({range:'Workflow!A1',values:[[wfJson]]});
     // Save csvPending as JSON in a single cell
     const csvPendingJson=JSON.stringify(S.csvPending||{});
     data.push({range:'CSVPending!A1',values:[[csvPendingJson]]});
@@ -1423,20 +1428,6 @@ function renderWorkflow(){
   // Auto-reset if all steps were completed in a previous session
   const allDone=steps.every(s=>!!wd['s'+s.n]);
   if(allDone){
-    S.workflowData={};
-    saveS();
-    renderWorkflow();
-    return;
-  }
-  // Auto-reset if workflowData is stale (from a previous fortnight)
-  const lastCycle=S.completedCycles?.length?S.completedCycles[S.completedCycles.length-1]:null;
-  const wfDate=wd.currentDate||'';
-  const anyStepDone=steps.some(s=>!!wd['s'+s.n]);
-  const stale=lastCycle&&anyStepDone&&(
-    (wfDate&&wfDate<=lastCycle.date)||
-    (!wfDate&&anyStepDone) // steps done but no date = definitely old session
-  );
-  if(stale){
     S.workflowData={};
     saveS();
     renderWorkflow();
