@@ -2777,11 +2777,15 @@ function handleCSV(e){
 
 function openCSVReview(data){
   const{merged,unmatchedCSV,unmatchedManual}=data;
-  // Sort the actual underlying array (not a display copy) so the positional
-  // indices used throughout this render — S.csvPending.unmatchedManual[i] —
-  // stay correct. Sorting a copy here would reintroduce the exact index-vs-
-  // sort-order mismatch bug already fixed in the "add from unmatched" panel.
+  // Sort the actual underlying arrays (not display copies) so the positional
+  // indices used throughout this render — S.csvPending.unmatchedManual[i],
+  // S.csvPending.unmatchedCSV[i] — stay correct. Sorting a copy here would
+  // reintroduce the exact index-vs-sort-order mismatch bug already fixed in
+  // the "add from unmatched" panel. This also keeps items that get pushed
+  // back onto these arrays (e.g. from Unmatch) in date order instead of
+  // landing wherever they were appended.
   unmatchedManual.sort((a,b)=>b.date.localeCompare(a.date));
+  unmatchedCSV.sort((a,b)=>b.date.localeCompare(a.date));
   const total=merged.length+unmatchedCSV.length+unmatchedManual.length;
   let html='<div style="font-size:13px;color:var(--text2);margin-bottom:14px">'+total+' transactions to review — '+merged.length+' matched to manual entries, '+unmatchedCSV.length+' new from CSV, '+unmatchedManual.length+' manual with no CSV match.</div>';
 
