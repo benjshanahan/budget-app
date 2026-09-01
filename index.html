@@ -3007,9 +3007,13 @@ function linkSplitGroupToUnmatched(elId,partIds,type,idx){
     if(m.action==='merge'){m.manualGroup=[m.manual];m.action='merge-split';delete m.manual;}
     m.manualGroup.push(...parts);
     S.csvPending.unmatchedManual=S.csvPending.unmatchedManual.filter(x=>!partIds.includes(x.id));
-    const el=document.getElementById('csv-add-unmatched-'+elId);
-    if(el)el.style.display='none';
-    toggleAddFromUnmatched(elId,idx,type);
+    openCSVReview(S.csvPending);
+    // Without this, the data updates correctly but the visible card never
+    // shows the newly added rows — it just looks like the link did nothing.
+    setTimeout(()=>{
+      const targetEl=document.getElementById('csv-merged-'+(m.csv.id||idx));
+      if(targetEl)targetEl.scrollIntoView({behavior:'smooth',block:'center'});
+    },50);
   }
 }
 function updateUnmatchedManualField(manualId,field,value){
@@ -3040,10 +3044,13 @@ function addUnmatchedToGroup(elId,manualId,type,idx){
     if(m.action==='merge'){m.manualGroup=[m.manual];m.action='merge-split';delete m.manual;}
     m.manualGroup.push(t);
     S.csvPending.unmatchedManual.splice(trueIdx,1);
-    // Re-render just the unmatched panel so more can be linked
-    const el=document.getElementById('csv-add-unmatched-'+elId);
-    if(el)el.style.display='none';
-    toggleAddFromUnmatched(elId,idx,type);
+    openCSVReview(S.csvPending);
+    // Without this, the data updates correctly but the visible card never
+    // shows the newly added row — it just looks like the link did nothing.
+    setTimeout(()=>{
+      const targetEl=document.getElementById('csv-merged-'+(m.csv.id||idx));
+      if(targetEl)targetEl.scrollIntoView({behavior:'smooth',block:'center'});
+    },50);
   }
 }
 function unmarkCSVReviewed(key){
