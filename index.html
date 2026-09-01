@@ -2944,20 +2944,16 @@ function toggleAddFromUnmatched(elId,idx,type){
   Object.keys(groups).forEach(gid=>{
     const parts=groups[gid];
     const total=parts.reduce((a,t)=>a+(t.amount||0),0);
-    const gidSafe=gid.replace(/[^a-zA-Z0-9_]/g,'');
     const partIds=parts.map(t=>t.id);
     html+='<div style="background:var(--al);border:1px solid #E8C060;border-radius:var(--radius);overflow:hidden">'
-      +'<div style="padding:10px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="document.getElementById(\'sg-detail-'+gidSafe+'\').style.display=document.getElementById(\'sg-detail-'+gidSafe+'\').style.display===\'none\'?\'block\':\'none\';document.getElementById(\'sg-chev-'+gidSafe+'\').textContent=document.getElementById(\'sg-detail-'+gidSafe+'\').style.display===\'none\'?\'▾\':\'▴\'">'
+      +'<div style="padding:10px;display:flex;justify-content:space-between;align-items:center">'
         +'<div>'
           +'<div style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px">⇄ Split transaction <span style="font-size:10px;font-weight:600;color:#7A5A10;background:var(--surface);border:1px solid #E8C060;border-radius:20px;padding:1px 7px">'+parts.length+' parts</span></div>'
           +'<div style="font-size:11px;color:#7A5A10;margin-top:2px">'+fmtDate(parts[0].date)+'</div>'
         +'</div>'
-        +'<div style="display:flex;align-items:center;gap:6px">'
-          +'<div style="font-size:15px;font-weight:700">'+fmt(total)+'</div>'
-          +'<div id="sg-chev-'+gidSafe+'" style="font-size:11px;color:#7A5A10">▾</div>'
-        +'</div>'
+        +'<div style="font-size:15px;font-weight:700">'+fmt(total)+'</div>'
       +'</div>'
-      +'<div id="sg-detail-'+gidSafe+'" style="display:none;border-top:1px solid #E8C060;background:var(--surface);padding:6px 10px">'
+      +'<div style="border-top:1px solid #E8C060;background:var(--surface);padding:6px 10px">'
         +parts.map((t,i)=>'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;'+(i<parts.length-1?'border-bottom:1px solid #F0DFB8':'')+'"><span>'+t.category+(t.subcat?' · '+t.subcat:'')+' — '+t.description+'</span><span style="font-weight:600;flex-shrink:0;margin-left:8px">'+fmt(t.amount)+'</span></div>').join('')
       +'</div>'
       +'<div style="padding:10px">'
