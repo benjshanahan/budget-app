@@ -748,7 +748,7 @@ const getSavingsBreakdown = () => {
     if(bal>0){positiveBudgets+=bal;budgetBreakdown.push({name:cat.name,bal});}
   }
   const netSavings=(mortgageAhead||0)-positiveBudgets;
-  const total=(ndisOwed||0)+(cashSavings||0)+Math.max(0,netSavings);
+  const total=(ndisOwed||0)+(cashSavings||0)+netSavings;
   return{ndisOwed:ndisOwed||0,cashSavings:cashSavings||0,mortgageAhead:mortgageAhead||0,positiveBudgets,budgetBreakdown,netSavings,total};
 };
 const calcActualSavings = () => getSavingsBreakdown().total;
@@ -821,6 +821,7 @@ async function loadFromSheets(){
     // Parse deleted transactions first so we can filter them out
     const delRowsEarly=ranges[5]?.values||[];
     const deletedIds=new Set(delRowsEarly.slice(1).map(r=>r[0]).filter(Boolean));
+    const configRowsEarly=ranges[1]?.values||[];
     if(txRows.length>1){
       S.transactions=txRows.slice(1).map(r=>({
         id:r[0]||'',date:r[1]||'',description:r[2]||'',
@@ -828,8 +829,17 @@ async function loadFromSheets(){
         category:r[4]||'',subcat:r[5]||'',method:r[6]||'',
         status:r[7]||'accepted',source:r[8]||'',flag:r[9]||'',notes:r[10]||''
       })).filter(t=>t.id&&!deletedIds.has(t.id));
-    } else {
+    } else if(configRowsEarly.length===0){
+      // Both Transactions AND Config are empty — genuinely a brand new sheet.
       await writeImportedData();
+      return;
+    } else {
+      // Transactions looked empty but Config has data — this is a real budget
+      // that's already been set up. A near-empty Transactions read here means
+      // the Sheets API returned a bad/partial response, NOT a fresh sheet.
+      // Bail out without touching anything rather than risk wiping real data.
+      console.error('Transactions read came back empty but Config has data — aborting load to avoid data loss. Try refreshing.');
+      setSyncStatus('error');
       return;
     }
     const cfg={};
