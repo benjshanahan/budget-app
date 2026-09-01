@@ -1409,7 +1409,7 @@ function renderWorkflow(){
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Fortnightly workflow · ${getTithingCycles()} cycles</div>
       <button class="btn btn-sm" onclick="openModal('cycleHistory')">📅 History</button>
-      <button class="btn btn-primary btn-sm" onclick="resetWorkflow()" style="background:var(--blue);border-color:#0F4A8A">↺ Start new fortnight</button>
+      <button class="btn btn-primary btn-sm" onclick="resetWorkflow()" style="background:var(--blue);border-color:#0F4A8A">↩️ Undo fortnight</button>
     </div>
     ${steps.map(s=>{
       const done=!!wd['s'+s.n];
@@ -1637,7 +1637,7 @@ function undoStep(n){
 function doneStep(n){S.workflowData['s'+n]=true;saveS();renderWorkflow();}
 function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
 function resetWorkflow(){
-  if(confirm('Start a new fortnight?\n\nThis will reset all workflow steps back to the beginning. Any pending transactions from this workflow will be removed.')){
+  if(confirm('Undo this fortnight?\n\nThis will reset all workflow steps back to the beginning, so you can redo it from scratch. Any pending transactions from this attempt will be removed.')){
     // Remove pending CSV transactions but keep manually entered ones
     S.transactions=S.transactions.filter(t=>
       t.status!=='pending'||
@@ -1650,9 +1650,10 @@ function resetWorkflow(){
     if(ndisAddedThisFn.length){
       S.ndisTransactions=S.ndisTransactions.filter(t=>!ndisAddedThisFn.includes(t.id));
     }
+    // Only undo the NDIS amount added during THIS workflow attempt, not the whole balance
+    S.overall.ndisOwed=Math.max(0,(S.overall.ndisOwed||0)-(S.workflowData.ndisAddedAmount||0));
     S.workflowData={};
     S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
-    S.overall.ndisOwed=0;
     saveS();
     renderWorkflow();
   }
@@ -1694,7 +1695,7 @@ function showZCMTransfer(){
   const ti=S.workflowData.currentTithe||0;
   alert('Please manually transfer '+fmt(ti)+' to ZCM. This is your tithe for this fortnight.');
 }
-function saveNDIS(){const a=parseFloat(document.getElementById('ndis-in')?.value)||0;S.overall.ndisOwed=(S.overall.ndisOwed||0)+a;saveS();doneStep(9);}
+function saveNDIS(){const a=parseFloat(document.getElementById('ndis-in')?.value)||0;S.overall.ndisOwed=(S.overall.ndisOwed||0)+a;S.workflowData.ndisAddedAmount=(S.workflowData.ndisAddedAmount||0)+a;saveS();doneStep(9);}
 function addCash(){const a=parseFloat(document.getElementById('cash-in')?.value)||0;S.overall.cashSavings=(S.overall.cashSavings||0)+a;saveS();doneStep(10);}
 function addOther(){const desc=document.getElementById('oth-desc')?.value.trim(),amt=parseFloat(document.getElementById('oth-amt')?.value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.transactions.push({id:'oth_'+Date.now(),date:new Date().toISOString().split('T')[0],description:desc,amount:amt,category:'Other',method:'other',status:'accepted',source:'manual'});if(document.getElementById('oth-desc'))document.getElementById('oth-desc').value='';if(document.getElementById('oth-amt'))document.getElementById('oth-amt').value='';saveS();alert('Added!');}
 function saveMoneyOwed(){const a=parseFloat(document.getElementById('ow-total-in')?.value)||0;S.overall.moneyOwed=a;saveS();doneStep(12);}
