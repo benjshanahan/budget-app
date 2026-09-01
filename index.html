@@ -369,7 +369,6 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
       <div class="field"><label>Date</label><input type="date" id="qt-date"></div>
       <div class="field"><label>Amount ($)</label><input type="number" id="qt-amount" placeholder="0.00" step="0.01" min="0" oninput="autoFillLastSplit()"></div>
     </div>
-    <div id="qt-desc-wrap" class="field"><label>Description</label><input type="text" id="qt-desc" placeholder="What was this for?"></div>
     <div class="field"><label>Category</label><select id="qt-cat" onchange="updateQTSubcat()"></select></div>
     <div id="qt-subcat-wrap" class="field" style="display:none"><label>Sub-category</label><select id="qt-subcat"></select></div>
     <div class="field"><label>Payment method</label>
@@ -384,7 +383,7 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
       <div id="split-rows"></div>
       <button class="btn btn-sm" onclick="addSplitRow()" style="margin-top:6px">+ Add split</button>
     </div>
-    <div class="field"><label>Notes (optional)</label><textarea id="qt-notes" placeholder="Any notes..."></textarea></div>
+    <div id="qt-desc-wrap" class="field"><label id="qt-desc-label">Description</label><input type="text" id="qt-desc" placeholder="What was this for?" oninput="syncSplitDescriptions()"></div>
     <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:1rem">
       <input type="checkbox" id="qt-recurring" onchange="toggleRecurringOptions()" style="width:18px;height:18px;cursor:pointer">
       <label for="qt-recurring" style="font-size:13px;font-weight:500;cursor:pointer">🔄 Set up as recurring transaction</label>
@@ -2907,7 +2906,6 @@ function openCSVReview(data){
         +subHtml2
         +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Description</div><input type="text" value="'+t.description+'" onchange="S.csvPending.unmatchedManual['+i+'].description=this.value" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
         +'</div>'
-        +'<div style="font-size:11px;color:#7A5A10;margin-bottom:8px">No matching credit card entry — was it paid by cash/debit, or still to appear on your statement?</div>'
         +'<div style="display:flex;gap:8px;margin-bottom:4px">'
         +'<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onmouseenter="document.getElementById(\'umhint'+i+'\').textContent=\'Removes this manual entry\'" onmouseleave="document.getElementById(\'umhint'+i+'\').textContent=\'\'" onclick="S.csvPending.unmatchedManual['+i+'].keepAction=\'remove\';setTimeout(()=>openCSVReview(S.csvPending),300)">🗑 Remove</button>'
         +'<button class="btn btn-sm btn-primary" style="background:var(--green);border-color:var(--gd);flex:1" onmouseenter="document.getElementById(\'umhint'+i+'\').textContent=\'Accepts and saves this transaction\'" onmouseleave="document.getElementById(\'umhint'+i+'\').textContent=\'\'" onclick="S.csvPending.unmatchedManual['+i+'].keepAction=\'keep\';setTimeout(()=>openCSVReview(S.csvPending),300)">✓ Reviewed</button>'
@@ -2940,15 +2938,15 @@ function toggleAddFromUnmatched(elId,idx,type){
     // most of the time).
     const tid=t.id;
     const cat=CATS.find(c=>c.name===t.category);
-    const subRow=cat?.subs?'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="updateUnmatchedManualField(\''+tid+'\',\'subcat\',this.value)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+cat.subs.map(s=>'<option value="'+s+'"'+(s===t.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':'';
-    html+='<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px">'
+    const subRow=cat?.subs?'<div style="margin-bottom:6px"><div style="font-size:11px;color:#7A5A10;margin-bottom:3px">Sub-category</div><select onchange="updateUnmatchedManualField(\''+tid+'\',\'subcat\',this.value)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid #E8C060;background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+cat.subs.map(s=>'<option value="'+s+'"'+(s===t.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':'';
+    html+='<div style="background:var(--al);border:1px solid #E8C060;border-radius:var(--radius);padding:10px">'
       +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:6px;margin-bottom:6px">'
-      +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Date</div><input type="date" value="'+t.date+'" onchange="updateUnmatchedManualField(\''+tid+'\',\'date\',this.value)" style="width:110px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
-      +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Category</div><select onchange="updateUnmatchedManualField(\''+tid+'\',\'category\',this.value);toggleAddFromUnmatched(\''+elId+'\','+idx+',\''+type+'\')" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>'<option value="'+c.name+'"'+(c.name===t.category?' selected':'')+'>'+c.name+'</option>').join('')+'<option value="Other"'+(t.category==='Other'?' selected':'')+'>Other</option></select></div>'
-      +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Amount ($)</div><input type="number" value="'+t.amount+'" step="0.01" onchange="updateUnmatchedManualField(\''+tid+'\',\'amount\',parseFloat(this.value))" style="width:75px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+      +'<div><div style="font-size:11px;color:#7A5A10;margin-bottom:3px">Date</div><input type="date" value="'+t.date+'" onchange="updateUnmatchedManualField(\''+tid+'\',\'date\',this.value)" style="width:110px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid #E8C060;background:var(--surface);color:var(--text-primary)"></div>'
+      +'<div><div style="font-size:11px;color:#7A5A10;margin-bottom:3px">Category</div><select onchange="updateUnmatchedManualField(\''+tid+'\',\'category\',this.value);toggleAddFromUnmatched(\''+elId+'\','+idx+',\''+type+'\')" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid #E8C060;background:var(--surface);color:var(--text-primary)">'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>'<option value="'+c.name+'"'+(c.name===t.category?' selected':'')+'>'+c.name+'</option>').join('')+'<option value="Other"'+(t.category==='Other'?' selected':'')+'>Other</option></select></div>'
+      +'<div><div style="font-size:11px;color:#7A5A10;margin-bottom:3px">Amount ($)</div><input type="number" value="'+t.amount+'" step="0.01" onchange="updateUnmatchedManualField(\''+tid+'\',\'amount\',parseFloat(this.value))" style="width:75px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid #E8C060;background:var(--surface);color:var(--text-primary)"></div>'
       +'</div>'
       +subRow
-      +'<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Description</div><input type="text" value="'+t.description+'" onchange="updateUnmatchedManualField(\''+tid+'\',\'description\',this.value)" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+      +'<div style="margin-bottom:8px"><div style="font-size:11px;color:#7A5A10;margin-bottom:3px">Description</div><input type="text" value="'+t.description+'" onchange="updateUnmatchedManualField(\''+tid+'\',\'description\',this.value)" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius);border:0.5px solid #E8C060;background:var(--surface);color:var(--text-primary)"></div>'
       +'<button class="btn btn-sm btn-primary" style="width:100%;background:var(--green);border-color:var(--gd)" onclick="addUnmatchedToGroup(\''+elId+'\',\''+tid+'\',\''+type+'\','+idx+')">+ Link this transaction</button>'
       +'</div>';
   });
@@ -3033,7 +3031,7 @@ function renderCSVSubcatNamed(key,catName,selected){
   const amSubs=['Renovations','Maternity',...(S.overall?.additionalCategories||[]).map(e=>e.name)];
   const subs=cat?.subs||(catName==='Additional Money'?amSubs:null);
   if(!subs)return'';
-  return'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="updateSubcatValue(\''+key+'\',this.value)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+subs.map(s=>'<option value="'+s+'"'+(s===selected?' selected':'')+'>'+s+'</option>').join('')+'</select></div>';
+  return'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="updateSubcatValue(\''+key+'\',this.value)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+subs.map(s=>'<option value="'+s+'"'+(s===selected?' selected':'')+'>'+s+'</option>').join('')+'</select></div>';
 }
 function learnMerchant(desc,category){
   if(!desc||!category||category==='Split')return;
@@ -3407,7 +3405,6 @@ function openModal(id){
     document.getElementById('qt-date').value=new Date().toISOString().split('T')[0];
     document.getElementById('qt-amount').value='';
     document.getElementById('qt-desc').value='';
-    document.getElementById('qt-notes').value='';
     document.getElementById('qt-method').value='credit';
     document.getElementById('qt-recurring').checked=false;
     document.getElementById('qt-recurring-options').style.display='none';
@@ -3500,6 +3497,8 @@ function updateQTSubcat(){
   if(val==='Split'){
     wrap.style.display='none';
     splitArea.style.display='block';
+    // Each split row has its own required description — no need for a shared
+    // overall description field when splitting.
     if(descWrap)descWrap.style.display='none';
     if(!document.getElementById('split-rows').children.length)addSplitRow();
   } else {
@@ -3521,12 +3520,24 @@ function updateQTSubcat(){
   }
 }
 function toggleSplit(){const on=document.getElementById('qt-split-chk')?.checked;document.getElementById('qt-split-area').style.display=on?'block':'none';if(on&&!document.getElementById('split-rows').children.length)addSplitRow();}
+function syncSplitDescriptions(){
+  // As the shared description field is typed into, fill it into any split
+  // row whose own description is still blank — rows already customised by
+  // the user are left alone.
+  const sharedDesc=document.getElementById('qt-desc')?.value||'';
+  if(!sharedDesc)return;
+  document.getElementById('split-rows')?.querySelectorAll('.split-row').forEach(row=>{
+    const descInput=row.querySelector('input[type=text]');
+    if(descInput&&!descInput.value.trim())descInput.value=sharedDesc;
+  });
+}
 function addSplitRow(){
   const div=document.createElement('div');
   div.className='split-row';
   div.style.cssText='display:flex;flex-direction:column;gap:6px;margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
   const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
-  div.innerHTML='<div style="display:flex;gap:6px;align-items:center"><select onchange="autoFillLastSplit();autoShowSplitSubcat(this)" style="flex:1;min-width:0;font-size:13px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>'+sortedCats.map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS</option><option value="Additional Money">💰 Additional Money</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option></select><button class="btn btn-sm" onclick="this.closest(\'.split-row\').remove();autoFillLastSplit()" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button></div><div class="split-subcat-wrap" style="display:none"><select class="split-subcat-sel" style="width:100%;font-size:13px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"></select></div><div style="display:flex;gap:6px;align-items:center"><input type="number" placeholder="Amount $" step="0.01" min="0" oninput="autoFillLastSplit()" style="flex:1;min-width:0;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"></div><input type="text" placeholder="Description for this split" style="width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">';
+  const sharedDesc=document.getElementById('qt-desc')?.value||'';
+  div.innerHTML='<div style="display:flex;gap:6px;align-items:center"><select onchange="autoFillLastSplit();autoShowSplitSubcat(this)" style="flex:1;min-width:0;font-size:13px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>'+sortedCats.map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS</option><option value="Additional Money">💰 Additional Money</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option></select><button class="btn btn-sm" onclick="this.closest(\'.split-row\').remove();autoFillLastSplit()" style="color:var(--red);border-color:var(--red);flex-shrink:0">✕</button></div><div class="split-subcat-wrap" style="display:none"><select class="split-subcat-sel" style="width:100%;font-size:13px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"></select></div><div style="display:flex;gap:6px;align-items:center"><input type="number" placeholder="Amount $" step="0.01" min="0" oninput="autoFillLastSplit()" style="flex:1;min-width:0;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"></div><input type="text" placeholder="Description for this split (required)" value="'+sharedDesc.replace(/"/g,'&quot;')+'" style="width:100%;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">';
   document.getElementById('split-rows').appendChild(div);
   autoFillLastSplit();
 }
@@ -3570,7 +3581,7 @@ function saveQuickTx(){
   const amount=parseFloat(document.getElementById('qt-amount').value);
   const desc=document.getElementById('qt-desc').value.trim();
   const method=document.getElementById('qt-method').value;
-  const notes=document.getElementById('qt-notes').value.trim();
+  const notes='';
   const cat=document.getElementById('qt-cat').value;
   const isSplitCat=cat==='Split';
   if(!date||!amount){alert('Please fill in date and amount.');return;}
@@ -3606,7 +3617,15 @@ function saveQuickTx(){
   const isSplit=isSplitCat;
   if(isSplit){
     const splitGroupId='sg_'+Date.now();
-    document.getElementById('split-rows').querySelectorAll('.split-row').forEach(row=>{
+    const rows=[...document.getElementById('split-rows').querySelectorAll('.split-row')];
+    // Every split part with an amount must have its own description — no
+    // silently falling back to a generic "Split transaction" placeholder.
+    for(const row of rows){
+      const rowAmt=parseFloat(row.querySelector('input[type=number]')?.value)||0;
+      const rowDesc=row.querySelector('input[type=text]')?.value?.trim()||'';
+      if(rowAmt&&!rowDesc){alert('Please fill in a description for every split part.');return;}
+    }
+    rows.forEach(row=>{
       const cat=row.querySelector('select').value;
       const amt=parseFloat(row.querySelector('input[type=number]')?.value)||0;
       const splitDesc=row.querySelector('input[type=text]')?.value?.trim()||desc||'Split transaction';
