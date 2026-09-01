@@ -48,7 +48,7 @@ exports.handler = async (event) => {
 
     if (action === 'read') {
       const ranges = body.ranges || [
-        'Transactions!A:K',
+        'Transactions!A:Z',
         'Config!A:B',
         'MoneyOwed!A:C',
         'Spending!A:B',
