@@ -541,15 +541,18 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
     <div id="am-add-form" style="display:none;border-top:1px solid var(--border);padding-top:1rem;margin-bottom:1rem">
       <div class="frow">
         <div class="field"><label>Budget name</label><input type="text" id="am-new-name" placeholder="e.g. School Trip"></div>
-        <div class="field"><label>Starting balance ($)</label><input type="number" id="am-new-balance" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label>Balance ($)</label><input type="number" id="am-new-balance" step="0.01" placeholder="0.00"></div>
+      </div>
+      <div class="frow">
+        <div class="field"><label>Date added</label><input type="date" id="am-new-date"></div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-        <button class="btn btn-sm" onclick="document.getElementById('am-add-form').style.display='none'">Cancel</button>
-        <button class="btn btn-sm btn-primary" onclick="addAdditionalBudget()">✓ Add budget</button>
+        <button class="btn btn-sm" onclick="closeAmAddForm()">Cancel</button>
+        <button class="btn btn-sm btn-primary" onclick="addAdditionalBudget()">✓ Save budget</button>
       </div>
     </div>
     <div class="modal-actions" style="justify-content:space-between">
-      <button class="btn btn-sm" onclick="document.getElementById('am-add-form').style.display='block'">➕ Add budget</button>
+      <button class="btn btn-sm" onclick="openAmAddForm()">➕ Add budget</button>
       <button class="btn" onclick="closeModal('additionalMoney')">Close</button>
     </div>
   </div>
@@ -878,10 +881,17 @@ async function loadFromSheets(){
       } else {
         // Migrate legacy single Renovations/Maternity fields into the new list format
         if(cfg.renovationsBalance!=null&&cfg.renovationsBalance!==''&&cfg.renovationsBalance!=='null'&&cfg.renovationsBalance!=='undefined'){
-          additionalBudgets.push({id:'renovations',name:'Renovations',balance:parseFloat(cfg.renovationsBalance)||0,dateAdded:null});
+          additionalBudgets.push({id:'renovations',name:'Renovations',balance:parseFloat(cfg.renovationsBalance)||0,dateAdded:cfg.renovationsDate||null,startingBalance:cfg.renovationsStarting!=null?parseFloat(cfg.renovationsStarting)||0:null});
         }
-        if(cfg.maternityBalance!=null&&cfg.maternityBalance!==''&&parseFloat(cfg.maternityBalance)!==0){
-          additionalBudgets.push({id:'maternity',name:'Maternity',balance:parseFloat(cfg.maternityBalance)||0,dateAdded:null});
+        if(cfg.maternityBalance!=null&&cfg.maternityBalance!==''){
+          additionalBudgets.push({id:'maternity',name:'Maternity',balance:parseFloat(cfg.maternityBalance)||0,dateAdded:cfg.maternityDate||null,startingBalance:cfg.maternityStarting!=null?parseFloat(cfg.maternityStarting)||0:null});
+        }
+        // Legacy dynamic extra budgets (pre-existing "additionalCategories" JSON from an earlier version)
+        if(cfg.additionalCategories){
+          try{
+            const extra=JSON.parse(cfg.additionalCategories)||[];
+            extra.forEach(b=>additionalBudgets.push({id:b.id||('ab_'+Date.now()+'_'+Math.random().toString(36).slice(2,6)),name:b.name,balance:b.balance||0,dateAdded:b.dateAdded||null,startingBalance:b.startingBalance!=null?b.startingBalance:null}));
+          }catch(e){}
         }
       }
       S.overall={
@@ -2906,6 +2916,7 @@ function acceptCSVReview(){
   }
 }
 
+let amEditingId=null;
 function renderAdditionalBudgetList(){
   const list=S.overall.additionalBudgets||[];
   const el=document.getElementById('am-budget-list');
@@ -2918,7 +2929,7 @@ function renderAdditionalBudgetList(){
     <div class="stat" style="display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:13px;font-weight:600">${b.name}</div>
-        <div style="font-size:11px;color:var(--text2)">${b.dateAdded?'Added '+fmtDate(b.dateAdded):'Auto-deducted when transactions are added'}</div>
+        <div style="font-size:11px;color:var(--text2)">${b.dateAdded?'Added '+fmtDate(b.dateAdded):'No date recorded'}</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <div class="stat-value ${(b.balance||0)>=0?'pos':'neg'}" style="font-size:16px">${fmtS(b.balance||0)}</div>
@@ -2929,20 +2940,31 @@ function renderAdditionalBudgetList(){
 }
 function openAdditionalMoneyDetail(){
   renderAdditionalBudgetList();
-  document.getElementById('am-add-form').style.display='none';
+  closeAmAddForm();
   openModal('additionalMoney');
+}
+function closeAmAddForm(){
+  amEditingId=null;
+  document.getElementById('am-add-form').style.display='none';
+  document.getElementById('am-new-name').value='';
+  document.getElementById('am-new-balance').value='';
+  document.getElementById('am-new-date').value='';
+}
+function openAmAddForm(){
+  amEditingId=null;
+  document.getElementById('am-new-name').value='';
+  document.getElementById('am-new-balance').value='';
+  document.getElementById('am-new-date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('am-add-form').style.display='block';
 }
 function editAdditionalBudget(id){
   const b=(S.overall.additionalBudgets||[]).find(x=>x.id===id);
   if(!b)return;
-  const val=prompt(`Update balance for ${b.name} ($)`,(b.balance||0).toFixed(2));
-  if(val===null)return;
-  const parsed=parseFloat(val);
-  if(isNaN(parsed)){alert('Enter a valid number.');return;}
-  b.balance=parsed;
-  renderAdditionalBudgetList();
-  render();
-  saveToSheets();
+  amEditingId=id;
+  document.getElementById('am-new-name').value=b.name;
+  document.getElementById('am-new-balance').value=(b.balance||0).toFixed(2);
+  document.getElementById('am-new-date').value=b.dateAdded||'';
+  document.getElementById('am-add-form').style.display='block';
 }
 async function deleteAdditionalBudget(id){
   const b=(S.overall.additionalBudgets||[]).find(x=>x.id===id);
@@ -2957,14 +2979,19 @@ async function deleteAdditionalBudget(id){
 async function addAdditionalBudget(){
   const name=document.getElementById('am-new-name')?.value.trim();
   const balance=parseFloat(document.getElementById('am-new-balance')?.value)||0;
+  const dateAdded=document.getElementById('am-new-date')?.value||null;
   if(!name){alert('Enter a name for the budget.');return;}
-  if((S.overall.additionalBudgets||[]).some(b=>b.name.toLowerCase()===name.toLowerCase())){alert('A budget with that name already exists.');return;}
+  const dup=(S.overall.additionalBudgets||[]).find(b=>b.name.toLowerCase()===name.toLowerCase()&&b.id!==amEditingId);
+  if(dup){alert('A budget with that name already exists.');return;}
   if(!S.overall.additionalBudgets)S.overall.additionalBudgets=[];
-  S.overall.additionalBudgets.push({id:'ab_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),name,balance,dateAdded:new Date().toISOString().split('T')[0]});
+  if(amEditingId){
+    const b=S.overall.additionalBudgets.find(x=>x.id===amEditingId);
+    if(b){b.name=name;b.balance=balance;b.dateAdded=dateAdded;}
+  } else {
+    S.overall.additionalBudgets.push({id:'ab_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),name,balance,dateAdded});
+  }
   syncAdditionalSubs();
-  document.getElementById('am-new-name').value='';
-  document.getElementById('am-new-balance').value='';
-  document.getElementById('am-add-form').style.display='none';
+  closeAmAddForm();
   renderAdditionalBudgetList();
   render();
   await saveToSheets();
