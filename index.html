@@ -1659,7 +1659,15 @@ function finaliseWorkflow(){
   },300);
 }
 function toggleStep(n){document.getElementById('sb'+n)?.classList.toggle('open');}
-function doneStep(n){S.workflowData['s'+n]=true;saveS();renderWorkflow();}
+function doneStep(n){
+  // Stamp this workflow session with today's date the moment it starts (first
+  // step completed), not just at finalisation. Without this, currentDate stays
+  // empty for the entire in-progress workflow, which made the "stale session"
+  // safety check below misfire on every normal session and wipe progress the
+  // instant any step was completed.
+  if(!S.workflowData.currentDate)S.workflowData.currentDate=new Date().toISOString().split('T')[0];
+  S.workflowData['s'+n]=true;saveS();renderWorkflow();
+}
 function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
 function resetWorkflow(){
   if(confirm('Start over on this fortnight?\n\nThis will reset all workflow steps back to the beginning, so you can redo it from scratch. Any pending transactions from this attempt will be removed.')){
@@ -2922,8 +2930,43 @@ function toggleAddFromUnmatched(elId,idx,type){
     el.innerHTML='<div style="font-size:12px;color:var(--text2);padding:8px;text-align:center">No unmatched transactions available.</div>';
     el.style.display='block';return;
   }
-  let html='<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">';
+  // Group genuine split parts (sharing a real splitGroupId) into one combined
+  // card rather than listing each part separately — ungrouped entries render
+  // individually as before.
+  const groups={};
+  const ungrouped=[];
   unmatched.forEach(t=>{
+    if(t.splitGroupId){(groups[t.splitGroupId]=groups[t.splitGroupId]||[]).push(t);}
+    else ungrouped.push(t);
+  });
+  let html='<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">';
+  // Split groups first (most useful to spot at a glance)
+  Object.keys(groups).forEach(gid=>{
+    const parts=groups[gid];
+    const total=parts.reduce((a,t)=>a+(t.amount||0),0);
+    const gidSafe=gid.replace(/[^a-zA-Z0-9_]/g,'');
+    const partIds=parts.map(t=>t.id);
+    html+='<div style="background:var(--al);border:1px solid #E8C060;border-radius:var(--radius);overflow:hidden">'
+      +'<div style="padding:10px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="document.getElementById(\'sg-detail-'+gidSafe+'\').style.display=document.getElementById(\'sg-detail-'+gidSafe+'\').style.display===\'none\'?\'block\':\'none\';document.getElementById(\'sg-chev-'+gidSafe+'\').textContent=document.getElementById(\'sg-detail-'+gidSafe+'\').style.display===\'none\'?\'▾\':\'▴\'">'
+        +'<div>'
+          +'<div style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px">⇄ Split transaction <span style="font-size:10px;font-weight:600;color:#7A5A10;background:var(--surface);border:1px solid #E8C060;border-radius:20px;padding:1px 7px">'+parts.length+' parts</span></div>'
+          +'<div style="font-size:11px;color:#7A5A10;margin-top:2px">'+fmtDate(parts[0].date)+'</div>'
+        +'</div>'
+        +'<div style="display:flex;align-items:center;gap:6px">'
+          +'<div style="font-size:15px;font-weight:700">'+fmt(total)+'</div>'
+          +'<div id="sg-chev-'+gidSafe+'" style="font-size:11px;color:#7A5A10">▾</div>'
+        +'</div>'
+      +'</div>'
+      +'<div id="sg-detail-'+gidSafe+'" style="display:none;border-top:1px solid #E8C060;background:var(--surface);padding:6px 10px">'
+        +parts.map((t,i)=>'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;'+(i<parts.length-1?'border-bottom:1px solid #F0DFB8':'')+'"><span>'+t.category+(t.subcat?' · '+t.subcat:'')+' — '+t.description+'</span><span style="font-weight:600;flex-shrink:0;margin-left:8px">'+fmt(t.amount)+'</span></div>').join('')
+      +'</div>'
+      +'<div style="padding:10px">'
+        +'<button class="btn btn-sm btn-primary" style="width:100%;background:var(--green);border-color:var(--gd)" onclick="linkSplitGroupToUnmatched(\''+elId+'\',[\''+partIds.join("','")+'\'],\''+type+'\','+idx+')">+ Link this transaction ('+parts.length+' parts)</button>'
+      +'</div>'
+    +'</div>';
+  });
+  // Then ungrouped individual entries, editable as before
+  ungrouped.forEach(t=>{
     // IMPORTANT: reference this transaction by its unique id, not by position.
     // `unmatched` is a sorted COPY of S.csvPending.unmatchedManual for display —
     // its index does not correspond to the index in the real underlying array,
@@ -2947,6 +2990,31 @@ function toggleAddFromUnmatched(elId,idx,type){
   html+='</div>';
   el.innerHTML=html;
   el.style.display='block';
+}
+function linkSplitGroupToUnmatched(elId,partIds,type,idx){
+  const parts=partIds.map(id=>(S.csvPending.unmatchedManual||[]).find(x=>x.id===id)).filter(Boolean);
+  if(!parts.length)return;
+  if(type==='csv'){
+    const csv=S.csvPending.unmatchedCSV[idx];
+    if(!csv)return;
+    S.csvPending.unmatchedCSV.splice(idx,1);
+    S.csvPending.unmatchedManual=S.csvPending.unmatchedManual.filter(x=>!partIds.includes(x.id));
+    S.csvPending.merged.push({csv,manualGroup:parts,action:'merge-split'});
+    openCSVReview(S.csvPending);
+    setTimeout(()=>{
+      const targetEl=document.getElementById('csv-merged-'+(csv.id||''));
+      if(targetEl)targetEl.scrollIntoView({behavior:'smooth',block:'center'});
+    },50);
+  } else {
+    const m=S.csvPending.merged[idx];
+    if(!m)return;
+    if(m.action==='merge'){m.manualGroup=[m.manual];m.action='merge-split';delete m.manual;}
+    m.manualGroup.push(...parts);
+    S.csvPending.unmatchedManual=S.csvPending.unmatchedManual.filter(x=>!partIds.includes(x.id));
+    const el=document.getElementById('csv-add-unmatched-'+elId);
+    if(el)el.style.display='none';
+    toggleAddFromUnmatched(elId,idx,type);
+  }
 }
 function updateUnmatchedManualField(manualId,field,value){
   const t=(S.csvPending.unmatchedManual||[]).find(x=>x.id===manualId);
