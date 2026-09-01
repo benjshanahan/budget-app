@@ -415,6 +415,10 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
       <div class="field"><label>Mortgage ahead ($)</label><input type="number" id="eo-mort" step="0.01"><div class="field-hint">How much ahead on mortgage</div></div>
 
     </div>
+    <div class="frow">
+      <div class="field"><label>Benj's spending balance ($)</label><input type="number" id="eo-benj" step="0.01"><div class="field-hint">Current debit balance</div></div>
+      <div class="field"><label>Kasie's spending balance ($)</label><input type="number" id="eo-kasie" step="0.01"><div class="field-hint">Current debit balance</div></div>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('editOverall')">Cancel</button>
       <button class="btn btn-primary" onclick="saveOverall()">✓ Save</button>
@@ -2959,7 +2963,10 @@ function openModal(id){
     document.getElementById('eo-cash').value=(S.overall.cashSavings||0).toFixed(2);
     const mortEl=document.getElementById('eo-mort');
     if(mortEl)mortEl.value=(S.overall.mortgageAhead||0).toFixed(2);
-
+    const benjEl=document.getElementById('eo-benj');
+    if(benjEl)benjEl.value=(S.spendingBalances?.benj?.current||0).toFixed(2);
+    const kasieEl=document.getElementById('eo-kasie');
+    if(kasieEl)kasieEl.value=(S.spendingBalances?.kasie?.current||0).toFixed(2);
   }
   if(id==='quickTx'){
     // Reset all fields
@@ -3019,6 +3026,14 @@ async function saveOverall(){
   S.overall.cashSavings=parseFloat(document.getElementById('eo-cash')?.value)||0;
   const mortInput=document.getElementById('eo-mort');
   if(mortInput)S.overall.mortgageAhead=parseFloat(mortInput.value)||0;
+  const benjInput=document.getElementById('eo-benj');
+  const kasieInput=document.getElementById('eo-kasie');
+  if(benjInput||kasieInput){
+    S.spendingBalances={
+      benj:{current:benjInput?parseFloat(benjInput.value)||0:(S.spendingBalances?.benj?.current||0),prevDebt:S.spendingBalances?.benj?.prevDebt||0},
+      kasie:{current:kasieInput?parseFloat(kasieInput.value)||0:(S.spendingBalances?.kasie?.current||0),prevDebt:S.spendingBalances?.kasie?.prevDebt||0}
+    };
+  }
 
   closeModal('editOverall');
   render();
