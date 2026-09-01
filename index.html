@@ -2610,7 +2610,23 @@ function parseMyCardDate(str){
   return s;
 }
 
-function findMatchingSubset(txs,target,tolerance=2){
+// When more than one manual entry is within tolerance for the same CSV
+// transaction (e.g. two similar grocery runs on the same day), break the tie
+// using merchant memory rather than just taking whichever happened to be
+// first in the array — if we've previously learned that this merchant
+// description maps to a particular category, prefer the candidate already
+// categorised that way.
+function pickBestManualMatch(candidates,csvDesc){
+  if(candidates.length<=1)return candidates[0]||null;
+  const key=getMerchantKey(csvDesc);
+  const remembered=key&&S.merchantMemory?.[key];
+  if(remembered){
+    const byMemory=candidates.find(c=>c.category===remembered);
+    if(byMemory)return byMemory;
+  }
+  return candidates[0];
+}
+function findMatchingSubset(txs,target,tolerance=0.5){
   const total=txs.reduce((a,t)=>a+t.amount,0);
   if(Math.abs(total-target)<tolerance)return txs;
   const n=Math.min(txs.length,8);
@@ -2661,19 +2677,28 @@ function handleCSV(e){
     const prevTxs=S.transactions.filter(t=>t.status==='accepted'&&prevCycleIds.has(t.id));
 
     for(const csv of csvTxs){
-      // First try exact amount match on single transaction (same date)
-      const manualMatch=manualPending.find(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<0.5&&m.date===csv.date);
+      // Compute the ±1 day date window up front (noon-anchored, so this is immune
+      // to UTC/local timezone rollover — Brisbane is UTC+10, so T00:00:00 based
+      // math can push a date to the previous UTC day and throw this off).
+      const csvDateObj=new Date(csv.date+'T12:00:00');
+      const dayBefore=new Date(csvDateObj);dayBefore.setDate(dayBefore.getDate()-1);
+      const dayAfter=new Date(csvDateObj);dayAfter.setDate(dayAfter.getDate()+1);
+      const d0=csv.date;
+      const d1=dayBefore.toISOString().split('T')[0];
+      const d2=dayAfter.toISOString().split('T')[0];
+      // First try exact amount + exact date match on a single transaction
+      let manualMatch=pickBestManualMatch(manualPending.filter(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<0.5&&m.date===csv.date),csv.description);
+      // Then fall back to the same ±1 day window used for split matching below —
+      // a manually-entered date being a day off from when the card posted is the
+      // same everyday timing mismatch whether it's a split or a single entry.
+      if(!manualMatch){
+        manualMatch=pickBestManualMatch(manualPending.filter(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<0.5&&(m.date===d1||m.date===d2)),csv.description);
+      }
       if(manualMatch){
         matchedManualIds.add(manualMatch.id);
-        merged.push({csv,manual:manualMatch,action:'merge'});
+        const highConfidence=manualMatch.date===csv.date&&Math.abs(manualMatch.amount-csv.amount)<0.02;
+        merged.push({csv,manual:manualMatch,action:'merge',highConfidence});
       } else {
-        // Try matching split transactions — allow ±1 day for date
-        const csvDateObj=new Date(csv.date+'T12:00:00');
-        const dayBefore=new Date(csvDateObj);dayBefore.setDate(dayBefore.getDate()-1);
-        const dayAfter=new Date(csvDateObj);dayAfter.setDate(dayAfter.getDate()+1);
-        const d0=csv.date;
-        const d1=dayBefore.toISOString().split('T')[0];
-        const d2=dayAfter.toISOString().split('T')[0];
         const sameDatePending=manualPending.filter(m=>!matchedManualIds.has(m.id)&&(m.date===d0||m.date===d1||m.date===d2));
         // Group by splitGroupId
         const splitGroups={};
@@ -2695,13 +2720,12 @@ function handleCSV(e){
         }
         // PRIORITY 1: Check split groups — exact sum match within $0.50
         let matchedSubset=null;
-
-
+        let matchedViaSplitGroup=false;
 
         for(const grpId of Object.keys(splitGroups)){
           const grp=splitGroups[grpId];
           const sum=grp.reduce((a,t)=>a+t.amount,0);
-          if(Math.abs(sum-csv.amount)<0.5){matchedSubset=grp;break;}
+          if(Math.abs(sum-csv.amount)<0.5){matchedSubset=grp;matchedViaSplitGroup=true;break;}
         }
         // PRIORITY 2: Fallback for ungrouped transactions — only if no split group matched
         if(!matchedSubset){
@@ -2717,7 +2741,15 @@ function handleCSV(e){
         if(matchedSubset){
           matchedSubset.forEach(m=>matchedManualIds.add(m.id));
           const pendingInSubset=matchedSubset.filter(m=>m.status==='pending');
-          merged.push({csv,manualGroup:pendingInSubset,action:'merge-split'});
+          // High confidence only for a genuine recorded split group (not the
+          // generic sum-guessing fallback), with every part on the exact CSV
+          // date and the total landing almost exactly on the CSV amount —
+          // the fallback path is a heuristic guess and should never be badged
+          // as high confidence even when it happens to land close.
+          const sumTotal=matchedSubset.reduce((a,t)=>a+t.amount,0);
+          const allExactDate=matchedSubset.every(m=>m.date===csv.date);
+          const highConfidence=matchedViaSplitGroup&&allExactDate&&Math.abs(sumTotal-csv.amount)<0.02;
+          merged.push({csv,manualGroup:pendingInSubset,action:'merge-split',highConfidence});
           continue;
         }
         // Check for duplicate in previous accepted transactions (same date + amount)
@@ -2745,6 +2777,11 @@ function handleCSV(e){
 
 function openCSVReview(data){
   const{merged,unmatchedCSV,unmatchedManual}=data;
+  // Sort the actual underlying array (not a display copy) so the positional
+  // indices used throughout this render — S.csvPending.unmatchedManual[i] —
+  // stay correct. Sorting a copy here would reintroduce the exact index-vs-
+  // sort-order mismatch bug already fixed in the "add from unmatched" panel.
+  unmatchedManual.sort((a,b)=>b.date.localeCompare(a.date));
   const total=merged.length+unmatchedCSV.length+unmatchedManual.length;
   let html='<div style="font-size:13px;color:var(--text2);margin-bottom:14px">'+total+' transactions to review — '+merged.length+' matched to manual entries, '+unmatchedCSV.length+' new from CSV, '+unmatchedManual.length+' manual with no CSV match.</div>';
 
@@ -2752,15 +2789,15 @@ function openCSVReview(data){
   if(merged.length){
     html+='<div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">✓ Matched — manual entry + credit card ('+merged.length+')</div>';
     merged.forEach((m,i)=>{
-      if(m._reviewed){html+='<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--green);border-radius:12px;background:var(--gl);margin-bottom:8px;cursor:pointer" onclick="unmarkCSVReviewed(\'m'+i+'\')"><span style="color:var(--green);font-size:16px;flex-shrink:0">✓</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">'+m.csv.description+'</div><div style="font-size:11px;color:var(--text2);margin-top:1px">'+fmtDate(m.csv.date)+' · '+(m.action==='merge-split'?(m.manualGroup?.length||0)+' split parts':m.csv.category)+'</div></div><span style="font-size:13px;font-weight:700;color:var(--gd);flex-shrink:0">'+fmt(m.csv.amount)+'</span></div>';return;}
+      if(m._reviewed){html+='<div id="csv-merged-'+(m.csv.id||i)+'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--green);border-radius:12px;background:var(--gl);margin-bottom:8px;cursor:pointer" onclick="unmarkCSVReviewed(\'m'+i+'\')"><span style="color:var(--green);font-size:16px;flex-shrink:0">✓</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">'+m.csv.description+'</div><div style="font-size:11px;color:var(--text2);margin-top:1px">'+fmtDate(m.csv.date)+' · '+(m.action==='merge-split'?(m.manualGroup?.length||0)+' split parts':m.csv.category)+'</div></div><span style="font-size:13px;font-weight:700;color:var(--gd);flex-shrink:0">'+fmt(m.csv.amount)+'</span></div>';return;}
       const manualDesc=m.action==='merge-split'
         ? m.manualGroup.map(t=>t.description+' ('+fmt(t.amount)+')').join(', ')
         : '"'+m.manual.description+'" · '+m.manual.category+' · '+fmt(m.manual.amount);
       const manualParts=m.action==='merge-split'?(m.manualGroup||[]):(m.manual?[m.manual]:[]);
-      html+='<div style="border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--gl)">'
+      html+='<div id="csv-merged-'+(m.csv.id||i)+'" style="border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:var(--gl)">'
 
         // Credit Card Transaction section (read-only)
-        +'<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Credit Card Transaction</div>'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Credit Card Transaction</div>'+(m.highConfidence?'<span style="font-size:10px;font-weight:700;color:var(--gd);background:#fff;border:1px solid var(--green);border-radius:20px;padding:1px 8px">✓ High confidence</span>':'')+'</div>'
         +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:12px">'
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
         +'<span style="font-size:13px;font-weight:600">'+m.csv.description+'</span>'
@@ -2890,40 +2927,59 @@ function toggleAddFromUnmatched(elId,idx,type){
     el.style.display='block';return;
   }
   let html='<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">';
-  unmatched.forEach((t,j)=>{
+  unmatched.forEach(t=>{
+    // IMPORTANT: reference this transaction by its unique id, not by position.
+    // `unmatched` is a sorted COPY of S.csvPending.unmatchedManual for display —
+    // its index does not correspond to the index in the real underlying array,
+    // so using a positional index here would silently act on the wrong
+    // transaction whenever the sort order differs from array order (which is
+    // most of the time).
+    const tid=t.id;
     const cat=CATS.find(c=>c.name===t.category);
-    const subRow=cat?.subs?'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="S.csvPending.unmatchedManual['+j+'].subcat=this.value" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+cat.subs.map(s=>'<option value="'+s+'"'+(s===t.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':'';
+    const subRow=cat?.subs?'<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Sub-category</div><select onchange="updateUnmatchedManualField(\''+tid+'\',\'subcat\',this.value)" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"><option value="">-- Select --</option>'+cat.subs.map(s=>'<option value="'+s+'"'+(s===t.subcat?' selected':'')+'>'+s+'</option>').join('')+'</select></div>':'';
     html+='<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px">'
       +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:6px;margin-bottom:6px">'
-      +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Date</div><input type="date" value="'+t.date+'" onchange="S.csvPending.unmatchedManual['+j+'].date=this.value" style="width:110px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
-      +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Category</div><select onchange="S.csvPending.unmatchedManual['+j+'].category=this.value;toggleAddFromUnmatched(\''+elId+'\','+idx+',\''+type+'\')" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>'<option value="'+c.name+'"'+(c.name===t.category?' selected':'')+'>'+c.name+'</option>').join('')+'<option value="Other"'+(t.category==='Other'?' selected':'')+'>Other</option></select></div>'
-      +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Amount ($)</div><input type="number" value="'+t.amount+'" step="0.01" onchange="S.csvPending.unmatchedManual['+j+'].amount=parseFloat(this.value)" style="width:75px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+      +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Date</div><input type="date" value="'+t.date+'" onchange="updateUnmatchedManualField(\''+tid+'\',\'date\',this.value)" style="width:110px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+      +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Category</div><select onchange="updateUnmatchedManualField(\''+tid+'\',\'category\',this.value);toggleAddFromUnmatched(\''+elId+'\','+idx+',\''+type+'\')" style="width:100%;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)">'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>'<option value="'+c.name+'"'+(c.name===t.category?' selected':'')+'>'+c.name+'</option>').join('')+'<option value="Other"'+(t.category==='Other'?' selected':'')+'>Other</option></select></div>'
+      +'<div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Amount ($)</div><input type="number" value="'+t.amount+'" step="0.01" onchange="updateUnmatchedManualField(\''+tid+'\',\'amount\',parseFloat(this.value))" style="width:75px;font-size:12px;padding:6px 4px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
       +'</div>'
       +subRow
-      +'<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Description</div><input type="text" value="'+t.description+'" onchange="S.csvPending.unmatchedManual['+j+'].description=this.value" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
-      +'<button class="btn btn-sm btn-primary" style="width:100%;background:var(--green);border-color:var(--gd)" onclick="addUnmatchedToGroup(\''+elId+'\','+j+',\''+type+'\','+idx+')">+ Link this transaction</button>'
+      +'<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px">Description</div><input type="text" value="'+t.description+'" onchange="updateUnmatchedManualField(\''+tid+'\',\'description\',this.value)" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border);background:var(--surface);color:var(--text-primary)"></div>'
+      +'<button class="btn btn-sm btn-primary" style="width:100%;background:var(--green);border-color:var(--gd)" onclick="addUnmatchedToGroup(\''+elId+'\',\''+tid+'\',\''+type+'\','+idx+')">+ Link this transaction</button>'
       +'</div>';
   });
   html+='</div>';
   el.innerHTML=html;
   el.style.display='block';
 }
-function addUnmatchedToGroup(elId,unmatchedIdx,type,idx){
-  const t=S.csvPending.unmatchedManual[unmatchedIdx];
+function updateUnmatchedManualField(manualId,field,value){
+  const t=(S.csvPending.unmatchedManual||[]).find(x=>x.id===manualId);
+  if(t)t[field]=value;
+}
+function addUnmatchedToGroup(elId,manualId,type,idx){
+  const trueIdx=(S.csvPending.unmatchedManual||[]).findIndex(x=>x.id===manualId);
+  if(trueIdx===-1)return;
+  const t=S.csvPending.unmatchedManual[trueIdx];
   if(!t)return;
   if(type==='csv'){
     const csv=S.csvPending.unmatchedCSV[idx];
     if(!csv)return;
     S.csvPending.unmatchedCSV.splice(idx,1);
-    S.csvPending.unmatchedManual.splice(unmatchedIdx,1);
+    S.csvPending.unmatchedManual.splice(trueIdx,1);
     S.csvPending.merged.push({csv,manualGroup:[t],action:'merge-split'});
     openCSVReview(S.csvPending);
+    // The matched card now lives in a different section (green, at the top) —
+    // jump the view straight to it so it doesn't feel like it's vanished.
+    setTimeout(()=>{
+      const targetEl=document.getElementById('csv-merged-'+(csv.id||''));
+      if(targetEl)targetEl.scrollIntoView({behavior:'smooth',block:'center'});
+    },50);
   } else {
     const m=S.csvPending.merged[idx];
     if(!m)return;
     if(m.action==='merge'){m.manualGroup=[m.manual];m.action='merge-split';delete m.manual;}
     m.manualGroup.push(t);
-    S.csvPending.unmatchedManual.splice(unmatchedIdx,1);
+    S.csvPending.unmatchedManual.splice(trueIdx,1);
     // Re-render just the unmatched panel so more can be linked
     const el=document.getElementById('csv-add-unmatched-'+elId);
     if(el)el.style.display='none';
