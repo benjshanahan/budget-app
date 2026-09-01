@@ -2723,17 +2723,14 @@ function handleCSV(e){
           const sum=grp.reduce((a,t)=>a+t.amount,0);
           if(Math.abs(sum-csv.amount)<0.5){matchedSubset=grp;matchedViaSplitGroup=true;break;}
         }
-        // PRIORITY 2: Fallback for ungrouped transactions — only if no split group matched
-        if(!matchedSubset){
-          const noGroupPending=sameDatePending.filter(m=>!m.splitGroupId);
-          const noGroupAccepted=S.transactions.filter(t=>
-            t.status==='accepted'&&t.source==='manual'&&(t.date===d0||t.date===d1||t.date===d2)&&
-            !t.splitGroupId&&!matchedManualIds.has(t.id)&&
-            (t.category==='💰 Add to Money Owed'||t.notes==='Added to Money Owed on dashboard')
-          );
-          const noGroupAll=[...noGroupPending,...noGroupAccepted];
-          if(noGroupAll.length)matchedSubset=findMatchingSubset(noGroupAll,csv.amount,0.5);
-        }
+        // No fallback for ungrouped transactions — deliberately. Combining two
+        // or more unrelated manual entries just because their amounts happen
+        // to sum close to a CSV total produces false matches (confirmed by a
+        // real case: two unrelated purchases that coincidentally added up to
+        // within a couple of cents of a card transaction). A genuine split is
+        // only ever recognised via a real splitGroupId above. Anything that
+        // doesn't match a single transaction or a real group is left unmatched
+        // for manual review rather than guessed at.
         if(matchedSubset){
           matchedSubset.forEach(m=>matchedManualIds.add(m.id));
           const pendingInSubset=matchedSubset.filter(m=>m.status==='pending');
