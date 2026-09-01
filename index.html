@@ -2369,7 +2369,9 @@ function openCatDetail(catName){
   }
   document.getElementById('txd-title').textContent=catName;
   document.getElementById('txd-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">${headerStats}</div><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px">Transactions (${txs.length})</div><div class="tx-list">${txs.length?txs.map(t=>`<div class="tx accepted" style="cursor:default"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join(''):'<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No transactions yet</div>'}</div>`;
-  document.getElementById('txd-actions').innerHTML=`<button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
+  document.getElementById('txd-actions').innerHTML=cat?.isSpending?
+    `<button class="btn btn-sm" onclick="closeModal('txDetail');setTimeout(()=>{openModal('editOverall');document.getElementById('${cat.person==='Benj'?'eo-benj':'eo-kasie'}').focus();},150)">✏️ Edit balance</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`:
+    `<button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   openModal('txDetail');
 }
 
