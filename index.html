@@ -537,17 +537,20 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
   <div class="modal">
     <button class="mclose" onclick="closeModal('additionalMoney')">✕</button>
     <div class="modal-title">Additional money</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1.25rem">
-      <div class="stat"><div class="stat-label">Renovations</div><div class="stat-value pos" id="am-reno-display"></div><div style="font-size:11px;color:var(--text2);margin-top:4px">Deducted automatically when Renovations transactions are added</div></div>
-      <div class="stat"><div class="stat-label">Maternity</div><div class="stat-value pos" id="am-mat-display"></div></div>
+    <div id="am-budget-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:1rem"></div>
+    <div id="am-add-form" style="display:none;border-top:1px solid var(--border);padding-top:1rem;margin-bottom:1rem">
+      <div class="frow">
+        <div class="field"><label>Budget name</label><input type="text" id="am-new-name" placeholder="e.g. School Trip"></div>
+        <div class="field"><label>Starting balance ($)</label><input type="number" id="am-new-balance" step="0.01" placeholder="0.00"></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn btn-sm" onclick="document.getElementById('am-add-form').style.display='none'">Cancel</button>
+        <button class="btn btn-sm btn-primary" onclick="addAdditionalBudget()">✓ Add budget</button>
+      </div>
     </div>
-    <div class="frow">
-      <div class="field"><label>Renovations balance ($)</label><input type="number" id="am-reno" step="0.01" placeholder="0.00"><div class="field-hint">Auto-deducted when Renovations transactions added</div></div>
-      <div class="field"><label>Maternity balance ($)</label><input type="number" id="am-mat" step="0.01" placeholder="0.00"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal('additionalMoney')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveAdditionalMoney()">✓ Save</button>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button class="btn btn-sm" onclick="document.getElementById('am-add-form').style.display='block'">➕ Add budget</button>
+      <button class="btn" onclick="closeModal('additionalMoney')">Close</button>
     </div>
   </div>
 </div>
@@ -612,7 +615,7 @@ const CATS = [
   {name:'➕ Add to Cash Savings',fn:0,yearly:0,noGrid:true,specialAction:'cash-add'},
   {name:'💰 Add to Money Owed',fn:0,yearly:0,noGrid:true,specialAction:'owed-add'},
   {name:'NDIS',fn:0,yearly:0,noGrid:true,specialAction:'ndis'},
-  {name:'Renovations',fn:0,yearly:0,isRenovations:true},
+  {name:'💳 Additional Money',fn:0,yearly:0,noGrid:true,isAdditional:true,subs:[]},
 ];
 
 // ─── STARTING BALANCES (as at app creation, after 3 fortnights) ──────────────
@@ -687,7 +690,7 @@ while(_d <= new Date('2027-04-21')){MONEY_DAYS.push(new Date(_d));_d=new Date(_d
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let S = {
   transactions: [],
-  overall: {actualSavings:4713.11,ndisOwed:393.55,cashSavings:2275,mortgageAhead:9289.45,moneyOwed:44.95,renovationsBalance:null,maternityBalance:0},
+  overall: {actualSavings:4713.11,ndisOwed:393.55,cashSavings:2275,mortgageAhead:9289.45,moneyOwed:44.95,additionalBudgets:[]},
   moneyOwedItems: [],
   spendingBalances: {benj:{current:-17.91},kasie:{current:-5.66}},
   workflowData: {},
@@ -720,6 +723,26 @@ const getCatBudgeted = name => {
   if(!cat||cat.noGrid||cat.isSpending)return 0;
   return cat.fn*getTithingCycles();
 };
+// ─── ADDITIONAL MONEY (dynamic user-defined budgets) ──────────────────────────
+const ADDITIONAL_CAT_NAME='💳 Additional Money';
+function syncAdditionalSubs(){
+  const cat=CATS.find(c=>c.name===ADDITIONAL_CAT_NAME);
+  if(cat)cat.subs=(S.overall.additionalBudgets||[]).map(b=>b.name);
+}
+function findOrCreateAdditionalBudget(name){
+  if(!S.overall.additionalBudgets)S.overall.additionalBudgets=[];
+  let b=S.overall.additionalBudgets.find(x=>x.name===name);
+  if(!b){
+    b={id:'ab_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),name,balance:0,dateAdded:new Date().toISOString().split('T')[0]};
+    S.overall.additionalBudgets.push(b);
+    syncAdditionalSubs();
+  }
+  return b;
+}
+function deductAdditionalBalance(name,amount){
+  const b=findOrCreateAdditionalBudget(name||'Renovations');
+  b.balance=(b.balance||0)-amount;
+}
 const getFNSpending = person => {
   const catName='Spending - '+person;
   const dates=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').map(t=>t.date).sort();
@@ -849,16 +872,28 @@ async function loadFromSheets(){
     const cfg={};
     (ranges[1].values||[]).forEach(r=>{if(r[0])cfg[r[0]]=r[1];});
     if(cfg.actualSavings!==undefined){
+      let additionalBudgets=[];
+      if(cfg.additionalBudgets){
+        try{additionalBudgets=JSON.parse(cfg.additionalBudgets)||[];}catch(e){additionalBudgets=[];}
+      } else {
+        // Migrate legacy single Renovations/Maternity fields into the new list format
+        if(cfg.renovationsBalance!=null&&cfg.renovationsBalance!==''&&cfg.renovationsBalance!=='null'&&cfg.renovationsBalance!=='undefined'){
+          additionalBudgets.push({id:'renovations',name:'Renovations',balance:parseFloat(cfg.renovationsBalance)||0,dateAdded:null});
+        }
+        if(cfg.maternityBalance!=null&&cfg.maternityBalance!==''&&parseFloat(cfg.maternityBalance)!==0){
+          additionalBudgets.push({id:'maternity',name:'Maternity',balance:parseFloat(cfg.maternityBalance)||0,dateAdded:null});
+        }
+      }
       S.overall={
         actualSavings:parseFloat(cfg.actualSavings)||0,
         ndisOwed:parseFloat(cfg.ndisOwed)||0,
         cashSavings:parseFloat(cfg.cashSavings)||0,
         mortgageAhead:parseFloat(cfg.mortgageAhead)||0,
         moneyOwed:parseFloat(cfg.moneyOwed)||0,
-        renovationsBalance:cfg.renovationsBalance!=null&&cfg.renovationsBalance!==''&&cfg.renovationsBalance!=='null'&&cfg.renovationsBalance!=='undefined'?parseFloat(cfg.renovationsBalance):null,
-        maternityBalance:parseFloat(cfg.maternityBalance)||0
+        additionalBudgets
       };
     }
+    syncAdditionalSubs();
     const owedRows=ranges[2].values||[];
     if(owedRows.length>1){
       S.moneyOwedItems=owedRows.slice(1).map(r=>({id:r[0]||'',description:r[1]||'',amount:parseFloat(r[2])||0,date:r[3]||''})).filter(o=>o.id);
@@ -930,7 +965,7 @@ async function saveToSheets(){
     const txRows=[['id','date','description','amount','category','subcat','method','status','source','flag','notes']];
     S.transactions.forEach(t=>txRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.source||'',t.flag||'',t.notes||'']));
     data.push({range:'Transactions!A1',values:txRows});
-    data.push({range:'Config!A1',values:Object.entries(S.overall).map(([k,v])=>[k,v])});
+    data.push({range:'Config!A1',values:Object.entries(S.overall).filter(([k])=>k!=='additionalBudgets').map(([k,v])=>[k,v]).concat([['additionalBudgets',JSON.stringify(S.overall.additionalBudgets||[])]])});
     const owRows=[['id','description','amount','date']];
     (S.moneyOwedItems||[]).forEach(o=>owRows.push([o.id,o.description,o.amount,o.date||'']));
     data.push({range:'MoneyOwed!A1:Z1000',values:owRows});
@@ -1212,7 +1247,7 @@ function renderOverall(){
     <div class="stat private-sensitive"><div class="stat-label">Target</div><div class="stat-value">$10,000</div></div>
     <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openActualSavingsDetail()"><div class="stat-label">Actual savings ↗</div><div class="stat-value ${calcActualSavings()>=10000?'pos':'neg'}">${fmt(calcActualSavings())}</div></div>
     <div class="stat private-sensitive" style="cursor:pointer" onclick="if(!privateMode)openModal('moneyOwedDetail')"><div class="stat-label">Money owed ↗</div><div class="stat-value pos">${fmt((S.moneyOwedItems||[]).reduce((a,o)=>a+o.amount,0)+getNegativeBudgets().reduce((a,b)=>a+b.amount,0))}</div></div>
-    <div class="stat private-sensitive" style="cursor:pointer" onclick="openAdditionalMoneyDetail()"><div class="stat-label">Additional ↗</div><div class="stat-value pos">${fmt((S.overall.renovationsBalance||0)+(S.overall.maternityBalance||0))}</div></div>
+    <div class="stat private-sensitive" style="cursor:pointer" onclick="openAdditionalMoneyDetail()"><div class="stat-label">Additional ↗</div><div class="stat-value pos">${fmt((S.overall.additionalBudgets||[]).reduce((a,b)=>a+(b.balance||0),0))}</div></div>
     <div class="stat" style="grid-column:1/-1">
       <div class="stat-label">Budget year progress</div>
       <div style="position:relative;height:20px;background:var(--surface2);border-radius:var(--radius-sm);overflow:hidden;margin-top:6px;border:1px solid var(--border)">
@@ -2640,7 +2675,7 @@ function openCSVReview(data){
       ${t.isDuplicate?`<div class="banner banner-err" style="margin-bottom:8px">⚠ Possible duplicate — ${fmt(t.amount)} on ${fmtDate(t.date)} already exists: "${t.duplicateOf?.description}". Check carefully.</div>`:''}
         <div class="frow">
           <div class="field" style="margin:0"><label>Date</label><input type="date" value="${t.date}" onchange="S.csvPending.unmatchedCSV[${i}].date=this.value"></div>
-          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="Renovations"${t.category==='Renovations'?' selected':''}>🏗 Renovations</option><option value="Money Owed"${t.category==='Money Owed'?' selected':''}>💰 Money owed to you</option></select></div>
+          <div class="field" style="margin:0"><label>Category</label><select onchange="S.csvPending.unmatchedCSV[${i}].category=this.value;updateMergedSubcat('c${i}',this.value);toggleCSVSplit('c${i}',this.value,${i},'unmatched');learnMerchant('${t.description}',this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}"${n===t.category?' selected':''}>${n}</option>`).join('')}<option value="Other"${t.category==='Other'?' selected':''}>Other</option><option value="NDIS"${t.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="${ADDITIONAL_CAT_NAME}"${t.category===ADDITIONAL_CAT_NAME?' selected':''}>${ADDITIONAL_CAT_NAME}</option><option value="Money Owed"${t.category==='Money Owed'?' selected':''}>💰 Money owed to you</option></select></div>
         </div>
         <div id="csv-sub-c${i}" style="margin-top:8px">${renderCSVSubcatNamed('c'+i,t.category,t.subcat)}</div>
         <div id="csv-split-c${i}" style="display:none;margin-top:8px">
@@ -2766,7 +2801,7 @@ function addCSVSplitRow(key){
   div.className='csv-split-row split-row';
   div.style.marginBottom='6px';
   const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
-  div.innerHTML=`<select onchange="autoFillCSVSplit('${key}')" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}<option value="Other">Other</option><option value="Renovations">🏗 Renovations</option></select><input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" oninput="autoFillCSVSplit('${key}')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit('${key}')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button>`;
+  div.innerHTML=`<select onchange="autoFillCSVSplit('${key}')" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}<option value="Other">Other</option><option value="${ADDITIONAL_CAT_NAME}">${ADDITIONAL_CAT_NAME}</option></select><input type="text" placeholder="Summary" style="flex:2;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" oninput="autoFillCSVSplit('${key}')" style="flex:1;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><button class="btn btn-sm" onclick="this.parentNode.remove();autoFillCSVSplit('${key}')" style="color:var(--red);border-color:var(--red);padding:5px 8px">✕</button>`;
   container.appendChild(div);
   autoFillCSVSplit(key);
 }
@@ -2836,8 +2871,8 @@ function acceptCSVReview(){
     if(splitArea&&splitArea.style.display!=='none'){
       const splits=getCSVSplitRows(splitKey);
       splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
-    } else if(t.category==='Renovations'){
-      S.overall.renovationsBalance=(S.overall.renovationsBalance||0)-t.amount;
+    } else if(t.category==='Renovations'||t.category===ADDITIONAL_CAT_NAME){
+      deductAdditionalBalance(t.category===ADDITIONAL_CAT_NAME?(t.subcat||'Renovations'):'Renovations',t.amount);
       S.transactions.push({...t,status:'pending'});
     } else if(t.category==='Money Owed'){
       // Add to money owed list on dashboard
@@ -2855,8 +2890,8 @@ function acceptCSVReview(){
   unmatchedManual.forEach(t=>{
     if(t.keepAction==='remove')S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
   });
-  // Check for Renovations transactions and show reminder
-  const renoTxs=[...merged.map(m=>m.csv),...unmatchedCSV].filter(t=>t.category==='Renovations');
+  // Check for Additional Money transactions and show reminder
+  const renoTxs=[...merged.map(m=>m.csv),...unmatchedCSV].filter(t=>t.category==='Renovations'||t.category===ADDITIONAL_CAT_NAME);
   S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
   saveS();closeModal('csvReview');doneStep(1);
   if(renoTxs.length){
@@ -2864,26 +2899,73 @@ function acceptCSVReview(){
     setTimeout(()=>{
       const d=document.createElement('div');
       d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A56A0;color:#fff;padding:14px 18px;border-radius:var(--radius);font-size:13px;z-index:9999;max-width:320px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
-      d.innerHTML='🏗 Renovations: Please transfer <strong>'+fmt(total)+'</strong> from Renovations to Savings.<br><a href="https://banking.racqbank.com.au/#/login" target="_blank" style="color:#fff;font-weight:700;text-decoration:underline;margin-top:6px;display:inline-block">Open RACQ Bank →</a>';
+      d.innerHTML='💳 Additional money: Please transfer <strong>'+fmt(total)+'</strong> to Savings.<br><a href="https://banking.racqbank.com.au/#/login" target="_blank" style="color:#fff;font-weight:700;text-decoration:underline;margin-top:6px;display:inline-block">Open RACQ Bank →</a>';
       document.body.appendChild(d);
       setTimeout(()=>d.remove(),8000);
     },300);
   }
 }
 
+function renderAdditionalBudgetList(){
+  const list=S.overall.additionalBudgets||[];
+  const el=document.getElementById('am-budget-list');
+  if(!el)return;
+  if(!list.length){
+    el.innerHTML=`<div style="text-align:center;padding:1rem;color:var(--text2);font-size:13px">No additional money budgets yet. Add one below.</div>`;
+    return;
+  }
+  el.innerHTML=list.map(b=>`
+    <div class="stat" style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:13px;font-weight:600">${b.name}</div>
+        <div style="font-size:11px;color:var(--text2)">${b.dateAdded?'Added '+fmtDate(b.dateAdded):'Auto-deducted when transactions are added'}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="stat-value ${(b.balance||0)>=0?'pos':'neg'}" style="font-size:16px">${fmtS(b.balance||0)}</div>
+        <button class="btn btn-sm" onclick="editAdditionalBudget('${b.id}')">✏️</button>
+        <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteAdditionalBudget('${b.id}')">🗑</button>
+      </div>
+    </div>`).join('');
+}
 function openAdditionalMoneyDetail(){
-  document.getElementById('am-reno').value=(S.overall.renovationsBalance||0).toFixed(2);
-  document.getElementById('am-mat').value=(S.overall.maternityBalance||0).toFixed(2);
-  document.getElementById('am-reno-display').textContent=fmt(S.overall.renovationsBalance||0);
-  document.getElementById('am-mat-display').textContent=fmt(S.overall.maternityBalance||0);
+  renderAdditionalBudgetList();
+  document.getElementById('am-add-form').style.display='none';
   openModal('additionalMoney');
 }
-async function saveAdditionalMoney(){
-  const reno=parseFloat(document.getElementById('am-reno')?.value)||0;
-  const mat=parseFloat(document.getElementById('am-mat')?.value)||0;
-  S.overall.renovationsBalance=reno;
-  S.overall.maternityBalance=mat;
-  closeModal('additionalMoney');
+function editAdditionalBudget(id){
+  const b=(S.overall.additionalBudgets||[]).find(x=>x.id===id);
+  if(!b)return;
+  const val=prompt(`Update balance for ${b.name} ($)`,(b.balance||0).toFixed(2));
+  if(val===null)return;
+  const parsed=parseFloat(val);
+  if(isNaN(parsed)){alert('Enter a valid number.');return;}
+  b.balance=parsed;
+  renderAdditionalBudgetList();
+  render();
+  saveToSheets();
+}
+async function deleteAdditionalBudget(id){
+  const b=(S.overall.additionalBudgets||[]).find(x=>x.id===id);
+  if(!b)return;
+  if(!confirm(`Delete the "${b.name}" budget? This won't affect past transactions.`))return;
+  S.overall.additionalBudgets=(S.overall.additionalBudgets||[]).filter(x=>x.id!==id);
+  syncAdditionalSubs();
+  renderAdditionalBudgetList();
+  render();
+  await saveToSheets();
+}
+async function addAdditionalBudget(){
+  const name=document.getElementById('am-new-name')?.value.trim();
+  const balance=parseFloat(document.getElementById('am-new-balance')?.value)||0;
+  if(!name){alert('Enter a name for the budget.');return;}
+  if((S.overall.additionalBudgets||[]).some(b=>b.name.toLowerCase()===name.toLowerCase())){alert('A budget with that name already exists.');return;}
+  if(!S.overall.additionalBudgets)S.overall.additionalBudgets=[];
+  S.overall.additionalBudgets.push({id:'ab_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),name,balance,dateAdded:new Date().toISOString().split('T')[0]});
+  syncAdditionalSubs();
+  document.getElementById('am-new-name').value='';
+  document.getElementById('am-new-balance').value='';
+  document.getElementById('am-add-form').style.display='none';
+  renderAdditionalBudgetList();
   render();
   await saveToSheets();
 }
@@ -3045,7 +3127,7 @@ async function saveOverall(){
 
 function populateQTCats(){
   const sel=document.getElementById('qt-cat');
-  sel.innerHTML='<option value="">-- Select category --</option><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}">${n}</option>`).join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS (process in Step 9)</option><option value="Renovations">🏗 Renovations</option><option value="➕ Add to Cash Savings">➕ Add to Cash Savings</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option>';
+  sel.innerHTML='<option value="">-- Select category --</option><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>`<option value="${n}">${n}</option>`).join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS (process in Step 9)</option><option value="'+ADDITIONAL_CAT_NAME+'">'+ADDITIONAL_CAT_NAME+'</option><option value="➕ Add to Cash Savings">➕ Add to Cash Savings</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option>';
   sel.onchange=updateQTSubcat;
   updateQTSubcat();
 }
@@ -3068,8 +3150,8 @@ function updateQTSubcat(){
   } else {
     splitArea.style.display='none';
     if(descWrap)descWrap.style.display='block';
-    // Only show subcat for Bills and Presents
-    if(cat?.subs&&(val==='Bills'||val==='Presents')){
+    // Show subcat for Bills, Presents, and Additional Money budgets
+    if(cat?.subs&&(val==='Bills'||val==='Presents'||val===ADDITIONAL_CAT_NAME)){
       wrap.style.display='block';
       sel.innerHTML='<option value="">-- Select sub-category --</option>'+cat.subs.map(s=>`<option value="${s}">${s}</option>`).join('');
     } else {
@@ -3090,7 +3172,7 @@ function addSplitRow(){
         ${sortedCats.map(n=>`<option value="${n}">${n}</option>`).join('')}
         <option value="Other">Other</option>
         <option value="NDIS">🏥 NDIS</option>
-        <option value="Renovations">🏗 Renovations</option>
+        <option value="${ADDITIONAL_CAT_NAME}">${ADDITIONAL_CAT_NAME}</option>
         <option value="💰 Add to Money Owed">💰 Add to Money Owed</option>
       </select>
       <input type="number" placeholder="Amount $" step="0.01" min="0" oninput="autoFillLastSplit()" style="flex:1;font-size:13px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">
@@ -3150,15 +3232,16 @@ function saveQuickTx(){
     saveS();closeModal('quickTx');
     return;
   }
-  if(cat==='Renovations'){
-    // Deduct from renovations balance
-    S.overall.renovationsBalance=(S.overall.renovationsBalance||0)-amount;
-    S.transactions.push({id:'tx_'+Date.now(),date,description:desc,amount,category:'Renovations',subcat:'',method,notes,status:'pending',source:'manual'});
+  if(cat==='Renovations'||cat===ADDITIONAL_CAT_NAME){
+    const qtSubcat=document.getElementById('qt-subcat')?.value||'';
+    const budgetName=cat===ADDITIONAL_CAT_NAME?(qtSubcat||'Renovations'):'Renovations';
+    deductAdditionalBalance(budgetName,amount);
+    S.transactions.push({id:'tx_'+Date.now(),date,description:desc,amount,category:cat,subcat:cat===ADDITIONAL_CAT_NAME?budgetName:'',method,notes,status:'pending',source:'manual'});
     saveS();closeModal('quickTx');
     setTimeout(()=>{
       const d=document.createElement('div');
       d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A56A0;color:#fff;padding:14px 18px;border-radius:8px;font-size:13px;z-index:9999;max-width:320px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
-      d.innerHTML='🏗 Renovations saved. Please transfer <strong>'+fmt(amount)+'</strong> from Renovations to Savings.<br><a href="https://banking.racqbank.com.au/#/login" target="_blank" style="color:#fff;font-weight:700;text-decoration:underline;margin-top:6px;display:inline-block">Open RACQ Bank →</a>';
+      d.innerHTML='💳 '+budgetName+' saved. Please transfer <strong>'+fmt(amount)+'</strong> to Savings.<br><a href="https://banking.racqbank.com.au/#/login" target="_blank" style="color:#fff;font-weight:700;text-decoration:underline;margin-top:6px;display:inline-block">Open RACQ Bank →</a>';
       document.body.appendChild(d);setTimeout(()=>d.remove(),8000);
     },300);
 
@@ -3246,13 +3329,11 @@ function checkRecurringTransactions(){
 function getNegativeBudgets(){
   const cycles=getTithingCycles();
   const neg=[];
+  (S.overall.additionalBudgets||[]).forEach(b=>{
+    if((b.balance||0)<0)neg.push({name:b.name,amount:Math.abs(b.balance)});
+  });
   for(const cat of CATS){
     if(cat.noGrid)continue;
-    if(cat.isRenovations){
-      const bal=S.overall.renovationsBalance||0;
-      if(bal<0)neg.push({name:'Renovations',amount:Math.abs(bal)});
-      continue;
-    }
     if(cat.isSpending){
       const sb=S.spendingBalances||{};
       const cur=cat.person==='Benj'?(sb.benj?.current||0):(sb.kasie?.current||0);
