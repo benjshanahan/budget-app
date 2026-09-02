@@ -2768,6 +2768,14 @@ function handleCSV(e){
 }
 
 function openCSVReview(data){
+  // Every action within the review (marking reviewed, changing a category,
+  // linking a split, unmatching) calls this function to refresh the screen
+  // afterward — none of them were separately triggering a save, so an entire
+  // in-progress review could be lost on refresh even though nothing was
+  // "wrong" — it just genuinely never made it to the sheet. Piggy-backing the
+  // save on this shared re-render point catches every mutation in one place
+  // rather than needing a save call added to each individual handler.
+  scheduleSave();
   const{merged,unmatchedCSV,unmatchedManual}=data;
   // Sort the actual underlying arrays (not display copies) so the positional
   // indices used throughout this render — S.csvPending.unmatchedManual[i],
