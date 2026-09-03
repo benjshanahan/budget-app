@@ -719,7 +719,13 @@ const getFNSpending = person => {
 };
 const calcSpendingBal = (person,debit) => {
   // Formula: prevBalance - topUpTransfer - fnSpending + $70
-  const prevBal=person==='Benj'?(S.spendingBalances?.benj?.current||0):(S.spendingBalances?.kasie?.current||0);
+  // Uses the snapshot taken when this step first opened this fortnight (see
+  // openSpendingModal), not the live S.spendingBalances value — the live
+  // value gets overwritten by this same calculation once saved, so reading
+  // it directly would double-count on any second run within the same
+  // fortnight (a typo fix, or a redo after "Undo fortnight").
+  const snap=S.workflowData?.spendingSnapshot;
+  const prevBal=snap?(person==='Benj'?snap.benj:snap.kasie):(person==='Benj'?(S.spendingBalances?.benj?.current||0):(S.spendingBalances?.kasie?.current||0));
   const fnSpend=getFNSpending(person);
   const projectedBal=prevBal-fnSpend+70;
   // Top-up transfer: if projected balance < $20, transfer ($20 - debit) from budget
@@ -796,7 +802,14 @@ function setSyncStatus(status){
 
 async function callSheets(action,body={}){
   const resp=await fetch(FUNCTION_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...body})});
-  if(!resp.ok)throw new Error('Function error: '+resp.status);
+  if(!resp.ok){
+    // Surface the actual server-side error message instead of just the status
+    // code — the backend function returns {error, stack} in its response body
+    // on failure, which is far more useful for diagnosing what actually broke.
+    let detail='';
+    try{const errBody=await resp.json();detail=errBody?.error?' — '+errBody.error:'';}catch(e){}
+    throw new Error('Function error: '+resp.status+detail);
+  }
   return resp.json();
 }
 
@@ -914,16 +927,29 @@ async function loadFromSheets(){
     checkRecurringTransactions();
     // Migrate imported NDIS transactions into S.ndisTransactions so Drive links persist
     await migrateNdisImports();
-    // Deduplicate S.ndisTransactions by id and invoiceNo+provider
+    // Deduplicate S.ndisTransactions by id, then by invoiceNo+provider, then
+    // (as a fallback for invoices with no invoice number) by
+    // category+date+amount+provider — the same combination the manual
+    // "Add invoice" dedup check already uses to catch a re-entered invoice,
+    // applied here too so any duplicate that did get created (e.g. from a
+    // save that silently failed and was mistakenly re-entered) gets cleaned
+    // up on load even without an invoice number to key off.
     const beforeCount=(S.ndisTransactions||[]).length;
     const seenNdisIds=new Set();
     const seenInvKeys=new Set();
+    const seenContentKeys=new Set();
     S.ndisTransactions=(S.ndisTransactions||[]).filter(t=>{
       if(seenNdisIds.has(t.id))return false;
       seenNdisIds.add(t.id);
       const invKey=t.invoiceNo&&t.provider?(t.invoiceNo.trim()+'|'+t.provider.trim().toLowerCase()):'';
-      if(invKey&&seenInvKeys.has(invKey))return false;
-      if(invKey)seenInvKeys.add(invKey);
+      if(invKey){
+        if(seenInvKeys.has(invKey))return false;
+        seenInvKeys.add(invKey);
+      } else if(t.provider&&t.date&&t.amount!=null){
+        const contentKey=t.cat+'|'+t.date+'|'+t.amount+'|'+t.provider.trim().toLowerCase();
+        if(seenContentKeys.has(contentKey))return false;
+        seenContentKeys.add(contentKey);
+      }
       return true;
     });
     if((S.ndisTransactions||[]).length<beforeCount){
@@ -933,7 +959,12 @@ async function loadFromSheets(){
     // Repair any split transactions
     repairSplitTransactions();
     migrateSplitGroupIds();
-    migrateAdditionalMoneyData();
+    // migrateAdditionalMoneyData() removed — was a one-time data-recovery
+    // safety net from earlier tonight, but running on every load meant it
+    // would silently resurrect old hardcoded values (specific dollar amounts
+    // and budget names) any time those fields were legitimately emptied,
+    // e.g. after finishing and deleting a budget. Data now saves correctly,
+    // so this is no longer needed and was a landmine going forward.
     // One-time fix for known split transactions
     applyKnownSplitFixes();
   } catch(e){
@@ -949,7 +980,12 @@ async function saveToSheets(){
     const txRows=[['id','date','description','amount','category','subcat','method','status','source','flag','notes','splitGroupId','splitTotal']];
     S.transactions.forEach(t=>txRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.source||'',t.flag||'',t.notes||'',t.splitGroupId||'',t.splitTotal!=null?t.splitTotal:'']));
     data.push({range:'Transactions!A1',values:txRows});
-    data.push({range:'Config!A1',values:Object.entries(S.overall).map(([k,v])=>[k,v])});
+    // Google Sheets cells only accept plain strings/numbers/booleans — any
+    // array or object value (like additionalCategories) must be JSON-
+    // stringified first, or the write is rejected outright by the Sheets API
+    // with a 500 error. This was silently breaking every single save the
+    // whole time additionalCategories had real data in it.
+    data.push({range:'Config!A1',values:Object.entries(S.overall).map(([k,v])=>[k,(v!==null&&typeof v==='object')?JSON.stringify(v):v])});
     const owRows=[['id','description','amount','date']];
     (S.moneyOwedItems||[]).forEach(o=>owRows.push([o.id,o.description,o.amount,o.date||'']));
     data.push({range:'MoneyOwed!A1:Z1000',values:owRows});
@@ -1020,22 +1056,6 @@ async function migrateNdisImports(){
     await saveToSheets();
   }
 }
-function migrateAdditionalMoneyData(){
-  let changed=false;
-  if(!S.overall.renovationsStarting){S.overall.renovationsStarting=3435.78;changed=true;}
-  if(!S.overall.renovationsDate){S.overall.renovationsDate='2026-08-13';changed=true;}
-  if(!S.overall.maternityStarting){S.overall.maternityStarting=7876.32;changed=true;}
-  if(!S.overall.maternityDate){S.overall.maternityDate='2026-08-13';changed=true;}
-  if(!S.overall.additionalCategories||!S.overall.additionalCategories.length){
-    S.overall.additionalCategories=[
-      {id:'amc_1782905896139',name:'Money from GG for movies',startingBalance:100,dateAdded:'2026-08-13'},
-      {id:'amc_1784112278803',name:'Holiday',startingBalance:3316.56,dateAdded:'2026-08-13'}
-    ];
-    changed=true;
-  }
-  if(changed)scheduleSave();
-}
-
 function migrateSplitGroupIds(){
   // Pass 1: Group by date+splitTotal (transactions that have splitTotal saved)
   const withTotal=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending'&&!t.splitGroupId&&t.splitTotal);
@@ -1052,21 +1072,16 @@ function migrateSplitGroupIds(){
     grp.forEach(t=>{t.splitGroupId=sgid;});
     changed=true;
   });
-  // Pass 2: Group pending manual txs on same date with same description pattern (e.g. 'Split transaction' or 'TEST')
-  const withoutTotal=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending'&&!t.splitGroupId&&!t.splitTotal);
-  const groups2={};
-  withoutTotal.forEach(t=>{
-    // Group by date + description (split parts often share description)
-    const key=t.date+'_'+t.description;
-    if(!groups2[key])groups2[key]=[];
-    groups2[key].push(t);
-  });
-  Object.values(groups2).forEach(grp=>{
-    if(grp.length<2)return;
-    const sgid='sg_mig2_'+grp[0].date+'_'+grp[0].description.replace(/\s/g,'');
-    grp.forEach(t=>{t.splitGroupId=sgid;});
-    changed=true;
-  });
+  // Pass 2 (same-date + same-description grouping for transactions with no
+  // splitTotal at all) has been removed. It was matching genuinely unrelated
+  // individual transactions purely because they happened to share a date and
+  // a generic/blank description, permanently writing a fake shared
+  // splitGroupId onto them on every page load. Real split parts virtually
+  // always have distinct per-part descriptions anyway, so this pass wasn't
+  // even reliably catching the thing it was meant to — it mostly just
+  // produced false positives. If a genuine split is still missing its group
+  // ID (e.g. entered from an outdated app version), assign it manually in
+  // the sheet instead — see the splitGroupId/splitTotal columns.
   if(changed)scheduleSave();
 }
 
@@ -1511,7 +1526,7 @@ function renderStepBody(s,done,pending){
           const thisfnInvoices=(S.ndisTransactions||[]).filter(t=>t.date>cutoff);
           if(!thisfnInvoices.length)return'';
           const total=thisfnInvoices.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
-          return'<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invoices added this fortnight ('+thisfnInvoices.length+')</div>'+thisfnInvoices.map(t=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px"><div><div style="font-weight:500">'+t.provider+'</div><div style="font-size:11px;color:var(--text2)">'+fmtDate(t.date)+(t.invoiceNo?' · '+t.invoiceNo:'')+(t.driveLink?' · <a href="'+t.driveLink+'" target="_blank" style="color:var(--blue)">Drive</a>':'')+'</div></div><span style="font-weight:600;color:var(--green)">'+fmt(t.amount)+'</span></div>').join('')+'<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding-top:6px"><span>Total</span><span style="color:var(--green)">'+fmt(total)+'</span></div></div>';
+          return'<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invoices added this fortnight ('+thisfnInvoices.length+')</div>'+thisfnInvoices.map(t=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer" onclick="openNdisTxDetail(\''+t.id+'\')"><div><div style="font-weight:500">'+t.provider+'</div><div style="font-size:11px;color:var(--text2)">'+fmtDate(t.date)+(t.invoiceNo?' · '+t.invoiceNo:'')+(t.driveLink?' · <a href="'+t.driveLink+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue)">Drive</a>':'')+'</div></div><div style="display:flex;align-items:center;gap:6px"><span style="font-weight:600;color:var(--green)">'+fmt(t.amount)+'</span><span style="color:var(--text2);font-size:11px">›</span></div></div>').join('')+'<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding-top:6px"><span>Total</span><span style="color:var(--green)">'+fmt(total)+'</span></div></div>';
         })()}
         <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Add new invoice</div>
         <button class="btn btn-sm" onclick="openNdisModal()">+ Add invoice not yet in transactions</button>
@@ -1732,6 +1747,21 @@ function saveMortgage(){
 function acceptAllPending(){let n=0;S.transactions.filter(t=>t.status==='pending').forEach(t=>{t.status='accepted';n++;});saveS();doneStep(2);alert(n+' transactions accepted.');}
 
 function openSpendingModal(){
+  // Snapshot the starting balance the FIRST time this step opens in this
+  // fortnight, and keep using that fixed snapshot for every calculation
+  // from then on — not the live S.spendingBalances value. Without this,
+  // reopening this step a second time (to fix a typo, or after "Undo
+  // fortnight" and redoing the workflow) would read back the balance this
+  // step itself already updated, and subtract this fortnight's spending and
+  // add the $70 allowance a second time — a real double-count that would
+  // look exactly like it was pulling data from an extra fortnight.
+  if(!S.workflowData.spendingSnapshot){
+    S.workflowData.spendingSnapshot={
+      benj:S.spendingBalances?.benj?.current||0,
+      kasie:S.spendingBalances?.kasie?.current||0
+    };
+    scheduleSave();
+  }
   const fnB=getFNSpending('Benj'),fnK=getFNSpending('Kasie');
   document.getElementById('spending-body').innerHTML=`
     <div style="margin-bottom:1.25rem">
@@ -1825,7 +1855,11 @@ function openNdisProcessModal(txId){
   const tx=S.transactions.find(t=>t.id===txId);
   if(!tx)return;
   S.workflowData._currentNdisTxId=txId;
-  const steps=['upload','pay','claim','finalise'];
+  // If this transaction came from a credit card statement (CSV import), it's
+  // already been paid — the "Pay invoice" step is redundant in that case, so
+  // skip straight from uploading the invoice to claiming it in MyGov.
+  const alreadyPaid=tx.source==='csv';
+  const steps=alreadyPaid?['upload','claim','finalise']:['upload','pay','claim','finalise'];
   const doneSteps=S.workflowData['ndisSteps_'+txId]||[];
 
   document.getElementById('ndis-proc-title').textContent='NDIS: '+tx.description;
@@ -1834,22 +1868,23 @@ function openNdisProcessModal(txId){
       <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(tx.amount)}</div></div>
       <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:15px">${fmtDate(tx.date)}</div></div>
     </div>
-    `+renderNdisProcessSteps(txId,doneSteps);
+    ${alreadyPaid?'<div class="banner banner-info" style="margin-bottom:14px">💳 Already paid via credit card — no separate payment step needed.</div>':''}
+    `+renderNdisProcessSteps(txId,doneSteps,alreadyPaid);
 
   document.getElementById('ndis-proc-actions').innerHTML=`
     <button class="btn btn-sm" onclick="closeModal('ndisProcess')">Close</button>
-    ${doneSteps.length>=3?'<button class="btn btn-primary btn-sm" onclick="completeNdisTx(\''+txId+'\')">✓ Mark as complete</button>':''}`;
+    ${doneSteps.length>=steps.length?'<button class="btn btn-primary btn-sm" onclick="completeNdisTx(\''+txId+'\')">✓ Mark as complete</button>':''}`;
 
   openModal('ndisProcess');
 }
 
-function renderNdisProcessSteps(txId,doneSteps){
+function renderNdisProcessSteps(txId,doneSteps,alreadyPaid){
   const tx=S.transactions.find(t=>t.id===txId);
   const wf=S.workflowData;
   const scanned=wf?.['ndisScanned_'+txId]||{};
   const ndisSteps=[
     {id:'upload',label:'Upload invoice & fill details'},
-    {id:'pay',label:'Pay invoice'},
+    ...(alreadyPaid?[]:[{id:'pay',label:'Pay invoice'}]),
     {id:'claim',label:'Claim in MyGov'},
     {id:'finalise',label:'Finalise NDIS transaction'},
   ];
@@ -1916,7 +1951,7 @@ function renderNdisStepAction(stepId,txId){
     return`
       <div class="banner banner-info" style="margin-bottom:10px;flex-direction:column;align-items:flex-start">
         <div style="font-weight:600;margin-bottom:4px">💳 Pay this invoice</div>
-        ${invNo?'<div style="font-size:12px">Invoice: <strong>'+invNo+'</strong></div>':''}
+        ${invNo?'<div style="font-size:12px">Reference: <strong>'+invNo+'</strong></div>':''}
         ${comments?'<div style="font-size:12px">For: <strong>'+comments+'</strong></div>':''}
         ${driveLink?'<a href="'+driveLink+'" target="_blank" style="font-size:12px;color:var(--blue);margin-top:4px">📄 View invoice for bank details</a>':'<div style="font-size:12px;color:var(--text2)">No invoice uploaded — check provider email for bank details</div>'}
       </div>
@@ -2073,12 +2108,20 @@ async function handleNdisUpload(e,txId){
         throw new Error(result.error||'Upload failed');
       }
     } else {
-      // Store for later upload after categorisation
+      // Store for later upload after categorisation. Do NOT mark this step
+      // done here — that was the bug: selecting a file immediately jumped
+      // to Step 2 before the category/date/amount form was ever filled in
+      // or "Save & continue" was clicked, so nothing was actually saved
+      // (no category recorded, no ndisTransactions entry, and the file
+      // itself never actually uploaded — that only happens inside
+      // saveNdisCategorise). The step now only completes when Save &
+      // continue is actually clicked, which correctly marks it done itself.
       S.workflowData['ndisFileData_'+txId]=base64;
       S.workflowData['ndisFileMime_'+txId]=file.type||'application/pdf';
       S.workflowData['ndisFileOrig_'+txId]=file.name;
-      markNdisStep(txId,'upload');
-      alert('Invoice ready — it will be uploaded to the correct Drive folder after you select the NDIS category.');
+      saveS();
+      const statusEl=document.getElementById('ndis-scan-status-'+txId);
+      if(statusEl){statusEl.style.display='block';statusEl.textContent='✅ File ready — fill in the details below and click Save & continue.';}
     }
   } catch(err){
     console.error('Drive upload error:',err);
@@ -2157,7 +2200,33 @@ async function saveNdisCategorise(txId){
       setSyncStatus('error');
     }
   }
-  markNdisStep(txId,'upload');
+  // Mark step 1 done without re-rendering the old step-by-step modal (that
+  // modal is being replaced by the checklist below for this flow).
+  const stepKey='ndisSteps_'+txId;
+  S.workflowData[stepKey]=S.workflowData[stepKey]||[];
+  if(!S.workflowData[stepKey].includes('upload'))S.workflowData[stepKey].push('upload');
+  saveS();
+  closeModal('ndisProcess');
+  // Show the same "next steps" checklist as the standalone Add Invoice flow,
+  // instead of continuing into the old separate Pay/Claim step screens —
+  // completing the checklist finalises this transaction in one action.
+  const finalProvider=provider||tx?.description||'';
+  const finalAmount=amtVal||tx?.amount||0;
+  const finalDate=dateVal||tx?.date||new Date().toISOString().split('T')[0];
+  const driveLink=S.workflowData['ndisFileLink_'+txId]||'';
+  showNdisChecklist({
+    provider:finalProvider,amount:finalAmount,date:finalDate,driveLink,
+    payRemark:invoiceNo||finalProvider,
+    claimRemark:(invoiceNo?invoiceNo+' ':'')+(comments||finalProvider),
+    onDone:()=>finishNdisWorkflowChecklist(txId)
+  });
+}
+async function finishNdisWorkflowChecklist(txId){
+  const key='ndisSteps_'+txId;
+  S.workflowData[key]=S.workflowData[key]||[];
+  ['pay','claim'].forEach(s=>{if(!S.workflowData[key].includes(s))S.workflowData[key].push(s);});
+  await finaliseNdisTx(txId);
+  completeNdisTx(txId);
 }
 
 async function finaliseNdisTx(txId){
@@ -2198,8 +2267,12 @@ function completeNdisTx(txId){
   const processed=S.workflowData.ndisProcessed||[];
   if(!processed.includes(txId))processed.push(txId);
   S.workflowData.ndisProcessed=processed;
-  // Update NDIS claimed status
-  const ndisEntry=S.ndisTransactions.find(t=>t.id.includes('ndis_')&&S.workflowData['ndisCat_'+txId]);
+  // Update NDIS claimed status — must match THIS transaction's own entry
+  // specifically. The previous version matched on any id containing "ndis_"
+  // (which is virtually every entry) combined with an unrelated workflowData
+  // check, so it was effectively grabbing whichever entry came first in the
+  // array rather than the one actually being completed here.
+  const ndisEntry=S.ndisTransactions.find(t=>t.id==='ndis_pending_'+txId);
   if(ndisEntry)ndisEntry.status='claimed';
   saveS();
   closeModal('ndisProcess');
@@ -2271,6 +2344,44 @@ async function handleNdisAddUpload(e){
   if(fileStatus){fileStatus.style.display='block';fileStatus.textContent='📄 '+file.name+' ready to upload to Drive';}
 }
 
+// Shared "next steps" checklist shown after an NDIS invoice's details are
+// saved — used by both the standalone "+ Add invoice" flow and the
+// credit-card-transaction workflow flow, so they can't drift into looking
+// different from each other again.
+function showNdisChecklist({provider,amount,date,driveLink,payRemark,claimRemark,onDone}){
+  setTimeout(()=>{
+    const m=document.getElementById('modal-ndisChecklist');
+    if(!m)return;
+    m.querySelector('.modal').innerHTML=`
+      <div style="padding:16px">
+        <div style="font-size:15px;font-weight:600;margin-bottom:4px">Invoice saved${driveLink?' & uploaded to Drive':''}</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:14px">${provider} · ${fmt(amount)} · ${fmtDate(date)}</div>
+        ${driveLink?'<div style="margin-bottom:12px"><a href="'+driveLink+'" target="_blank" class="btn btn-sm">View in Drive</a></div>':''}
+        <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Next steps</div>
+        <div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px">
+          <div style="padding:10px;border-bottom:1px solid var(--border)">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="ndis-check-pay" style="width:18px;height:18px">
+              <span>Pay the invoice</span>
+            </label>
+            <div id="ndis-pay-msg" style="display:none;font-size:12px;color:var(--text2);margin-top:6px;margin-left:28px">Reference: <strong>${payRemark}</strong></div>
+          </div>
+          <div style="padding:10px">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="ndis-check-claim" style="width:18px;height:18px">
+              <span>Claim in MyGov</span>
+            </label>
+            <div id="ndis-claim-msg" style="display:none;font-size:12px;color:var(--text2);margin-top:6px;margin-left:28px">Claim remark: <strong>${claimRemark}</strong></div>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="ndis-checklist-done" style="width:100%">Done</button>
+      </div>`;
+    m.querySelector('#ndis-check-pay').onchange=function(){m.querySelector('#ndis-pay-msg').style.display=this.checked?'block':'none';};
+    m.querySelector('#ndis-check-claim').onchange=function(){m.querySelector('#ndis-claim-msg').style.display=this.checked?'block':'none';};
+    m.querySelector('#ndis-checklist-done').onclick=function(){closeModal('ndisChecklist');if(onDone)onDone();};
+    openModal('ndisChecklist');
+  },200);
+}
 async function saveNdisInvoice(){
   const cat=document.getElementById('ndis-cat')?.value;
   const date=document.getElementById('ndis-date')?.value;
@@ -2324,41 +2435,11 @@ async function saveNdisInvoice(){
   // Re-render workflow NDIS step if open
   if(document.getElementById('sb7'))renderWorkflow();
   // Show post-save checklist
-  const payRemark=invoiceNo||provider;
-  const claimRemark=(invoiceNo?invoiceNo+' ':'')+(comments||provider);
-  setTimeout(()=>{
-    const m=document.getElementById('modal-ndisChecklist');
-    if(m){
-      m.querySelector('.modal').innerHTML=`
-        <div style="padding:16px">
-          <div style="font-size:15px;font-weight:600;margin-bottom:4px">Invoice saved${tx.driveLink?' & uploaded to Drive':''}</div>
-          <div style="font-size:12px;color:var(--text2);margin-bottom:14px">${tx.provider} · ${fmt(tx.amount)} · ${fmtDate(tx.date)}</div>
-          ${tx.driveLink?'<div style="margin-bottom:12px"><a href="'+tx.driveLink+'" target="_blank" class="btn btn-sm">View in Drive</a></div>':''}
-          <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Next steps</div>
-          <div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px">
-            <div style="padding:10px;border-bottom:1px solid var(--border)">
-              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px">
-                <input type="checkbox" id="ndis-check-pay" style="width:18px;height:18px">
-                <span>Pay the invoice</span>
-              </label>
-              <div id="ndis-pay-msg" style="display:none;font-size:12px;color:var(--text2);margin-top:6px;margin-left:28px">Payment remark: <strong>${payRemark}</strong></div>
-            </div>
-            <div style="padding:10px">
-              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px">
-                <input type="checkbox" id="ndis-check-claim" style="width:18px;height:18px">
-                <span>Claim in MyGov</span>
-              </label>
-              <div id="ndis-claim-msg" style="display:none;font-size:12px;color:var(--text2);margin-top:6px;margin-left:28px">Claim remark: <strong>${claimRemark}</strong></div>
-            </div>
-          </div>
-          <button class="btn btn-primary" style="width:100%" onclick="closeModal('ndisChecklist')">Done</button>
-        </div>`;
-      // Wire up checkbox show/hide
-      m.querySelector('#ndis-check-pay').onchange=function(){m.querySelector('#ndis-pay-msg').style.display=this.checked?'block':'none';};
-      m.querySelector('#ndis-check-claim').onchange=function(){m.querySelector('#ndis-claim-msg').style.display=this.checked?'block':'none';};
-      openModal('ndisChecklist');
-    }
-  },200);
+  showNdisChecklist({
+    provider:tx.provider,amount:tx.amount,date:tx.date,driveLink:tx.driveLink,
+    payRemark:invoiceNo||provider,
+    claimRemark:(invoiceNo?invoiceNo+' ':'')+(comments||provider)
+  });
 }
 function renderRecurringList(){
   const el=document.getElementById('recurring-list-body');
@@ -2488,6 +2569,12 @@ function editSpendingBalance(person){
   if(!S.spendingBalances)S.spendingBalances={benj:{current:0},kasie:{current:0}};
   if(person==='Benj')S.spendingBalances.benj={...S.spendingBalances.benj,current:parsed};
   else S.spendingBalances.kasie={...S.spendingBalances.kasie,current:parsed};
+  // Keep the workflow snapshot in sync with a manual correction, so if this
+  // fortnight's step is reopened it calculates from the corrected figure
+  // rather than a now-outdated snapshot.
+  if(S.workflowData?.spendingSnapshot){
+    S.workflowData.spendingSnapshot[person.toLowerCase()]=parsed;
+  }
   saveS();render();
 }
 function openSubcatDashboard(catName){
@@ -3543,7 +3630,7 @@ async function saveOverall(){
 
 function populateQTCats(){
   const sel=document.getElementById('qt-cat');
-  sel.innerHTML='<option value="">-- Select category --</option><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS (process in Step 9)</option><option value="Additional Money">💰 Additional Money</option><option value="➕ Add to Cash Savings">➕ Add to Cash Savings</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option>';
+  sel.innerHTML='<option value="">-- Select category --</option><option value="Split">⇄ Split transaction</option>'+CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'<option value="Other">Other</option><option value="NDIS">🏥 NDIS</option><option value="Additional Money">💰 Additional Money</option><option value="➕ Add to Cash Savings">➕ Add to Cash Savings</option><option value="💰 Add to Money Owed">💰 Add to Money Owed</option>';
   sel.onchange=updateQTSubcat;
   updateQTSubcat();
 }
@@ -4156,6 +4243,7 @@ function updateNdisStatus(id,status){
   if(tx){tx.status=status;saveS();}
   closeModal('txDetail');
   renderNDIS();
+  if(document.getElementById('sb7'))renderWorkflow();
   // If claimed, prompt to update NDIS owed
   if(status==='claimed'){
     const tx2=getNdisTransactions().find(t=>t.id===id);
@@ -4170,6 +4258,7 @@ function deleteNdisTx(id){
   if(!confirm('Delete this NDIS transaction?'))return;
   S.ndisTransactions=S.ndisTransactions.filter(t=>t.id!==id);
   saveS();closeModal('txDetail');renderNDIS();
+  if(document.getElementById('sb7'))renderWorkflow();
 }
 
 function scrollToUnpaid(){
