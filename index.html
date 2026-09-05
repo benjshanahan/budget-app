@@ -715,7 +715,10 @@ const getFNSpending = person => {
   const dates=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').map(t=>t.date).sort();
   // Use last tithe as cutoff (only count spending since this fortnight started)
   const cutoff=dates.length>=1?dates[dates.length-1]:dates[0]||'2026-04-22';
-  return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>cutoff).reduce((a,t)=>a+(t.amount||0),0);
+  // >= not > — a fortnight can legitimately have same-day spending after
+  // the tithe is processed (e.g. doing the money in one sitting), and a
+  // strict > would silently exclude anything dated the same day as cutoff.
+  return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>=cutoff).reduce((a,t)=>a+(t.amount||0),0);
 };
 const calcSpendingBal = (person,debit) => {
   // Formula: prevBalance - topUpTransfer - fnSpending + $70
@@ -1515,7 +1518,7 @@ function renderStepBody(s,done,pending){
         ${(()=>{
           const tithes=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').sort((a,b)=>a.date.localeCompare(b.date));
           const cutoff=tithes.length>=1?tithes[tithes.length-1].date:'2026-04-22';
-          const thisfnInvoices=(S.ndisTransactions||[]).filter(t=>t.date>cutoff);
+          const thisfnInvoices=(S.ndisTransactions||[]).filter(t=>t.date>=cutoff);
           if(!thisfnInvoices.length)return'';
           const total=thisfnInvoices.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
           return'<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invoices added this fortnight ('+thisfnInvoices.length+')</div>'+thisfnInvoices.map(t=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer" onclick="openNdisTxDetail(\''+t.id+'\')"><div><div style="font-weight:500">'+t.provider+'</div><div style="font-size:11px;color:var(--text2)">'+fmtDate(t.date)+(t.invoiceNo?' · '+t.invoiceNo:'')+(t.driveLink?' · <a href="'+t.driveLink+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue)">Drive</a>':'')+'</div></div><div style="display:flex;align-items:center;gap:6px"><span style="font-weight:600;color:var(--green)">'+fmt(t.amount)+'</span><span style="color:var(--text2);font-size:11px">›</span></div></div>').join('')+'<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding-top:6px"><span>Total</span><span style="color:var(--green)">'+fmt(total)+'</span></div></div>';
@@ -1736,7 +1739,7 @@ function saveMortgage(){
   saveS();
   doneStep(8);
 }
-function acceptAllPending(){let n=0;S.transactions.filter(t=>t.status==='pending').forEach(t=>{t.status='accepted';n++;});saveS();doneStep(2);alert(n+' transactions accepted.');}
+function acceptAllPending(){let n=0;S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').forEach(t=>{t.status='accepted';n++;});saveS();doneStep(2);alert(n+' transactions accepted.');}
 
 function openSpendingModal(){
   // Snapshot the starting balance the FIRST time this step opens in this
@@ -2184,6 +2187,13 @@ async function saveNdisCategorise(txId){
         S.workflowData['ndisFile_'+txId]=result.fileName;
         S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
         delete S.workflowData['ndisFileData_'+txId];
+        // Also save onto the actual ndisTransactions record — this was
+        // missing, so the upload genuinely succeeded but the invoice record
+        // itself (what "Invoices added this fortnight" reads from) never
+        // got its driveLink/driveFileId/fileName populated.
+        newEntry.driveFileId=result.fileId;
+        newEntry.driveLink=result.webViewLink;
+        newEntry.fileName=result.fileName;
         setSyncStatus('synced');
         alert('✅ Invoice uploaded to Google Drive!\n\nFile: '+result.fileName);
       }
@@ -2281,7 +2291,7 @@ function finaliseNdisStep(){
   const processedTxs=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='accepted'&&processedIds.includes(t.id));
   const txTotal=processedTxs.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
   // From ndisTransactions (manually added invoices this fn)
-  const ndisInvoiceTotal=(S.ndisTransactions||[]).filter(t=>t.date>cutoff&&(t.status==='paid'||t.status==='claimed')).reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
+  const ndisInvoiceTotal=(S.ndisTransactions||[]).filter(t=>t.date>=cutoff&&(t.status==='paid'||t.status==='claimed')).reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
   const totalNdis=txTotal+ndisInvoiceTotal;
   // Replace (not add) NDIS owed figure
   S.overall.ndisOwed=totalNdis;
@@ -3333,9 +3343,14 @@ function acceptCSVReview(){
   // Check for Renovations transactions and show reminder
   const renoTxs=[...merged.map(m=>m.csv),...unmatchedCSV].filter(t=>t.category==='Renovations');
   S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
-  // Accept all pending transactions
+  // Accept all pending transactions — deliberately excludes tithe-pending.
+  // That status must only ever be changed by finaliseWorkflow(); a blanket
+  // sweep here was previously catching it too, which is exactly how a tithe
+  // ended up marked "accepted" while its source stayed "tithe-pending" — an
+  // inconsistent state finaliseWorkflow() itself could never produce, since
+  // it always updates status and source together.
   let n=0;
-  S.transactions.filter(t=>t.status==='pending').forEach(t=>{t.status='accepted';n++;});
+  S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').forEach(t=>{t.status='accepted';n++;});
   saveS();closeModal('csvReview');doneStep(1);
   // Check for Additional Money transactions and show transfer reminder
   const additionalAliases=['Additional','Additional Money','Renovations','💰 Additional'];
@@ -3343,7 +3358,7 @@ function acceptCSVReview(){
   const cutoff=tithes.length>=2?tithes[tithes.length-2].date:'2026-04-22';
   const additionalTxs=S.transactions.filter(t=>
     (additionalAliases.includes(t.category)||t.category?.includes('Additional'))&&
-    t.status==='accepted'&&t.date>cutoff
+    t.status==='accepted'&&t.date>=cutoff
   );
   if(additionalTxs.length){
     const total=additionalTxs.reduce((a,t)=>a+(t.amount||0),0);
