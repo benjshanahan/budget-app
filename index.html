@@ -2020,6 +2020,7 @@ async function handleRetroNdisUpload(e,ndisId,catId){
     setSyncStatus('synced');
     await saveToSheets();
     closeModal('txDetail');
+    if(document.getElementById('sb7'))renderWorkflow();
     setTimeout(()=>openNdisTxDetail(ndisId),100);
     alert('✅ Invoice uploaded to Drive: '+result.name);
   } catch(err){
