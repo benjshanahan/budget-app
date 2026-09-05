@@ -1440,14 +1440,6 @@ function renderWorkflow(){
     {n:8,title:'Update mortgage position',desc:'Enter how much you are currently ahead on the mortgage.',action:'mortgage'},
   ];
   const wd=S.workflowData||{};
-  // Auto-reset if all steps were completed in a previous session
-  const allDone=steps.every(s=>!!wd['s'+s.n]);
-  if(allDone){
-    S.workflowData={};
-    saveS();
-    renderWorkflow();
-    return;
-  }
   const pending=S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').length;
   const newWd=S.workflowData||{};
   const allStepsDone=steps.every(s=>!!newWd['s'+s.n]);
