@@ -2300,6 +2300,12 @@ function openNdisModal(catId){
   window._ndisAddFileBase64=null;window._ndisAddFileMime=null;window._ndisAddFileName=null;
   const fileStatus=document.getElementById('ndis-add-file-status');
   if(fileStatus){fileStatus.style.display='none';fileStatus.textContent='';}
+  // Also clear the leftover filename preview from a previous invoice — this
+  // was the bug: the actual file data was correctly reset above, but this
+  // separate preview text element was never touched, so it kept showing the
+  // last invoice's generated filename even for a brand new one.
+  const filenamePreview=document.getElementById('ndis-filename-preview');
+  if(filenamePreview){filenamePreview.style.display='none';filenamePreview.textContent='';}
   // Populate category select
   const sel=document.getElementById('ndis-cat');
   if(sel){sel.innerHTML=`<option value="">-- Select category --</option>`+NDIS_CATS.map(c=>`<option value="${c.id}"${c.id===catId?' selected':''}>${c.name}</option>`).join('');}
