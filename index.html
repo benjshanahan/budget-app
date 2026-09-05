@@ -695,6 +695,19 @@ const fmtDate = iso => { if(!iso||iso.length<10)return iso||'—'; const[y,m,d]=
 const fmtS = n => (n<0?'-':'')+fmt(n);
 const getNextMoneyDay = () => MONEY_DAYS.find(d=>d>new Date())||MONEY_DAYS[MONEY_DAYS.length-1];
 const getTithingCycles = () => S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').length;
+// The boundary for "this fortnight" (used for spending, NDIS invoices, etc.)
+// is the date of the last FINALISED fortnight — not the last accepted tithe.
+// Tithe acceptance status turned out to be an unreliable signal (it can end
+// up set without a real finalise ever completing, as happened tonight), and
+// even when correct, using it created a same-day ambiguity: same-day items
+// need to be INCLUDED for the current in-progress fortnight but EXCLUDED for
+// a fortnight that's already fully completed. A real completedCycles record
+// only exists once finalise has genuinely run, so its date cleanly resolves
+// both cases with a plain strict >.
+const getLastCompletedCycleDate = () => {
+  const cycles=S.completedCycles||[];
+  return cycles.length?cycles[cycles.length-1].date:'2026-04-22';
+};
 const getCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name).reduce((a,t)=>a+(t.amount||0),0);
 // App transactions: anything after the last pre-app tithe date (2026-05-19)
 // This correctly excludes all pre-app spending including CSV entries for old transactions
@@ -712,13 +725,8 @@ const getCatBudgeted = name => {
 };
 const getFNSpending = person => {
   const catName='Spending - '+person;
-  const dates=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').map(t=>t.date).sort();
-  // Use last tithe as cutoff (only count spending since this fortnight started)
-  const cutoff=dates.length>=1?dates[dates.length-1]:dates[0]||'2026-04-22';
-  // >= not > — a fortnight can legitimately have same-day spending after
-  // the tithe is processed (e.g. doing the money in one sitting), and a
-  // strict > would silently exclude anything dated the same day as cutoff.
-  return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>=cutoff).reduce((a,t)=>a+(t.amount||0),0);
+  const cutoff=getLastCompletedCycleDate();
+  return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>cutoff).reduce((a,t)=>a+(t.amount||0),0);
 };
 const calcSpendingBal = (person,debit) => {
   // Formula: prevBalance - topUpTransfer - fnSpending + $70
@@ -1516,9 +1524,8 @@ function renderStepBody(s,done,pending){
         :'<div style="font-size:13px;color:var(--green);margin-bottom:12px">✓ All NDIS transactions processed!</div>'}
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
         ${(()=>{
-          const tithes=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').sort((a,b)=>a.date.localeCompare(b.date));
-          const cutoff=tithes.length>=1?tithes[tithes.length-1].date:'2026-04-22';
-          const thisfnInvoices=(S.ndisTransactions||[]).filter(t=>t.date>=cutoff);
+          const cutoff=getLastCompletedCycleDate();
+          const thisfnInvoices=(S.ndisTransactions||[]).filter(t=>t.date>cutoff);
           if(!thisfnInvoices.length)return'';
           const total=thisfnInvoices.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
           return'<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Invoices added this fortnight ('+thisfnInvoices.length+')</div>'+thisfnInvoices.map(t=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer" onclick="openNdisTxDetail(\''+t.id+'\')"><div><div style="font-weight:500">'+t.provider+'</div><div style="font-size:11px;color:var(--text2)">'+fmtDate(t.date)+(t.invoiceNo?' · '+t.invoiceNo:'')+(t.driveLink?' · <a href="'+t.driveLink+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue)">Drive</a>':'')+'</div></div><div style="display:flex;align-items:center;gap:6px"><span style="font-weight:600;color:var(--green)">'+fmt(t.amount)+'</span><span style="color:var(--text2);font-size:11px">›</span></div></div>').join('')+'<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;padding-top:6px"><span>Total</span><span style="color:var(--green)">'+fmt(total)+'</span></div></div>';
@@ -2285,13 +2292,12 @@ function finaliseNdisStep(){
   // Sum all NDIS transactions processed this fortnight (from step 9)
   const processedIds=S.workflowData.ndisProcessed||[];
   // Also include any ndisTransactions added this fortnight (status paid or claimed, after last tithe)
-  const tithes=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').sort((a,b)=>a.date.localeCompare(b.date));
-  const cutoff=tithes.length>=1?tithes[tithes.length-1].date:tithes[0]?.date||'2026-04-22';
+  const cutoff=getLastCompletedCycleDate();
   // From main transactions (credit card NDIS)
   const processedTxs=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='accepted'&&processedIds.includes(t.id));
   const txTotal=processedTxs.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
   // From ndisTransactions (manually added invoices this fn)
-  const ndisInvoiceTotal=(S.ndisTransactions||[]).filter(t=>t.date>=cutoff&&(t.status==='paid'||t.status==='claimed')).reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
+  const ndisInvoiceTotal=(S.ndisTransactions||[]).filter(t=>t.date>cutoff&&(t.status==='paid'||t.status==='claimed')).reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
   const totalNdis=txTotal+ndisInvoiceTotal;
   // Replace (not add) NDIS owed figure
   S.overall.ndisOwed=totalNdis;
@@ -3354,11 +3360,10 @@ function acceptCSVReview(){
   saveS();closeModal('csvReview');doneStep(1);
   // Check for Additional Money transactions and show transfer reminder
   const additionalAliases=['Additional','Additional Money','Renovations','💰 Additional'];
-  const tithes=S.transactions.filter(t=>t.category==='Tithing'&&t.status==='accepted').sort((a,b)=>a.date.localeCompare(b.date));
-  const cutoff=tithes.length>=2?tithes[tithes.length-2].date:'2026-04-22';
+  const cutoff=getLastCompletedCycleDate();
   const additionalTxs=S.transactions.filter(t=>
     (additionalAliases.includes(t.category)||t.category?.includes('Additional'))&&
-    t.status==='accepted'&&t.date>=cutoff
+    t.status==='accepted'&&t.date>cutoff
   );
   if(additionalTxs.length){
     const total=additionalTxs.reduce((a,t)=>a+(t.amount||0),0);
