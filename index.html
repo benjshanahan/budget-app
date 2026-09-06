@@ -2184,25 +2184,25 @@ async function handleNdisUpload(e,txId){
 
 
     if(catId){
-      // Upload to Drive immediately
+      // Upload to Drive immediately — using the same client-side OAuth
+      // method as the standalone Add Invoice flow (which works correctly),
+      // instead of the server-side Netlify function's uploadToDrive action.
+      // That server-side path authenticates as a Google Service Account,
+      // and Service Accounts fundamentally have no storage quota of their
+      // own — uploads to a personal Drive folder through that path can
+      // never succeed. Routing through the browser's own OAuth token
+      // (uploading as the actual logged-in Google user) is the fix.
+      const NDIS_FOLDER_IDS={core:'1upqz4gwIM0q7klvfkTIAhNkS3ecgs4US',idls:'1GVmWlO4dSzhvPZnzG4hhiHaZA9-d2yKj',sc:'1cKzi9eZ6hLtmbAsgYQKWTqTmCII2pPa0',at:'1T4TRV-23F87jVO6b2gIqKyiWiypxTmTM'};
+      const folderId=NDIS_FOLDER_IDS[catId];
       setSyncStatus('syncing');
-      const resp=await fetch('/.netlify/functions/sheets',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:'uploadToDrive',catId,filename,fileBase64:base64,mimeType:file.type||'application/pdf'})
-      });
-      const result=await resp.json();
-      if(result.success){
-        S.workflowData['ndisFile_'+txId]=result.fileName;
-        S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
-        // Also save to the ndisTransaction record for persistence
-        if(ndisEntry){ndisEntry.driveFileId=result.fileId;ndisEntry.driveLink=result.webViewLink;ndisEntry.fileName=result.fileName;}
-        setSyncStatus('synced');
-        markNdisStep(txId,'upload');
-        alert('Invoice uploaded to Google Drive! File: '+result.fileName);
-      } else {
-        throw new Error(result.error||'Upload failed');
-      }
+      const result=await uploadFileToDriveFolder(folderId,filename,base64,file.type||'application/pdf');
+      S.workflowData['ndisFile_'+txId]=result.name;
+      S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
+      // Also save to the ndisTransaction record for persistence
+      if(ndisEntry){ndisEntry.driveFileId=result.id;ndisEntry.driveLink=result.webViewLink;ndisEntry.fileName=result.name;}
+      setSyncStatus('synced');
+      markNdisStep(txId,'upload');
+      alert('Invoice uploaded to Google Drive! File: '+result.name);
     } else {
       // Store for later upload after categorisation. Do NOT mark this step
       // done here — that was the bug: selecting a file immediately jumped
@@ -2272,41 +2272,31 @@ async function saveNdisCategorise(txId){
     comments:comments||'',
     status:'paid'
   });
-  // Upload pending file to Drive now that we have the category
+  // Upload pending file to Drive now that we have the category — using the
+  // same client-side OAuth method as the standalone Add Invoice flow
+  // (which works correctly), instead of the server-side Netlify function's
+  // uploadToDrive action. That server-side path authenticates as a Google
+  // Service Account, and Service Accounts fundamentally have no storage
+  // quota of their own — uploads to a personal Drive folder through that
+  // path can never succeed. Routing through the browser's own OAuth token
+  // (uploading as the actual logged-in Google user) is the fix.
   const pendingFile=S.workflowData['ndisFileData_'+txId];
   if(pendingFile){
     const newEntry=S.ndisTransactions[S.ndisTransactions.length-1];
     const filename=genNdisFilename(newEntry);
+    const NDIS_FOLDER_IDS={core:'1upqz4gwIM0q7klvfkTIAhNkS3ecgs4US',idls:'1GVmWlO4dSzhvPZnzG4hhiHaZA9-d2yKj',sc:'1cKzi9eZ6hLtmbAsgYQKWTqTmCII2pPa0',at:'1T4TRV-23F87jVO6b2gIqKyiWiypxTmTM'};
+    const folderId=NDIS_FOLDER_IDS[catId];
     try{
       setSyncStatus('syncing');
-      const resp=await fetch('/.netlify/functions/sheets',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:'uploadToDrive',catId,filename,fileBase64:pendingFile,mimeType:S.workflowData['ndisFileMime_'+txId]||'application/pdf'})
-      });
-      const result=await resp.json();
-      if(result.success){
-        S.workflowData['ndisFile_'+txId]=result.fileName;
-        S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
-        delete S.workflowData['ndisFileData_'+txId];
-        // Also save onto the actual ndisTransactions record — this was
-        // missing, so the upload genuinely succeeded but the invoice record
-        // itself (what "Invoices added this fortnight" reads from) never
-        // got its driveLink/driveFileId/fileName populated.
-        newEntry.driveFileId=result.fileId;
-        newEntry.driveLink=result.webViewLink;
-        newEntry.fileName=result.fileName;
-        setSyncStatus('synced');
-        alert('✅ Invoice uploaded to Google Drive!\n\nFile: '+result.fileName);
-      } else {
-        // This branch was previously missing entirely — a failed upload
-        // was silently ignored, and the flow continued straight on to show
-        // the "success" checklist as if nothing had gone wrong, with an
-        // empty Drive link. Now it surfaces the actual server-side error.
-        setSyncStatus('error');
-        console.error('NDIS invoice upload failed:',result.error);
-        alert('⚠️ Invoice upload to Drive failed: '+(result.error||'unknown error')+'\n\nThe transaction has been saved, but you\'ll need to upload the invoice again from its detail view.');
-      }
+      const result=await uploadFileToDriveFolder(folderId,filename,pendingFile,S.workflowData['ndisFileMime_'+txId]||'application/pdf');
+      S.workflowData['ndisFile_'+txId]=result.name;
+      S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
+      delete S.workflowData['ndisFileData_'+txId];
+      newEntry.driveFileId=result.id;
+      newEntry.driveLink=result.webViewLink;
+      newEntry.fileName=result.name;
+      setSyncStatus('synced');
+      alert('✅ Invoice uploaded to Google Drive!\n\nFile: '+result.name);
     } catch(err){
       console.error('Drive upload error:',err);
       setSyncStatus('error');
@@ -3486,9 +3476,17 @@ function acceptCSVReview(){
       S.transactions.push({...t,status:'pending'});
     }
   });
-  // Handle unmatched manual
+  // Handle unmatched manual — moved to the recoverable Bin instead of just
+  // vanishing with no trace, matching how a "Remove" on a matched card
+  // already works. Being able to see what you've removed (and undo it if
+  // needed) rather than have it disappear outright is exactly the point of
+  // that bin.
   unmatchedManual.forEach(t=>{
-    if(t.keepAction==='remove')S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
+    if(t.keepAction==='remove'){
+      S.deletedTransactions=S.deletedTransactions||[];
+      S.deletedTransactions.push({...t,deletedAt:new Date().toISOString()});
+      S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
+    }
   });
   // Check for Renovations transactions and show reminder
   const renoTxs=[...merged.map(m=>m.csv),...unmatchedCSV].filter(t=>t.category==='Renovations');
