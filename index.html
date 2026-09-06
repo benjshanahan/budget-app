@@ -879,7 +879,8 @@ async function loadFromSheets(){
         amount:parseFloat(String(r[3]).replace(/[^0-9.-]/g,''))||0,
         category:r[4]||'',subcat:r[5]||'',method:r[6]||'',
         status:r[7]||'accepted',source:r[8]||'',flag:r[9]||'',notes:r[10]||'',
-        splitGroupId:r[11]||'',splitTotal:r[12]!=null&&r[12]!==''?parseFloat(r[12])||0:null
+        splitGroupId:r[11]||'',splitTotal:r[12]!=null&&r[12]!==''?parseFloat(r[12])||0:null,
+        originalSource:r[13]||''
       })).filter(t=>t.id&&!deletedIds.has(t.id));
     } else {
       const configRowsEarly=(ranges[1]&&ranges[1].values)||[];
@@ -1027,8 +1028,8 @@ async function saveToSheets(){
   setSyncStatus('syncing');
   try{
     const data=[];
-    const txRows=[['id','date','description','amount','category','subcat','method','status','source','flag','notes','splitGroupId','splitTotal']];
-    S.transactions.forEach(t=>txRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.source||'',t.flag||'',t.notes||'',t.splitGroupId||'',t.splitTotal!=null?t.splitTotal:'']));
+    const txRows=[['id','date','description','amount','category','subcat','method','status','source','flag','notes','splitGroupId','splitTotal','originalSource']];
+    S.transactions.forEach(t=>txRows.push([t.id,t.date,t.description,t.amount,t.category,t.subcat||'',t.method,t.status,t.source||'',t.flag||'',t.notes||'',t.splitGroupId||'',t.splitTotal!=null?t.splitTotal:'',t.originalSource||'']));
     data.push({range:'Transactions!A1',values:txRows});
     // Google Sheets cells only accept plain strings/numbers/booleans — any
     // array or object value (like additionalCategories) must be JSON-
@@ -1759,8 +1760,15 @@ function resetWorkflow(){
     // Un-review anything from this session — "reviewed" is a transaction
     // confirmed in Step 1 but not yet finalised. Revert to "pending" so the
     // removal filter below can correctly handle CSV-sourced ones the same
-    // way it always has for plain pending items.
-    S.transactions.forEach(t=>{if(t.status==='reviewed')t.status='pending';});
+    // way it always has for plain pending items. Also restore the original
+    // source for anything that was matched during CSV review — matching
+    // overwrites source to 'csv', which otherwise made a genuinely manual
+    // transaction indistinguishable from a real CSV one here, causing it to
+    // be wrongly removed entirely instead of correctly kept as pending.
+    S.transactions.forEach(t=>{
+      if(t.status==='reviewed')t.status='pending';
+      if(t.originalSource){t.source=t.originalSource;delete t.originalSource;}
+    });
     S.transactions=S.transactions.filter(t=>
       t.status!=='pending'||
       t.source==='import'||
@@ -3422,7 +3430,12 @@ function acceptCSVReview(){
       // Split group match - keep manual entries, just mark them as credit method
       (m.manualGroup||[]).forEach(mt=>{
         const tx=S.transactions.find(t=>t.id===mt.id);
-        if(tx){tx.method='credit';tx.status='reviewed';tx.source='csv';}
+        // Preserve the pre-match source before overwriting it — "Start
+        // over" needs to know this was originally a manual entry (to
+        // correctly revert it to pending rather than removing it
+        // entirely), and that information would otherwise be permanently
+        // lost the moment source gets set to 'csv' below.
+        if(tx){tx.originalSource=tx.originalSource||tx.source;tx.method='credit';tx.status='reviewed';tx.source='csv';}
       });
     } else {
       // Single match - keep manual transaction, update with any edits made
@@ -3435,6 +3448,9 @@ function acceptCSVReview(){
         if(m.manual?.subcat!==undefined)manualTx.subcat=m.manual.subcat;
         manualTx.method='credit';
         manualTx.status='reviewed';
+        // Preserve the pre-match source before overwriting it — see the
+        // matching comment in the split-match branch above for why.
+        manualTx.originalSource=manualTx.originalSource||manualTx.source;
         manualTx.source='csv';
       }
     }
