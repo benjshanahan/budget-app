@@ -1768,6 +1768,13 @@ function resetWorkflow(){
       // more limited behaviour: only remove leftover pending CSV items and
       // undo the NDIS amount tracked as added this session, rather than a
       // true full restore.
+      // First, un-review anything from this session — "reviewed" is a newer
+      // status (transactions confirmed in Step 1 but not yet finalised) that
+      // this fallback path didn't know about, so it was leaving them
+      // completely untouched. Revert to "pending" so the removal filter
+      // below can correctly handle CSV-sourced ones the same way it always
+      // has for plain pending items.
+      S.transactions.forEach(t=>{if(t.status==='reviewed')t.status='pending';});
       S.transactions=S.transactions.filter(t=>
         t.status!=='pending'||
         t.source==='import'||
