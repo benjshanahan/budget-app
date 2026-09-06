@@ -1115,32 +1115,22 @@ async function migrateNdisImports(){
   }
 }
 function migrateSplitGroupIds(){
-  // Pass 1: Group by date+splitTotal (transactions that have splitTotal saved)
-  const withTotal=S.transactions.filter(t=>t.source==='manual'&&t.status==='pending'&&!t.splitGroupId&&t.splitTotal);
-  const groups1={};
-  withTotal.forEach(t=>{
-    const key=t.date+'_'+t.splitTotal;
-    if(!groups1[key])groups1[key]=[];
-    groups1[key].push(t);
-  });
-  let changed=false;
-  Object.values(groups1).forEach(grp=>{
-    if(grp.length<2)return;
-    const sgid='sg_mig_'+grp[0].date+'_'+grp[0].splitTotal;
-    grp.forEach(t=>{t.splitGroupId=sgid;});
-    changed=true;
-  });
-  // Pass 2 (same-date + same-description grouping for transactions with no
-  // splitTotal at all) has been removed. It was matching genuinely unrelated
-  // individual transactions purely because they happened to share a date and
-  // a generic/blank description, permanently writing a fake shared
-  // splitGroupId onto them on every page load. Real split parts virtually
-  // always have distinct per-part descriptions anyway, so this pass wasn't
-  // even reliably catching the thing it was meant to — it mostly just
-  // produced false positives. If a genuine split is still missing its group
-  // ID (e.g. entered from an outdated app version), assign it manually in
-  // the sheet instead — see the splitGroupId/splitTotal columns.
-  if(changed)scheduleSave();
+  // Both migration passes have been removed. Pass 2 (same-date + same-
+  // description grouping) was removed earlier tonight for producing false
+  // positives on transactions that just happened to share a description.
+  // Pass 1 (same-date + same-splitTotal grouping) is removed now for the
+  // same underlying reason: heavy repeated testing using the same round
+  // test amounts on the same date caused it to silently weld genuinely
+  // unrelated pending transactions into one fake shared splitGroupId —
+  // confirmed as the cause of a mass-deletion incident, where removing one
+  // matched card swept away everything else incorrectly bundled with it.
+  // Real splits now correctly get a genuine splitGroupId the moment
+  // they're created (since the earlier Config-write bug fix), so this
+  // migration's ongoing benefit for backfilling old data no longer
+  // outweighs the risk of silently corrupting unrelated pending
+  // transactions on every page load. If a genuine old split is still
+  // missing its group ID, assign it manually in the sheet instead — see
+  // the splitGroupId/splitTotal columns.
 }
 
 function applyKnownSplitFixes(){
