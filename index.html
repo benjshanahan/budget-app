@@ -1745,46 +1745,33 @@ function doneStep(n){
 }
 function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
 function resetWorkflow(){
-  const hasSnapshot=!!workflowStartSnapshot;
-  const confirmMsg=hasSnapshot
-    ? 'Start over on this fortnight?\n\nThis will restore everything back to exactly how it was before you started — transactions, mortgage figure, spending balances, NDIS, tithe, all of it — and reset every step to the beginning.'
-    : 'Start over on this fortnight?\n\nThis will reset all workflow steps back to the beginning. Note: since the page has been refreshed since you started, a full restore of transaction/balance changes isn\'t available this time — only pending items and step progress will be cleared.';
-  if(confirm(confirmMsg)){
-    if(hasSnapshot){
-      // Full restore — genuinely undo everything from this session, not
-      // just leftover pending items. This is what "Start over" is actually
-      // meant to do: put things back exactly as they were before this
-      // fortnight's workflow began.
-      S.transactions=workflowStartSnapshot.transactions;
-      S.overall=workflowStartSnapshot.overall;
-      S.spendingBalances=workflowStartSnapshot.spendingBalances;
-      S.ndisTransactions=workflowStartSnapshot.ndisTransactions;
-      S.moneyOwedItems=workflowStartSnapshot.moneyOwedItems;
-      workflowStartSnapshot=null;
-    } else {
-      // Fallback for when the snapshot didn't survive a refresh — the old,
-      // more limited behaviour: only remove leftover pending CSV items and
-      // undo the NDIS amount tracked as added this session, rather than a
-      // true full restore.
-      // First, un-review anything from this session — "reviewed" is a newer
-      // status (transactions confirmed in Step 1 but not yet finalised) that
-      // this fallback path didn't know about, so it was leaving them
-      // completely untouched. Revert to "pending" so the removal filter
-      // below can correctly handle CSV-sourced ones the same way it always
-      // has for plain pending items.
-      S.transactions.forEach(t=>{if(t.status==='reviewed')t.status='pending';});
-      S.transactions=S.transactions.filter(t=>
-        t.status!=='pending'||
-        t.source==='import'||
-        t.source==='manual'||
-        t.source==='recurring'
-      );
-      const ndisAddedThisFn=S.workflowData.ndisAddedIds||[];
-      if(ndisAddedThisFn.length){
-        S.ndisTransactions=S.ndisTransactions.filter(t=>!ndisAddedThisFn.includes(t.id));
-      }
-      S.overall.ndisOwed=Math.max(0,(S.overall.ndisOwed||0)-(S.workflowData.ndisAddedAmount||0));
+  // The "full restore from snapshot" approach has been removed. It relied
+  // on reliably knowing when a genuinely fresh attempt begins during a
+  // single long browser session, and across a long, complex session with
+  // this many intertwined actions, that turned out not to be something
+  // that could be made reliable enough — it caused real, repeated data
+  // loss. This is now deliberately simple and predictable instead: it only
+  // clears pending/reviewed items and undoes this step's own NDIS
+  // additions, and never wholesale-replaces transactions, overall figures,
+  // spending balances, or NDIS data. For anything bigger than that, Google
+  // Sheets version history remains the safe, reliable tool.
+  if(confirm('Start over on this fortnight?\n\nThis will reset all workflow steps back to the beginning and clear any pending/reviewed transactions from this attempt. It does not restore mortgage, spending balance, or NDIS changes already made this session — for that, use Google Sheets version history.')){
+    // Un-review anything from this session — "reviewed" is a transaction
+    // confirmed in Step 1 but not yet finalised. Revert to "pending" so the
+    // removal filter below can correctly handle CSV-sourced ones the same
+    // way it always has for plain pending items.
+    S.transactions.forEach(t=>{if(t.status==='reviewed')t.status='pending';});
+    S.transactions=S.transactions.filter(t=>
+      t.status!=='pending'||
+      t.source==='import'||
+      t.source==='manual'||
+      t.source==='recurring'
+    );
+    const ndisAddedThisFn=S.workflowData.ndisAddedIds||[];
+    if(ndisAddedThisFn.length){
+      S.ndisTransactions=S.ndisTransactions.filter(t=>!ndisAddedThisFn.includes(t.id));
     }
+    S.overall.ndisOwed=Math.max(0,(S.overall.ndisOwed||0)-(S.workflowData.ndisAddedAmount||0));
     S.workflowData={};
     S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
     saveS();
