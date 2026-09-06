@@ -1006,7 +1006,23 @@ async function saveToSheets(){
       ['benjPrevDebt',S.spendingBalances?.benj?.prevDebt||0],
       ['kasiePrevDebt',S.spendingBalances?.kasie?.prevDebt||0]
     ]});
-    const wfJson=JSON.stringify(S.workflowData||{});
+    // Staged (not-yet-uploaded) NDIS invoice files are held as base64 text
+    // directly in workflowData while the user fills in category/details.
+    // Since the whole workflow object now saves as ONE JSON blob in a single
+    // Sheets cell (which has a ~50,000 character limit), a large embedded
+    // file can push the whole blob over that limit — causing the ENTIRE
+    // save to be silently rejected, not just the oversized field. That
+    // looks exactly like "my progress got wiped on refresh": nothing in
+    // this session ever actually reached the sheet. These staged files are
+    // short-lived by design (only needed until Save & continue triggers the
+    // real Drive upload) and don't need to survive a refresh, so they're
+    // deliberately excluded from what gets persisted.
+    const wfToSave={};
+    Object.keys(S.workflowData||{}).forEach(k=>{
+      if(k.startsWith('ndisFileData_'))return;
+      wfToSave[k]=S.workflowData[k];
+    });
+    const wfJson=JSON.stringify(wfToSave);
     data.push({range:'Workflow!A1',values:[[wfJson]]});
     // Save csvPending as JSON in a single cell
     const csvPendingJson=JSON.stringify(S.csvPending||{});
@@ -1478,7 +1494,16 @@ function renderStepBody(s,done,pending){
   if(done)return`<button class="btn btn-sm" onclick="undoStep(${s.n})">↩ Mark undone</button>`;
   if(s.action==='upload'){
     const hasPending=S.csvPending&&(S.csvPending.merged?.length||S.csvPending.unmatchedCSV?.length||S.csvPending.unmatchedManual?.length);
+    // If a review was already finished this fortnight, S.csvPending gets
+    // cleared as intended (the transactions have graduated into real,
+    // accepted transactions and don't need to stay staged). But without
+    // this check, revisiting the step afterward looked identical to never
+    // having uploaded anything at all — genuinely confusing, since nothing
+    // was actually lost.
+    const cutoff=getLastCompletedCycleDate();
+    const alreadyReviewedCount=!hasPending?S.transactions.filter(t=>t.source==='csv'&&t.status==='accepted'&&t.date>cutoff).length:0;
     return`<a href="https://secure.mycard.com.au/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 Open MyCard</a>
+      ${alreadyReviewedCount?'<div class="banner banner-info" style="margin-bottom:10px">✓ '+alreadyReviewedCount+' transactions already reviewed and accepted this fortnight — nothing was lost. <a href="javascript:void(0)" onclick="showTab(\'transactions\')" style="text-decoration:underline">View in Transactions</a></div>':''}
       <label for="csv-up" class="upload-zone" style="display:block;cursor:pointer"><div class="upload-icon">📄</div><div style="font-size:13px;font-weight:600;color:var(--text)">Click to upload MyCard CSV</div><div style="font-size:11px;color:var(--text2);margin-top:4px">${getCSVPeriodLabel()}</div></label>
       <input type="file" id="csv-up" accept=".csv" onchange="handleCSV(event)" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
       ${hasPending?'<div class="banner banner-warn" style="margin-top:10px">📋 You have an unfinished review — <button class="btn btn-sm" onclick="openCSVReview(S.csvPending)" style="margin-left:4px">Resume review</button></div>':''}
