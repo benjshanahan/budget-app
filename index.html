@@ -724,7 +724,15 @@ const getLastCompletedCycleDate = () => {
 // the snapshot isn't there.
 let workflowStartSnapshot=null;
 function ensureWorkflowSnapshot(){
-  if(workflowStartSnapshot)return;
+  // If workflowData is currently empty, this is genuinely the start of a
+  // fresh attempt — always take a NEW snapshot in that case, discarding any
+  // stale one left over from a much earlier session that was never cleanly
+  // finalised or "Start over"-ed. Without this, a long testing session
+  // could silently accumulate a snapshot from hours earlier — and "Start
+  // over" would revert all the way back to THAT point, wiping out
+  // everything done since, even though it feels like a brand new attempt.
+  const workflowDataEmpty=!S.workflowData||Object.keys(S.workflowData).length===0;
+  if(workflowStartSnapshot&&!workflowDataEmpty)return;
   workflowStartSnapshot={
     transactions:JSON.parse(JSON.stringify(S.transactions||[])),
     overall:JSON.parse(JSON.stringify(S.overall||{})),
