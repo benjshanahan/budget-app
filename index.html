@@ -2159,7 +2159,11 @@ async function handleNdisUpload(e,txId){
   const tx=S.transactions.find(t=>t.id===txId);
   // Get category for this tx if already categorised, else we'll upload after categorise
   const catId=S.workflowData['ndisCat_'+txId];
-  const ndisEntry=S.ndisTransactions?.find(t=>S.workflowData['ndisCat_'+txId]&&t.date===tx?.date&&t.amount===tx?.amount);
+  // Look up by the actual, reliable id rather than matching date+amount —
+  // that match could silently fail (type mismatch, another transaction
+  // sharing the same date/amount) and this is the one place that's
+  // guaranteed to point at exactly the right record.
+  const ndisEntry=S.ndisTransactions?.find(t=>t.id==='ndis_pending_'+txId);
 
   // Generate filename
   const provider=document.getElementById('ndis-provider-'+txId)?.value||tx?.description||'Provider';
@@ -2197,7 +2201,6 @@ async function handleNdisUpload(e,txId){
         S.workflowData['ndisFile_'+txId]=result.fileName;
         S.workflowData['ndisFileLink_'+txId]=result.webViewLink;
         // Also save to the ndisTransaction record for persistence
-        const ndisEntry=S.ndisTransactions?.find(t=>S.workflowData['ndisCat_'+txId]&&t.date===tx?.date&&Math.abs(t.amount-(tx?.amount||0))<0.01);
         if(ndisEntry){ndisEntry.driveFileId=result.fileId;ndisEntry.driveLink=result.webViewLink;ndisEntry.fileName=result.fileName;}
         setSyncStatus('synced');
         markNdisStep(txId,'upload');
