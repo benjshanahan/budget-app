@@ -3296,9 +3296,18 @@ function deleteFromCSVReview(type, idx){
       // Move CSV tx to deleted bin
       S.deletedTransactions=S.deletedTransactions||[];
       S.deletedTransactions.push({...m.csv,deletedAt:new Date().toISOString(),status:'pending'});
-      // Return manual tx back to pending
-      if(m.manual)m.manual.status='pending';
-      if(m.manualGroup)m.manualGroup.forEach(t=>t.status='pending');
+      // Actually remove the manual side(s) too, rather than just resetting
+      // their status back to "pending" — leaving them merely pending meant
+      // the blanket "accept all pending" sweep at the end of the review
+      // would immediately catch them again and mark them reviewed anyway,
+      // as if Remove had never been clicked. Moved to the deleted bin
+      // instead, matching how the CSV side is already handled, so they're
+      // genuinely gone (and still recoverable from there if needed).
+      const manualParts=m.manualGroup||(m.manual?[m.manual]:[]);
+      manualParts.forEach(t=>{
+        S.deletedTransactions.push({...t,deletedAt:new Date().toISOString()});
+        S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
+      });
       pending.merged.splice(idx,1);
     }
   }
