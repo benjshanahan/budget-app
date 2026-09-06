@@ -96,6 +96,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .tx.accepted{border-left:3px solid var(--green)}
 .tx.pending{border-left:3px solid var(--amber);background:var(--al)}
 .tx.pending .tx-cat{background:var(--al);color:var(--amber);border-color:var(--amber)}
+.tx.reviewed{border-left:3px solid var(--blue);background:var(--bl)}
+.tx.reviewed .tx-cat{background:var(--bl);color:var(--blue);border-color:var(--blue)}
 .tx.flagged{border-left:3px solid var(--red)}
 .tx-date{font-size:11px;color:var(--text2);min-width:52px;font-weight:500}
 .tx-desc{flex:1;font-size:13px;color:var(--text);min-width:0}
@@ -708,6 +710,29 @@ const getLastCompletedCycleDate = () => {
   const cycles=S.completedCycles||[];
   return cycles.length?cycles[cycles.length-1].date:'2026-04-22';
 };
+// "Start over" needs to be able to genuinely undo everything from the
+// current fortnight's workflow session — transactions getting accepted,
+// mortgage/spending balance edits, NDIS additions, tithe, money owed —
+// not just remove leftover pending items. This snapshot captures the real
+// state right before the FIRST mutating action of the session, so a full
+// restore is possible. It's deliberately kept in memory only, not saved to
+// the sheet — after tonight's lesson about oversized cells silently
+// breaking saves, stuffing a snapshot of potentially hundreds of
+// transactions into the same Workflow blob was too risky. The trade-off:
+// this only survives within the current browser session, not across a
+// page refresh — resetWorkflow() falls back to its simpler behaviour if
+// the snapshot isn't there.
+let workflowStartSnapshot=null;
+function ensureWorkflowSnapshot(){
+  if(workflowStartSnapshot)return;
+  workflowStartSnapshot={
+    transactions:JSON.parse(JSON.stringify(S.transactions||[])),
+    overall:JSON.parse(JSON.stringify(S.overall||{})),
+    spendingBalances:JSON.parse(JSON.stringify(S.spendingBalances||{})),
+    ndisTransactions:JSON.parse(JSON.stringify(S.ndisTransactions||[])),
+    moneyOwedItems:JSON.parse(JSON.stringify(S.moneyOwedItems||[]))
+  };
+}
 const getCatSpent = name => S.transactions.filter(t=>t.status==='accepted'&&t.category===name).reduce((a,t)=>a+(t.amount||0),0);
 // App transactions: anything after the last pre-app tithe date (2026-05-19)
 // This correctly excludes all pre-app spending including CSV entries for old transactions
@@ -726,7 +751,13 @@ const getCatBudgeted = name => {
 const getFNSpending = person => {
   const catName='Spending - '+person;
   const cutoff=getLastCompletedCycleDate();
-  return S.transactions.filter(t=>t.status==='accepted'&&t.category===catName&&t.date>cutoff).reduce((a,t)=>a+(t.amount||0),0);
+  // Includes "reviewed" as well as "accepted" — unlike most budget category
+  // balances (which stay frozen until finalise, per Ben's design), Benj &
+  // Kasie's spending balance calculation specifically must reflect this
+  // fortnight's just-reviewed CSV spending right away, since that's what the
+  // "Benj & Kasie spending balances" workflow step needs to calculate the
+  // correct transfer/top-up amount mid-workflow, before finalise has run.
+  return S.transactions.filter(t=>(t.status==='accepted'||t.status==='reviewed')&&t.category===catName&&t.date>cutoff).reduce((a,t)=>a+(t.amount||0),0);
 };
 const calcSpendingBal = (person,debit) => {
   // Formula: prevBalance - topUpTransfer - fnSpending + $70
@@ -1450,7 +1481,7 @@ function renderTxList(){
   if(totalEl)totalEl.innerHTML=`Total: <span style="color:${total<0?'var(--green)':total>0?'var(--red)':'var(--text)'}">${total<0?'-':''}${fmt(Math.abs(total))}</span>`;
   const list=document.getElementById('tx-list-main');
   if(!txs.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text2);font-size:13px">No transactions</div>';return;}
-  list.innerHTML=txs.map(t=>`<div class="tx ${t.status}" onclick="openTxDetail('${t.id}')"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}${t.flag?'<small style="color:var(--red)">⚠ '+t.flag+'</small>':''}${t.status==='pending'?'<small style="color:var(--amber);font-weight:600">⏳ Pending review</small>':''}</span><span class="tx-cat">${t.category}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join('');
+  list.innerHTML=txs.map(t=>`<div class="tx ${t.status}" onclick="openTxDetail('${t.id}')"><span class="tx-date">${fmtDate(t.date)}</span><span class="tx-desc">${t.description}${t.subcat?'<small>'+t.subcat+'</small>':''}${t.flag?'<small style="color:var(--red)">⚠ '+t.flag+'</small>':''}${t.status==='pending'?'<small style="color:var(--amber);font-weight:600">⏳ Pending review</small>':''}${t.status==='reviewed'?'<small style="color:var(--blue);font-weight:600">✓ Reviewed — pending finalisation</small>':''}</span><span class="tx-cat">${t.category}</span><span class="tx-amt ${t.amount<0?'pos':''}">${t.amount<0?'-':''}${fmt(Math.abs(t.amount))}</span></div>`).join('');
   const sel=document.getElementById('f-cat');
   if(sel.options.length<=1)[...new Set(S.transactions.map(t=>t.category))].sort().forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
 }
@@ -1501,7 +1532,7 @@ function renderStepBody(s,done,pending){
     // having uploaded anything at all — genuinely confusing, since nothing
     // was actually lost.
     const cutoff=getLastCompletedCycleDate();
-    const alreadyReviewedCount=!hasPending?S.transactions.filter(t=>t.source==='csv'&&t.status==='accepted'&&t.date>cutoff).length:0;
+    const alreadyReviewedCount=!hasPending?S.transactions.filter(t=>t.source==='csv'&&(t.status==='accepted'||t.status==='reviewed')&&t.date>cutoff).length:0;
     return`<a href="https://secure.mycard.com.au/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 Open MyCard</a>
       <label for="csv-up" class="upload-zone" style="display:block;cursor:pointer"><div class="upload-icon">📄</div><div style="font-size:13px;font-weight:600;color:var(--text)">Click to upload MyCard CSV</div><div style="font-size:11px;color:var(--text2);margin-top:4px">${getCSVPeriodLabel()}</div></label>
       <input type="file" id="csv-up" accept=".csv" onchange="handleCSV(event)" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
@@ -1521,7 +1552,11 @@ function renderStepBody(s,done,pending){
   if(s.action==='tithe'){const carersDefault=S.carersDefault||162.60;return`<a href="https://banking.racqbank.com.au/#/login" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex;margin-right:6px">🔗 RACQ Bank</a><a href="https://outlook.live.com/mail/" target="_blank" class="btn btn-sm" style="margin-bottom:10px;display:inline-flex">🔗 Outlook</a><div class="frow" style="margin-bottom:8px"><div class="field"><label>Benj gross income ($)</label><input type="number" id="tb" step="0.01" placeholder="0.00" oninput="calcTithe()"></div><div class="field"><label>Kasie gross income ($)</label><input type="number" id="tk" step="0.01" placeholder="0.00" oninput="calcTithe()"></div></div><div class="field" style="margin-bottom:8px"><label>Carers Payment ($)</label><div style="display:flex;gap:8px;align-items:center"><input type="number" id="tc" step="0.01" value="${carersDefault.toFixed(2)}" oninput="calcTithe()" style="flex:1"><button class="btn btn-sm" onclick="saveCarersDefault()" style="white-space:nowrap;flex-shrink:0">Set as default</button></div><div class="field-hint">Default: ${fmt(carersDefault)}</div></div><div id="tithe-out" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="saveTithe()">✓ Record tithe & done</button><button class="btn btn-sm" id="transfer-zcm-btn" style="display:none;background:var(--blue);color:#fff;border-color:#0F4A8A" onclick="showZCMTransfer()">💸 Manually transfer tithe to ZCM</button></div>`;}
   if(s.action==='spending')return`<a href='https://banking.racqbank.com.au/#/login' target='_blank' class='btn btn-sm' style='margin-bottom:10px;display:inline-flex'>🔗 RACQ Bank</a><button class="btn btn-primary btn-sm" onclick="openSpendingModal()">💳 Enter debit card balances</button>`;
   if(s.action==='ndis'){
-    const ndisTxs=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='accepted');
+    // Includes "reviewed" as well as "accepted" — otherwise this step would
+    // stop seeing CSV-sourced NDIS transactions entirely during the review
+    // period, since they don't become "accepted" until the whole fortnight
+    // is finalised (which happens after this step runs).
+    const ndisTxs=S.transactions.filter(t=>t.category==='NDIS'&&(t.status==='accepted'||t.status==='reviewed'));
     const pendingNdis=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='pending');
     const processedIds=S.workflowData.ndisProcessed||[];
     // Also consider a tx processed if it has a matching ndisTransaction entry (processed in a previous fn)
@@ -1656,10 +1691,16 @@ function revertCycle(id){
   alert('Fortnight reverted successfully.');
 }
 function finaliseWorkflow(){
-  if(!confirm('Finalise this fortnight? This will:\n• Accept the tithe transaction\n• Add one fortnightly allocation to all budgets\n\nThis cannot be undone (except by reverting the whole fortnight).'))return;
+  if(!confirm('Finalise this fortnight? This will:\n• Accept the tithe transaction\n• Confirm all reviewed transactions into your budgets\n• Add one fortnightly allocation to all budgets\n\nThis cannot be undone (except by reverting the whole fortnight).'))return;
   const today=S.workflowData.currentDate||new Date().toISOString().split('T')[0];
   // Accept the pending tithe transaction
   S.transactions.filter(t=>t.source==='tithe-pending').forEach(t=>{t.status='accepted';t.source='tithe';});
+  // Convert this session's "reviewed" transactions into genuinely "accepted"
+  // ones — this is the moment they actually start counting toward budget
+  // category balances, per Ben's design: reviewing a statement confirms the
+  // transactions themselves, but shouldn't touch the official budget numbers
+  // until the whole fortnight is finalised here.
+  S.transactions.filter(t=>t.status==='reviewed').forEach(t=>{t.status='accepted';});
   // Record this workflow as a completed fortnight
   const cycleRecord={
     id:'cycle_'+Date.now(),
@@ -1674,6 +1715,10 @@ function finaliseWorkflow(){
   // Reset workflow
   S.workflowData={};
   S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
+  // Clear the "start over" snapshot too — this fortnight is genuinely done,
+  // so there's nothing left to revert to, and leaving it around risks it
+  // being mistakenly used to "undo" a future, unrelated session.
+  workflowStartSnapshot=null;
   saveS();
   renderWorkflow();
   showTab('dashboard');
@@ -1702,21 +1747,39 @@ function doneStep(n){
 }
 function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
 function resetWorkflow(){
-  if(confirm('Start over on this fortnight?\n\nThis will reset all workflow steps back to the beginning, so you can redo it from scratch. Any pending transactions from this attempt will be removed.')){
-    // Remove pending CSV transactions but keep manually entered ones
-    S.transactions=S.transactions.filter(t=>
-      t.status!=='pending'||
-      t.source==='import'||
-      t.source==='manual'||
-      t.source==='recurring'
-    );
-    // Remove NDIS transactions added during this workflow (tracked in workflowData)
-    const ndisAddedThisFn=S.workflowData.ndisAddedIds||[];
-    if(ndisAddedThisFn.length){
-      S.ndisTransactions=S.ndisTransactions.filter(t=>!ndisAddedThisFn.includes(t.id));
+  const hasSnapshot=!!workflowStartSnapshot;
+  const confirmMsg=hasSnapshot
+    ? 'Start over on this fortnight?\n\nThis will restore everything back to exactly how it was before you started — transactions, mortgage figure, spending balances, NDIS, tithe, all of it — and reset every step to the beginning.'
+    : 'Start over on this fortnight?\n\nThis will reset all workflow steps back to the beginning. Note: since the page has been refreshed since you started, a full restore of transaction/balance changes isn\'t available this time — only pending items and step progress will be cleared.';
+  if(confirm(confirmMsg)){
+    if(hasSnapshot){
+      // Full restore — genuinely undo everything from this session, not
+      // just leftover pending items. This is what "Start over" is actually
+      // meant to do: put things back exactly as they were before this
+      // fortnight's workflow began.
+      S.transactions=workflowStartSnapshot.transactions;
+      S.overall=workflowStartSnapshot.overall;
+      S.spendingBalances=workflowStartSnapshot.spendingBalances;
+      S.ndisTransactions=workflowStartSnapshot.ndisTransactions;
+      S.moneyOwedItems=workflowStartSnapshot.moneyOwedItems;
+      workflowStartSnapshot=null;
+    } else {
+      // Fallback for when the snapshot didn't survive a refresh — the old,
+      // more limited behaviour: only remove leftover pending CSV items and
+      // undo the NDIS amount tracked as added this session, rather than a
+      // true full restore.
+      S.transactions=S.transactions.filter(t=>
+        t.status!=='pending'||
+        t.source==='import'||
+        t.source==='manual'||
+        t.source==='recurring'
+      );
+      const ndisAddedThisFn=S.workflowData.ndisAddedIds||[];
+      if(ndisAddedThisFn.length){
+        S.ndisTransactions=S.ndisTransactions.filter(t=>!ndisAddedThisFn.includes(t.id));
+      }
+      S.overall.ndisOwed=Math.max(0,(S.overall.ndisOwed||0)-(S.workflowData.ndisAddedAmount||0));
     }
-    // Only undo the NDIS amount added during THIS workflow attempt, not the whole balance
-    S.overall.ndisOwed=Math.max(0,(S.overall.ndisOwed||0)-(S.workflowData.ndisAddedAmount||0));
     S.workflowData={};
     S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
     saveS();
@@ -1738,6 +1801,7 @@ function saveCarersDefault(){
   alert('Carers Payment default updated to '+fmt(val));
 }
 function saveTithe(){
+  ensureWorkflowSnapshot();
   const b=parseFloat(document.getElementById('tb')?.value)||0;
   const k=parseFloat(document.getElementById('tk')?.value)||0;
   const c=parseFloat(document.getElementById('tc')?.value)||0;
@@ -1760,17 +1824,18 @@ function showZCMTransfer(){
   const ti=S.workflowData.currentTithe||0;
   alert('Please manually transfer '+fmt(ti)+' to ZCM. This is your tithe for this fortnight.');
 }
-function saveNDIS(){const a=parseFloat(document.getElementById('ndis-in')?.value)||0;S.overall.ndisOwed=(S.overall.ndisOwed||0)+a;S.workflowData.ndisAddedAmount=(S.workflowData.ndisAddedAmount||0)+a;saveS();doneStep(9);}
-function addCash(){const a=parseFloat(document.getElementById('cash-in')?.value)||0;S.overall.cashSavings=(S.overall.cashSavings||0)+a;saveS();doneStep(10);}
-function addOther(){const desc=document.getElementById('oth-desc')?.value.trim(),amt=parseFloat(document.getElementById('oth-amt')?.value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.transactions.push({id:'oth_'+Date.now(),date:new Date().toISOString().split('T')[0],description:desc,amount:amt,category:'Other',method:'other',status:'accepted',source:'manual'});if(document.getElementById('oth-desc'))document.getElementById('oth-desc').value='';if(document.getElementById('oth-amt'))document.getElementById('oth-amt').value='';saveS();alert('Added!');}
-function saveMoneyOwed(){const a=parseFloat(document.getElementById('ow-total-in')?.value)||0;S.overall.moneyOwed=a;saveS();doneStep(12);}
+function saveNDIS(){ensureWorkflowSnapshot();const a=parseFloat(document.getElementById('ndis-in')?.value)||0;S.overall.ndisOwed=(S.overall.ndisOwed||0)+a;S.workflowData.ndisAddedAmount=(S.workflowData.ndisAddedAmount||0)+a;saveS();doneStep(9);}
+function addCash(){ensureWorkflowSnapshot();const a=parseFloat(document.getElementById('cash-in')?.value)||0;S.overall.cashSavings=(S.overall.cashSavings||0)+a;saveS();doneStep(10);}
+function addOther(){ensureWorkflowSnapshot();const desc=document.getElementById('oth-desc')?.value.trim(),amt=parseFloat(document.getElementById('oth-amt')?.value)||0;if(!desc||!amt){alert('Enter description and amount.');return;}S.transactions.push({id:'oth_'+Date.now(),date:new Date().toISOString().split('T')[0],description:desc,amount:amt,category:'Other',method:'other',status:'accepted',source:'manual'});if(document.getElementById('oth-desc'))document.getElementById('oth-desc').value='';if(document.getElementById('oth-amt'))document.getElementById('oth-amt').value='';saveS();alert('Added!');}
+function saveMoneyOwed(){ensureWorkflowSnapshot();const a=parseFloat(document.getElementById('ow-total-in')?.value)||0;S.overall.moneyOwed=a;saveS();doneStep(12);}
 function saveMortgage(){
+  ensureWorkflowSnapshot();
   const a=parseFloat(document.getElementById('mort-in')?.value)||0;
   S.overall.mortgageAhead=a;
   saveS();
   doneStep(8);
 }
-function acceptAllPending(){let n=0;S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').forEach(t=>{t.status='accepted';n++;});saveS();doneStep(2);alert(n+' transactions accepted.');}
+function acceptAllPending(){let n=0;S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').forEach(t=>{t.status='reviewed';n++;});saveS();doneStep(2);alert(n+' transactions reviewed.');}
 
 function openSpendingModal(){
   // Snapshot the starting balance the FIRST time this step opens in this
@@ -1834,6 +1899,7 @@ function calcSpending(person){
 }
 
 function saveSpending(){
+  ensureWorkflowSnapshot();
   const bD=parseFloat(document.getElementById('benj-debit')?.value)||0;
   const kD=parseFloat(document.getElementById('kasie-debit')?.value)||0;
   const benjResult=calcSpendingBal('Benj',bD);
@@ -2169,6 +2235,7 @@ function markNdisStep(txId,stepId){
 }
 
 async function saveNdisCategorise(txId){
+  ensureWorkflowSnapshot();
   const catId=document.getElementById('ndis-cat-select-'+txId)?.value;
   const provider=document.getElementById('ndis-provider-'+txId)?.value?.trim();
   const invoiceNo=document.getElementById('ndis-invno-'+txId)?.value?.trim();
@@ -2319,7 +2386,7 @@ function finaliseNdisStep(){
   // Also include any ndisTransactions added this fortnight (status paid or claimed, after last tithe)
   const cutoff=getLastCompletedCycleDate();
   // From main transactions (credit card NDIS)
-  const processedTxs=S.transactions.filter(t=>t.category==='NDIS'&&t.status==='accepted'&&processedIds.includes(t.id));
+  const processedTxs=S.transactions.filter(t=>t.category==='NDIS'&&(t.status==='accepted'||t.status==='reviewed')&&processedIds.includes(t.id));
   const txTotal=processedTxs.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
   // From ndisTransactions (manually added invoices this fn)
   const ndisInvoiceTotal=(S.ndisTransactions||[]).filter(t=>t.date>cutoff&&(t.status==='paid'||t.status==='claimed')).reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
@@ -2422,6 +2489,7 @@ function showNdisChecklist({provider,amount,date,driveLink,payRemark,claimRemark
   },200);
 }
 async function saveNdisInvoice(){
+  ensureWorkflowSnapshot();
   const cat=document.getElementById('ndis-cat')?.value;
   const date=document.getElementById('ndis-date')?.value;
   const amount=parseFloat(document.getElementById('ndis-amount')?.value)||0;
@@ -2578,7 +2646,12 @@ function openCatDetail(catName){
   // For Bills and Presents, show subcategory dashboard
   if(cat?.subs){openSubcatDashboard(catName);return;}
   const cycles=getTithingCycles();
-  const txs=S.transactions.filter(t=>t.category===catName&&t.status==='accepted').sort((a,b)=>b.date.localeCompare(a.date));
+  // Includes "reviewed" transactions in the list so Ben can find and edit
+  // them straight from the category view, not just the Transactions tab —
+  // the "spent" figure below still uses getCatSpent() (accepted-only), so
+  // the balance correctly stays frozen until finalise even though these
+  // show up in the list.
+  const txs=S.transactions.filter(t=>t.category===catName&&(t.status==='accepted'||t.status==='reviewed')).sort((a,b)=>b.date.localeCompare(a.date));
   const spent=getCatSpent(catName);
   let headerStats='';
   if(cat?.isSpending){
@@ -2619,7 +2692,7 @@ function editSpendingBalance(person){
 function openSubcatDashboard(catName){
   const cat=CATS.find(c=>c.name===catName);
   const cycles=getTithingCycles();
-  const allTxs=S.transactions.filter(t=>t.category===catName&&t.status==='accepted');
+  const allTxs=S.transactions.filter(t=>t.category===catName&&(t.status==='accepted'||t.status==='reviewed'));
   const totalSpent=getCatSpent(catName);
   const budgeted=cat.fn*cycles;
   const bal=budgeted-totalSpent;
@@ -2669,8 +2742,14 @@ function openSubcatDashboard(catName){
 }
 
 function openSubcatDetail(catName, sub){
-  const txs=S.transactions.filter(t=>t.category===catName&&(t.subcat||'Other')===sub&&t.status==='accepted').sort((a,b)=>b.date.localeCompare(a.date));
-  const spent=txs.reduce((a,t)=>a+t.amount,0);
+  // List includes "reviewed" so these show up here too, but the "Total
+  // spent" figure is calculated separately from accepted-only, so it stays
+  // frozen until finalise like every other budget figure — unlike the other
+  // two category views, this one previously computed both from the same
+  // filtered list, which would have let reviewed transactions leak into the
+  // displayed total.
+  const txs=S.transactions.filter(t=>t.category===catName&&(t.subcat||'Other')===sub&&(t.status==='accepted'||t.status==='reviewed')).sort((a,b)=>b.date.localeCompare(a.date));
+  const spent=S.transactions.filter(t=>t.category===catName&&(t.subcat||'Other')===sub&&t.status==='accepted').reduce((a,t)=>a+t.amount,0);
   document.getElementById('txd-title').textContent=catName+' — '+sub;
   document.getElementById('txd-body').innerHTML=`
     <div style="margin-bottom:12px">
@@ -2870,9 +2949,12 @@ function handleCSV(e){
           merged.push({csv,manualGroup:pendingInSubset,action:'merge-split',highConfidence});
           continue;
         }
-        // Check for duplicate in previous accepted transactions (same date + amount)
+        // Check for duplicate in previous accepted/reviewed transactions
+        // (same date + amount) — catches a re-uploaded or overlapping CSV
+        // clashing with something already reviewed this same session, not
+        // just fully finalised ones from before.
         const dupMatch=S.transactions.find(t=>
-          t.status==='accepted'&&
+          (t.status==='accepted'||t.status==='reviewed')&&
           Math.abs(t.amount-csv.amount)<0.01&&
           t.date===csv.date&&
           t.source!=='manual'
@@ -3321,6 +3403,7 @@ function renderCSVSubcat(i,catName,selected){const cat=CATS.find(c=>c.name===cat
 function updateCSVSubcat(i,catName){const el=document.getElementById('csv-sub-'+i);if(el)el.innerHTML=renderCSVSubcat(i,catName,'');}
 
 function acceptCSVReview(){
+  ensureWorkflowSnapshot();
   const{merged,unmatchedCSV,unmatchedManual}=S.csvPending;
   // Process merged matches - keep manual transactions, discard raw CSV
   merged.forEach((m,i)=>{
@@ -3328,7 +3411,7 @@ function acceptCSVReview(){
       // Split group match - keep manual entries, just mark them as credit method
       (m.manualGroup||[]).forEach(mt=>{
         const tx=S.transactions.find(t=>t.id===mt.id);
-        if(tx){tx.method='credit';tx.status='accepted';tx.source='csv';}
+        if(tx){tx.method='credit';tx.status='reviewed';tx.source='csv';}
       });
     } else {
       // Single match - keep manual transaction, update with any edits made
@@ -3340,7 +3423,7 @@ function acceptCSVReview(){
         if(m.manual?.category)manualTx.category=m.manual.category;
         if(m.manual?.subcat!==undefined)manualTx.subcat=m.manual.subcat;
         manualTx.method='credit';
-        manualTx.status='accepted';
+        manualTx.status='reviewed';
         manualTx.source='csv';
       }
     }
@@ -3374,21 +3457,24 @@ function acceptCSVReview(){
   // Check for Renovations transactions and show reminder
   const renoTxs=[...merged.map(m=>m.csv),...unmatchedCSV].filter(t=>t.category==='Renovations');
   S.csvPending={merged:[],unmatchedCSV:[],unmatchedManual:[],csvTxs:[]};
-  // Accept all pending transactions — deliberately excludes tithe-pending.
-  // That status must only ever be changed by finaliseWorkflow(); a blanket
-  // sweep here was previously catching it too, which is exactly how a tithe
-  // ended up marked "accepted" while its source stayed "tithe-pending" — an
-  // inconsistent state finaliseWorkflow() itself could never produce, since
-  // it always updates status and source together.
+  // Mark all pending transactions "reviewed" — deliberately NOT "accepted"
+  // yet. Per Ben's explicit design: reviewing a CSV statement shouldn't
+  // finalise anything into the official budget numbers until the whole
+  // fortnight is finalised. "reviewed" is a distinct intermediate status:
+  // it means "confirmed by the user" without yet counting toward budget
+  // category balances — those intentionally stay frozen at their pre-review
+  // figures until finaliseWorkflow() converts everything to "accepted".
+  // Deliberately excludes tithe-pending, same as before — that status must
+  // only ever be changed by finaliseWorkflow().
   let n=0;
-  S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').forEach(t=>{t.status='accepted';n++;});
+  S.transactions.filter(t=>t.status==='pending'&&t.source!=='tithe-pending').forEach(t=>{t.status='reviewed';n++;});
   saveS();closeModal('csvReview');doneStep(1);
   // Check for Additional Money transactions and show transfer reminder
   const additionalAliases=['Additional','Additional Money','Renovations','💰 Additional'];
   const cutoff=getLastCompletedCycleDate();
   const additionalTxs=S.transactions.filter(t=>
     (additionalAliases.includes(t.category)||t.category?.includes('Additional'))&&
-    t.status==='accepted'&&t.date>cutoff
+    (t.status==='accepted'||t.status==='reviewed')&&t.date>cutoff
   );
   if(additionalTxs.length){
     const total=additionalTxs.reduce((a,t)=>a+(t.amount||0),0);
@@ -3782,6 +3868,7 @@ function autoFillLastSplit(){
 }
 
 function saveQuickTx(){
+  ensureWorkflowSnapshot();
   const date=document.getElementById('qt-date').value;
   const amount=parseFloat(document.getElementById('qt-amount').value);
   const desc=document.getElementById('qt-desc').value.trim();
