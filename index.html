@@ -1527,7 +1527,7 @@ function renderStepBody(s,done,pending){
       <label for="csv-up" class="upload-zone" style="display:block;cursor:pointer"><div class="upload-icon">📄</div><div style="font-size:13px;font-weight:600;color:var(--text)">Click to upload MyCard CSV</div><div style="font-size:11px;color:var(--text2);margin-top:4px">${getCSVPeriodLabel()}</div></label>
       <input type="file" id="csv-up" accept=".csv" onchange="handleCSV(event)" style="opacity:0;position:absolute;width:0;height:0;pointer-events:none">
       ${hasPending?'<div class="banner banner-warn" style="margin-top:10px">📋 You have an unfinished review — <button class="btn btn-sm" onclick="openCSVReview(S.csvPending)" style="margin-left:4px">Resume review</button></div>':''}
-      ${alreadyReviewedCount?'<button class="btn btn-sm" style="margin-top:10px;background:var(--bl);border-color:#A0C0E8;color:#103060" onclick="showTab(\'transactions\')">Fortnight\'s transactions already reviewed. View in <span style="text-decoration:underline">Transactions</span></button>':'<button class="btn btn-sm" style="margin-top:10px" onclick="doneStep(1)">Skip — no statement this fortnight</button>'}`;
+      ${alreadyReviewedCount?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn btn-sm" style="background:var(--bl);border-color:#A0C0E8;color:#103060" onclick="showTab(\'transactions\')">Fortnight\'s transactions already reviewed. View in <span style="text-decoration:underline">Transactions</span></button><button class="btn btn-primary btn-sm" onclick="doneStep(1)">✓ Continue</button></div>':'<button class="btn btn-sm" style="margin-top:10px" onclick="doneStep(1)">Skip — no statement this fortnight</button>'}`;
   }
   if(s.action==='review')return`${pending>0?'<div class="banner banner-warn" style="margin-bottom:10px">👁 '+pending+' transactions to review</div>':''}<button class="btn btn-primary btn-sm" onclick="showTab(\'transactions\');doneStep(2)">👁 Review transactions</button>`;
   if(s.action==='manual')return`<button class="btn btn-primary btn-sm" onclick="openModal(\'quickTx\')">+ Add manual transaction</button><button class="btn btn-sm" style="margin-left:8px" onclick="doneStep(3)">Done adding</button>`;
@@ -2072,7 +2072,7 @@ function renderNdisStepAction(stepId,txId){
         <div style="font-size:12px">• Add ${fmt(amt)} to ${cat?.name||'NDIS'} budget</div>
         <div style="font-size:12px">• Add ${fmt(amt)} to this fortnight's NDIS owed total</div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="finaliseNdisTx('${txId}')">✅ Finalise transaction</button>`;
+      <button class="btn btn-primary btn-sm" onclick="finaliseNdisTx('${txId}').then(()=>{saveS();openNdisProcessModal('${txId}');})">✅ Finalise transaction</button>`;
   }
   return'';
 }
@@ -2357,8 +2357,15 @@ async function finaliseNdisTx(txId){
   // Add to this fortnight's NDIS owed running total
   const amt=parseFloat(wf['ndisAmt_'+txId])||tx?.amount||0;
   wf['ndisRunningTotal']=(parseFloat(wf['ndisRunningTotal'])||0)+amt;
-  // Mark complete
-  markNdisStep(txId,'finalise');
+  // Mark complete — inline, without reopening the old step-by-step modal.
+  // markNdisStep() does that reopen as a side effect (a leftover from
+  // before this flow was consolidated into the single checklist), which
+  // meant this async chain briefly reopened then immediately closed a
+  // modal mid-flow — a plausible source of the transaction silently
+  // failing to complete correctly for CSV-sourced NDIS items specifically.
+  const stepKey2='ndisSteps_'+txId;
+  S.workflowData[stepKey2]=S.workflowData[stepKey2]||[];
+  if(!S.workflowData[stepKey2].includes('finalise'))S.workflowData[stepKey2].push('finalise');
 }
 function completeNdisTx(txId){
   // Mark transaction as processed
