@@ -1815,6 +1815,12 @@ function resetWorkflow(){
         if(idx!==-1){
           const restored={...S.deletedTransactions[idx]};
           delete restored.deletedAt;
+          // Also clear the "marked for removal" flag from the original
+          // review session — without this, a restored transaction still
+          // carries keepAction:'remove' from before, so a fresh CSV review
+          // would keep rendering it with "removed" styling even though
+          // it's genuinely back to pending and available again.
+          delete restored.keepAction;
           restored.status='pending';
           S.transactions.push(restored);
           S.deletedTransactions.splice(idx,1);
