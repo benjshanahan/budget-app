@@ -4423,7 +4423,12 @@ function openNdisTxDetail(id){
       <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(t.amount)}</div></div>
       <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:15px">${fmtDate(t.date)}</div></div>
       <div class="stat"><div class="stat-label">Category</div><div class="stat-value" style="font-size:12px">${cat?.name||''}</div></div>
-
+      <div class="stat">
+        <div class="stat-label">Status</div>
+        <select id="ndis-status-select-${t.id}" onchange="updateNdisStatus('${t.id}',this.value)" style="font-size:13px;font-weight:600;padding:4px 6px;border-radius:6px;border:1px solid var(--border);width:100%">
+          ${NDIS_STATUSES.map(s=>'<option value="'+s+'"'+(s===t.status?' selected':'')+'>'+s.charAt(0).toUpperCase()+s.slice(1)+'</option>').join('')}
+        </select>
+      </div>
     </div>
     ${t.comments?'<div style="font-size:13px;color:var(--text2);margin-bottom:12px">📝 '+t.comments+'</div>':''}
     ${(t.driveLink||S.workflowData?.['ndisFileLink_'+t.id])?
