@@ -1967,7 +1967,10 @@ function openNdisProcessModal(txId){
       <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(tx.amount)}</div></div>
       <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:15px">${fmtDate(tx.date)}</div></div>
     </div>
-    <button class="btn btn-sm" style="margin-bottom:14px;color:var(--red);border-color:var(--red)" onclick="closeModal('ndisProcess');openTxDetail('${txId}')">✕ Not NDIS — recategorise</button>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="closeModal('ndisProcess');openTxDetail('${txId}')">✕ Not NDIS — recategorise</button>
+      <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="closeModal('ndisProcess');deleteTx('${txId}')">🗑 Delete transaction</button>
+    </div>
     ${alreadyPaid?'<div class="banner banner-info" style="margin-bottom:14px">💳 Already paid via credit card — no separate payment step needed.</div>':''}
     `+renderNdisProcessSteps(txId,doneSteps,alreadyPaid);
 
@@ -2620,6 +2623,11 @@ function saveEdits(id){
   const dn=document.getElementById('edit-notes');if(dn)tx.notes=dn.value;
   delete tx.flag;
   saveS();closeModal('txDetail');
+  // Refresh the workflow step view too — this used to be missed, so a
+  // category change here (e.g. recategorising something out of NDIS)
+  // wouldn't reflect there until a later, unrelated re-render happened to
+  // occur, making it look like the edit hadn't actually saved.
+  if(document.getElementById('sb7'))renderWorkflow();
 }
 function updateEditSubcat(){
   const catName=document.getElementById('edit-cat')?.value;
@@ -2653,6 +2661,7 @@ async function deleteTx(id){
   S.transactions=S.transactions.filter(t=>t.id!==id);
   closeModal('txDetail');
   render();
+  if(document.getElementById('sb7'))renderWorkflow();
   // Save immediately (not scheduled)
   await saveToSheets();
 }
