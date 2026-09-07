@@ -4501,11 +4501,15 @@ function openNdisTxDetail(id){
   document.getElementById('txd-title').textContent=t.provider+(t.invoiceNo?' — '+t.invoiceNo:'');
   document.getElementById('txd-body').innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(t.amount)}</div></div>
-      <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:15px">${fmtDate(t.date)}</div></div>
-      <div class="stat"><div class="stat-label">Category</div><div class="stat-value" style="font-size:12px">${cat?.name||''}</div></div>
-
+      <div class="field" style="margin:0"><label>Amount ($)</label><input type="number" step="0.01" id="ndis-edit-amount-${t.id}" value="${t.amount}"></div>
+      <div class="field" style="margin:0"><label>Date</label><input type="date" id="ndis-edit-date-${t.id}" value="${t.date}"></div>
+      <div class="field" style="margin:0;grid-column:1/-1"><label>Category</label>
+        <select id="ndis-edit-cat-${t.id}">
+          ${NDIS_CATS.map(c=>'<option value="'+c.id+'"'+(c.id===t.cat?' selected':'')+'>'+c.name+'</option>').join('')}
+        </select>
+      </div>
     </div>
+    <button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="saveNdisTxEdits('${t.id}')">💾 Save changes</button>
     ${t.comments?'<div style="font-size:13px;color:var(--text2);margin-bottom:12px">📝 '+t.comments+'</div>':''}
     ${(t.driveLink||S.workflowData?.['ndisFileLink_'+t.id])?
       '<a href="'+(t.driveLink||S.workflowData['ndisFileLink_'+t.id])+'" target="_blank" class="btn btn-sm" style="margin-bottom:12px;display:inline-flex">📄 View invoice in Drive</a>':
@@ -4525,6 +4529,26 @@ function openNdisTxDetail(id){
   openModal('txDetail');
 }
 
+function saveNdisTxEdits(id){
+  // Find in S.ndisTransactions first
+  let tx=S.ndisTransactions.find(t=>t.id===id);
+  if(!tx){
+    // Move from import to user transactions, same pattern as updateNdisStatus
+    const imported=NDIS_IMPORT.find(t=>t.id===id);
+    if(imported){tx={...imported};S.ndisTransactions.push(tx);}
+  }
+  if(!tx)return;
+  const amtEl=document.getElementById('ndis-edit-amount-'+id);
+  const dateEl=document.getElementById('ndis-edit-date-'+id);
+  const catEl=document.getElementById('ndis-edit-cat-'+id);
+  if(amtEl)tx.amount=parseFloat(amtEl.value)||tx.amount;
+  if(dateEl&&dateEl.value)tx.date=dateEl.value;
+  if(catEl)tx.cat=catEl.value;
+  saveS();
+  closeModal('txDetail');
+  renderNDIS();
+  if(document.getElementById('sb7'))renderWorkflow();
+}
 function updateNdisStatus(id,status){
   // Find in S.ndisTransactions first
   let tx=S.ndisTransactions.find(t=>t.id===id);
