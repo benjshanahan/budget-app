@@ -4473,7 +4473,7 @@ function updateNdisStatus(id,status){
 }
 
 async function deleteNdisTx(id){
-  if(!confirm('Delete this NDIS transaction? If it has an invoice attached, this will also delete the file from Google Drive.'))return;
+  if(!confirm('Delete this NDIS transaction? If it has an invoice attached, this will also delete the file from Google Drive. If it came from a credit card statement, the underlying transaction will be deleted too.'))return;
   const tx=S.ndisTransactions.find(t=>t.id===id);
   if(tx?.driveFileId){
     try{
@@ -4511,20 +4511,14 @@ async function deleteNdisTx(id){
     S.overall.deletedNdisImportIds=Array.from(new Set([...(S.overall.deletedNdisImportIds||[]),...newlyExcluded]));
   }
   // If this invoice originated from a Step 1 credit card transaction (its
-  // id follows the 'ndis_pending_<txId>' pattern), the underlying
-  // transaction itself still has category 'NDIS' — deleting the invoice
-  // record alone leaves it perpetually reappearing in Step 7's "needs
-  // processing" list forever, since that list is driven by the
-  // transaction's own category, not by whether an invoice record exists.
-  // Recategorising it here to a safe generic fallback stops that loop; the
-  // user can pick something more specific afterward if needed.
+  // id follows the 'ndis_pending_<txId>' pattern), delete the underlying
+  // transaction too — otherwise it still has category 'NDIS' and
+  // perpetually reappears in Step 7's "needs processing" list forever,
+  // since that list is driven by the transaction's own category, not by
+  // whether an invoice record exists.
   if(id.startsWith('ndis_pending_')){
     const sourceTxId=id.slice('ndis_pending_'.length);
-    const sourceTx=S.transactions.find(t=>t.id===sourceTxId);
-    if(sourceTx&&sourceTx.category==='NDIS'){
-      sourceTx.category='Other';
-      alert('This transaction has been moved out of NDIS to "Other" so it stops reappearing here — recategorise it properly from the Transactions tab if needed.');
-    }
+    S.transactions=S.transactions.filter(t=>t.id!==sourceTxId);
   }
   saveS();closeModal('txDetail');renderNDIS();
   if(document.getElementById('sb7'))renderWorkflow();
