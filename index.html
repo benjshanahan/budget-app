@@ -1967,6 +1967,7 @@ function openNdisProcessModal(txId){
       <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(tx.amount)}</div></div>
       <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:15px">${fmtDate(tx.date)}</div></div>
     </div>
+    <button class="btn btn-sm" style="margin-bottom:14px;color:var(--red);border-color:var(--red)" onclick="closeModal('ndisProcess');openTxDetail('${txId}')">✕ Not NDIS — recategorise</button>
     ${alreadyPaid?'<div class="banner banner-info" style="margin-bottom:14px">💳 Already paid via credit card — no separate payment step needed.</div>':''}
     `+renderNdisProcessSteps(txId,doneSteps,alreadyPaid);
 
@@ -2039,7 +2040,6 @@ function renderNdisStepAction(stepId,txId){
       <div class="field" style="margin-bottom:10px"><label>Comments</label><input type="text" id="ndis-comments-${txId}" placeholder="e.g. Weekly hydrotherapy"></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary btn-sm" onclick="saveNdisCategorise('${txId}')">✓ Save & continue</button>
-        <button class="btn btn-sm" onclick="markNdisStep('${txId}','upload')">Skip — no invoice</button>
       </div>`;
   }
 
