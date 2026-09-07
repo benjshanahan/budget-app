@@ -4510,6 +4510,22 @@ async function deleteNdisTx(id){
   if(newlyExcluded.length){
     S.overall.deletedNdisImportIds=Array.from(new Set([...(S.overall.deletedNdisImportIds||[]),...newlyExcluded]));
   }
+  // If this invoice originated from a Step 1 credit card transaction (its
+  // id follows the 'ndis_pending_<txId>' pattern), the underlying
+  // transaction itself still has category 'NDIS' — deleting the invoice
+  // record alone leaves it perpetually reappearing in Step 7's "needs
+  // processing" list forever, since that list is driven by the
+  // transaction's own category, not by whether an invoice record exists.
+  // Recategorising it here to a safe generic fallback stops that loop; the
+  // user can pick something more specific afterward if needed.
+  if(id.startsWith('ndis_pending_')){
+    const sourceTxId=id.slice('ndis_pending_'.length);
+    const sourceTx=S.transactions.find(t=>t.id===sourceTxId);
+    if(sourceTx&&sourceTx.category==='NDIS'){
+      sourceTx.category='Other';
+      alert('This transaction has been moved out of NDIS to "Other" so it stops reappearing here — recategorise it properly from the Transactions tab if needed.');
+    }
+  }
   saveS();closeModal('txDetail');renderNDIS();
   if(document.getElementById('sb7'))renderWorkflow();
 }
