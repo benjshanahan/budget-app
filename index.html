@@ -3702,9 +3702,13 @@ function renderAMBody(){
       +'</div>'
       +'<div id="am-edit-'+c.key+'" style="display:none">'
       +(c.extra?'<input type="text" id="am-name-'+c.key+'" value="'+c.name+'" placeholder="Name" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px"><br>':'')
-      +'<label style="font-size:10px;color:var(--text2)">Date added</label><input type="date" id="am-date-'+c.key+'" value="'+(c.dateAdded||localISODate())+'" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">'
-      +'<label style="font-size:10px;color:var(--text2)">Starting balance ($)</label><input type="number" id="am-start-'+c.key+'" value="'+(c.startingBalance||0).toFixed(2)+'" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">'
-      +'<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Current balance is calculated from transactions.</div>'
+      +'<label style="font-size:10px;color:var(--text2)">Current balance ($)</label><input type="number" id="am-current-'+c.key+'" value="'+c.balance.toFixed(2)+'" step="0.01" onclick="event.stopPropagation()" style="width:100%;font-size:12px;padding:4px 6px;margin-bottom:4px">'
+      +'<div style="font-size:10px;color:var(--text2);margin-bottom:8px">Setting this resets the starting point to today with this value, so future spending tracks correctly from here.</div>'
+      +'<label style="font-size:10px;color:var(--text2)">Or edit the starting balance directly</label>'
+      +'<div style="display:flex;gap:6px;margin-bottom:4px">'
+      +'<input type="date" id="am-date-'+c.key+'" value="'+(c.dateAdded||localISODate())+'" onclick="event.stopPropagation()" style="flex:1;font-size:12px;padding:4px 6px">'
+      +'<input type="number" id="am-start-'+c.key+'" value="'+(c.startingBalance||0).toFixed(2)+'" step="0.01" onclick="event.stopPropagation()" style="flex:1;font-size:12px;padding:4px 6px">'
+      +'</div>'
       +'<button class="btn btn-sm btn-primary" style="margin-top:4px;width:100%" onclick="event.stopPropagation();saveAMTile(\''+c.key+'\')">✓ Save</button>'
       +'</div>'
       +'</div>';
@@ -3720,19 +3724,54 @@ function editAMTile(key){
   document.getElementById('am-edit-'+key).style.display='block';
 }
 function saveAMTile(key){
+  // If the "Current balance" field was changed from what it currently
+  // calculates to, that takes priority: reset the starting point to today
+  // with that value, so future spending tracks correctly from here. If
+  // it wasn't touched, fall back to whatever's in the date/starting fields
+  // directly (the more advanced, manual-editing path).
   if(key==='reno'){
-    const dateEl=document.getElementById('am-date-reno');if(dateEl)S.overall.renovationsDate=dateEl.value;
-    const startEl=document.getElementById('am-start-reno');if(startEl)S.overall.renovationsStarting=parseFloat(startEl.value)||0;
+    const subName='Renovations';
+    const curEl=document.getElementById('am-current-'+key);
+    const dateEl=document.getElementById('am-date-'+key);
+    const startEl=document.getElementById('am-start-'+key);
+    const newCurrent=curEl?parseFloat(curEl.value):null;
+    if(newCurrent!==null&&Math.abs(newCurrent-calcAMBalance(subName))>0.001){
+      S.overall.renovationsDate=localISODate();
+      S.overall.renovationsStarting=newCurrent;
+    } else {
+      if(dateEl)S.overall.renovationsDate=dateEl.value;
+      if(startEl)S.overall.renovationsStarting=parseFloat(startEl.value)||0;
+    }
   } else if(key==='mat'){
-    const dateEl=document.getElementById('am-date-mat');if(dateEl)S.overall.maternityDate=dateEl.value;
-    const startEl=document.getElementById('am-start-mat');if(startEl)S.overall.maternityStarting=parseFloat(startEl.value)||0;
+    const subName='Maternity';
+    const curEl=document.getElementById('am-current-'+key);
+    const dateEl=document.getElementById('am-date-'+key);
+    const startEl=document.getElementById('am-start-'+key);
+    const newCurrent=curEl?parseFloat(curEl.value):null;
+    if(newCurrent!==null&&Math.abs(newCurrent-calcAMBalance(subName))>0.001){
+      S.overall.maternityDate=localISODate();
+      S.overall.maternityStarting=newCurrent;
+    } else {
+      if(dateEl)S.overall.maternityDate=dateEl.value;
+      if(startEl)S.overall.maternityStarting=parseFloat(startEl.value)||0;
+    }
   } else if(key.startsWith('extra_')){
     const idx=parseInt(key.replace('extra_',''));
     const extras=S.overall.additionalCategories||[];
     if(extras[idx]){
       const nameEl=document.getElementById('am-name-'+key);if(nameEl&&nameEl.value.trim())extras[idx].name=nameEl.value.trim();
-      const dateEl=document.getElementById('am-date-'+key);if(dateEl)extras[idx].dateAdded=dateEl.value;
-      const startEl=document.getElementById('am-start-'+key);if(startEl)extras[idx].startingBalance=parseFloat(startEl.value)||0;
+      const subName=extras[idx].name;
+      const curEl=document.getElementById('am-current-'+key);
+      const dateEl=document.getElementById('am-date-'+key);
+      const startEl=document.getElementById('am-start-'+key);
+      const newCurrent=curEl?parseFloat(curEl.value):null;
+      if(newCurrent!==null&&Math.abs(newCurrent-calcAMBalance(subName))>0.001){
+        extras[idx].dateAdded=localISODate();
+        extras[idx].startingBalance=newCurrent;
+      } else {
+        if(dateEl)extras[idx].dateAdded=dateEl.value;
+        if(startEl)extras[idx].startingBalance=parseFloat(startEl.value)||0;
+      }
     }
   }
   renderAMBody();
