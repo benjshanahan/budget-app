@@ -1776,6 +1776,26 @@ function resetWorkflow(){
       if(t.status==='reviewed')t.status='pending';
       if(t.originalSource){t.source=t.originalSource;delete t.originalSource;}
     });
+    // Restore anything removed via "Remove" during this session's CSV
+    // review — those are genuinely gone from S.transactions (moved to the
+    // Bin), so simply reverting status above can't bring them back. Without
+    // this, "Start over" looked like it was silently discarding manual
+    // transactions that were actually just sitting, unrecoverable in
+    // practice, in the Bin.
+    const sessionDeletedIds=S.workflowData.sessionDeletedTxIds||[];
+    if(sessionDeletedIds.length){
+      S.deletedTransactions=S.deletedTransactions||[];
+      sessionDeletedIds.forEach(id=>{
+        const idx=S.deletedTransactions.findIndex(t=>t.id===id);
+        if(idx!==-1){
+          const restored={...S.deletedTransactions[idx]};
+          delete restored.deletedAt;
+          restored.status='pending';
+          S.transactions.push(restored);
+          S.deletedTransactions.splice(idx,1);
+        }
+      });
+    }
     S.transactions=S.transactions.filter(t=>
       t.status!=='pending'||
       t.source==='import'||
@@ -3335,6 +3355,13 @@ function deleteFromCSVReview(type, idx){
       manualParts.forEach(t=>{
         S.deletedTransactions.push({...t,deletedAt:new Date().toISOString()});
         S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
+        // Track this as a removal that happened during CSV review, so
+        // "Start over" can restore it later if the whole session gets
+        // reverted — this represents "unmatch and take it out of this
+        // review", not a standalone, permanent delete, so it should be
+        // fully undoable along with everything else in the session.
+        S.workflowData.sessionDeletedTxIds=S.workflowData.sessionDeletedTxIds||[];
+        S.workflowData.sessionDeletedTxIds.push(t.id);
       });
       pending.merged.splice(idx,1);
     }
@@ -3512,6 +3539,10 @@ function acceptCSVReview(){
       S.deletedTransactions=S.deletedTransactions||[];
       S.deletedTransactions.push({...t,deletedAt:new Date().toISOString()});
       S.transactions=S.transactions.filter(tx=>tx.id!==t.id);
+      // Same session-removal tracking as the merged-card Remove above — so
+      // "Start over" can restore this too.
+      S.workflowData.sessionDeletedTxIds=S.workflowData.sessionDeletedTxIds||[];
+      S.workflowData.sessionDeletedTxIds.push(t.id);
     }
   });
   // Check for Renovations transactions and show reminder
