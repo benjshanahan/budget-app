@@ -1753,17 +1753,28 @@ function doneStep(n){
 }
 function undoStep(n){delete S.workflowData['s'+n];saveS();renderWorkflow();}
 function resetWorkflow(){
-  // The "full restore from snapshot" approach has been removed. It relied
-  // on reliably knowing when a genuinely fresh attempt begins during a
-  // single long browser session, and across a long, complex session with
-  // this many intertwined actions, that turned out not to be something
-  // that could be made reliable enough — it caused real, repeated data
-  // loss. This is now deliberately simple and predictable instead: it only
-  // clears pending/reviewed items and undoes this step's own NDIS
-  // additions, and never wholesale-replaces transactions, overall figures,
-  // spending balances, or NDIS data. For anything bigger than that, Google
-  // Sheets version history remains the safe, reliable tool.
-  if(confirm('Start over on this fortnight?\n\nThis will reset all workflow steps back to the beginning and clear any pending/reviewed transactions from this attempt. It does not restore mortgage, spending balance, or NDIS changes already made this session — for that, use Google Sheets version history.')){
+  // This deliberately does NOT do a full wholesale snapshot restore of
+  // everything — that approach relied on reliably knowing when a genuinely
+  // fresh attempt begins during a single long browser session, and across a
+  // long, complex session with many intertwined actions, that turned out
+  // not to be reliable enough — it caused real, repeated data loss. Instead
+  // this restores each specific piece of data using its own narrow,
+  // purpose-built tracking (captured at the moment it's about to change,
+  // stored in workflowData — which is already reliably cleared at the
+  // right moments by both Finalise and Start Over, so it can't go stale the
+  // way the old approach did) rather than one fragile do-everything
+  // mechanism.
+  if(confirm('Start over on this fortnight?\n\nThis will reset all workflow steps back to the beginning, clear any pending/reviewed transactions from this attempt, and restore the mortgage figure and Benj & Kasie spending balances to what they were before you started. NDIS changes already made this session still need Google Sheets version history to undo.')){
+    // Restore the mortgage figure and spending balances if they were
+    // changed this session.
+    if(S.workflowData.prevMortgageAhead!==undefined){
+      S.overall.mortgageAhead=S.workflowData.prevMortgageAhead;
+    }
+    if(S.workflowData.spendingSnapshot){
+      S.spendingBalances=S.spendingBalances||{};
+      S.spendingBalances.benj={...(S.spendingBalances.benj||{}),current:S.workflowData.spendingSnapshot.benj};
+      S.spendingBalances.kasie={...(S.spendingBalances.kasie||{}),current:S.workflowData.spendingSnapshot.kasie};
+    }
     // Un-review anything from this session — "reviewed" is a transaction
     // confirmed in Step 1 but not yet finalised. Revert to "pending" so the
     // removal filter below can correctly handle CSV-sourced ones the same
@@ -1857,6 +1868,10 @@ function addOther(){ensureWorkflowSnapshot();const desc=document.getElementById(
 function saveMoneyOwed(){ensureWorkflowSnapshot();const a=parseFloat(document.getElementById('ow-total-in')?.value)||0;S.overall.moneyOwed=a;saveS();doneStep(12);}
 function saveMortgage(){
   ensureWorkflowSnapshot();
+  // Capture the value being replaced, once per session, so "Start over" can
+  // restore it — but only the first time, so re-editing this step multiple
+  // times before Start Over doesn't overwrite it with an intermediate value.
+  if(S.workflowData.prevMortgageAhead===undefined)S.workflowData.prevMortgageAhead=S.overall.mortgageAhead;
   const a=parseFloat(document.getElementById('mort-in')?.value)||0;
   S.overall.mortgageAhead=a;
   saveS();
