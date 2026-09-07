@@ -3032,13 +3032,20 @@ function handleCSV(e){
       const d0=csv.date;
       const d1=dayBefore.toISOString().split('T')[0];
       const d2=dayAfter.toISOString().split('T')[0];
-      // First try exact amount + exact date match on a single transaction
-      let manualMatch=pickBestManualMatch(manualPending.filter(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<0.5&&m.date===csv.date),csv.description);
+      // First try exact amount + exact date match on a single transaction.
+      // Excludes anything with a splitGroupId — a transaction that's part of
+      // a real recorded split must only ever be matched as part of its
+      // group, never picked off individually just because its own amount
+      // happens to land close to some unrelated CSV total. This was the
+      // actual bug: this check ran before the split-group logic below ever
+      // got a chance to see it, so a split part with an amount close to
+      // some other CSV transaction could get silently matched on its own.
+      let manualMatch=pickBestManualMatch(manualPending.filter(m=>!matchedManualIds.has(m.id)&&!m.splitGroupId&&Math.abs(m.amount-csv.amount)<0.5&&m.date===csv.date),csv.description);
       // Then fall back to the same ±1 day window used for split matching below —
       // a manually-entered date being a day off from when the card posted is the
       // same everyday timing mismatch whether it's a split or a single entry.
       if(!manualMatch){
-        manualMatch=pickBestManualMatch(manualPending.filter(m=>!matchedManualIds.has(m.id)&&Math.abs(m.amount-csv.amount)<0.5&&(m.date===d1||m.date===d2)),csv.description);
+        manualMatch=pickBestManualMatch(manualPending.filter(m=>!matchedManualIds.has(m.id)&&!m.splitGroupId&&Math.abs(m.amount-csv.amount)<0.5&&(m.date===d1||m.date===d2)),csv.description);
       }
       if(manualMatch){
         matchedManualIds.add(manualMatch.id);
