@@ -4415,7 +4415,6 @@ function openNdisTxDetail(id){
   if(!t)return;
   const cat=NDIS_CATS.find(c=>c.id===t.cat);
   const filename=genNdisFilename(t);
-  const statusIdx=NDIS_STATUSES.indexOf(t.status);
 
   document.getElementById('txd-title').textContent=t.provider+(t.invoiceNo?' — '+t.invoiceNo:'');
   document.getElementById('txd-body').innerHTML=`
@@ -4423,12 +4422,7 @@ function openNdisTxDetail(id){
       <div class="stat"><div class="stat-label">Amount</div><div class="stat-value">${fmt(t.amount)}</div></div>
       <div class="stat"><div class="stat-label">Date</div><div class="stat-value" style="font-size:15px">${fmtDate(t.date)}</div></div>
       <div class="stat"><div class="stat-label">Category</div><div class="stat-value" style="font-size:12px">${cat?.name||''}</div></div>
-      <div class="stat">
-        <div class="stat-label">Status</div>
-        <select id="ndis-status-select-${t.id}" onchange="updateNdisStatus('${t.id}',this.value)" style="font-size:13px;font-weight:600;padding:4px 6px;border-radius:6px;border:1px solid var(--border);width:100%">
-          ${NDIS_STATUSES.map(s=>'<option value="'+s+'"'+(s===t.status?' selected':'')+'>'+s.charAt(0).toUpperCase()+s.slice(1)+'</option>').join('')}
-        </select>
-      </div>
+
     </div>
     ${t.comments?'<div style="font-size:13px;color:var(--text2);margin-bottom:12px">📝 '+t.comments+'</div>':''}
     ${(t.driveLink||S.workflowData?.['ndisFileLink_'+t.id])?
@@ -4485,7 +4479,17 @@ async function deleteNdisTx(id){
       alert('⚠️ Could not delete the file from Google Drive: '+e.message+'\n\nThe transaction itself has still been removed — you may need to delete the file manually from Drive.');
     }
   }
-  S.ndisTransactions=S.ndisTransactions.filter(t=>t.id!==id);
+  // Also remove any other entries that are effectively duplicates of this
+  // same invoice (same invoice number + provider) — a hidden duplicate
+  // left over from earlier data issues would otherwise survive a delete of
+  // just this one record, and resurface on the next load looking exactly
+  // like the deletion didn't stick.
+  const dupKey=tx?.invoiceNo&&tx?.provider?(tx.invoiceNo.trim()+'|'+tx.provider.trim().toLowerCase()):null;
+  S.ndisTransactions=S.ndisTransactions.filter(t=>{
+    if(t.id===id)return false;
+    if(dupKey&&t.invoiceNo&&t.provider&&(t.invoiceNo.trim()+'|'+t.provider.trim().toLowerCase())===dupKey)return false;
+    return true;
+  });
   saveS();closeModal('txDetail');renderNDIS();
   if(document.getElementById('sb7'))renderWorkflow();
 }
