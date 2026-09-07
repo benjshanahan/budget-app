@@ -916,7 +916,8 @@ async function loadFromSheets(){
         renovationsDate:cfg.renovationsDate||'',
         maternityStarting:parseFloat(cfg.maternityStarting)||0,
         maternityDate:cfg.maternityDate||'',
-        additionalCategories:cfg.additionalCategories?JSON.parse(cfg.additionalCategories):undefined
+        additionalCategories:cfg.additionalCategories?JSON.parse(cfg.additionalCategories):undefined,
+        deletedNdisImportIds:cfg.deletedNdisImportIds?JSON.parse(cfg.deletedNdisImportIds):[]
       };
     }
     const owedRows=ranges[2].values||[];
@@ -1109,10 +1110,16 @@ function scheduleSave(){
 async function migrateNdisImports(){
   // Move any NDIS_IMPORT entries not yet in S.ndisTransactions
   // CRITICAL: never overwrite existing entries - they have driveLink saved
+  // Also never re-add anything the user has explicitly deleted — without
+  // this check, deleting one of these hardcoded historical entries only
+  // ever looked like it worked: the next page load would silently
+  // resurrect it with its original stale data (including a driveLink
+  // pointing at a file that may have since been deleted from Drive too).
+  const deletedIds=new Set(S.overall?.deletedNdisImportIds||[]);
   const existingIds=new Set((S.ndisTransactions||[]).map(t=>t.id));
   let migrated=0;
   NDIS_IMPORT.forEach(t=>{
-    if(!existingIds.has(t.id)){
+    if(!existingIds.has(t.id)&&!deletedIds.has(t.id)){
       S.ndisTransactions=S.ndisTransactions||[];
       S.ndisTransactions.push({...t});
       migrated++;
@@ -4437,6 +4444,7 @@ function openNdisTxDetail(id){
 
   document.getElementById('txd-actions').innerHTML=`
     <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="if(confirm('Delete this NDIS invoice?')){deleteNdisTx('${t.id}');closeModal('txDetail');}">🗑 Delete</button>
+    ${t.status!=='claimed'?'<button class="btn btn-sm" style="color:var(--green);border-color:var(--green)" onclick="updateNdisStatus(\''+t.id+'\',\'claimed\')">✓ Mark as claimed</button>':''}
     ${(t.driveLink||S.workflowData?.['ndisFileLink_'+t.id])?'<a href="'+(t.driveLink||S.workflowData?.['ndisFileLink_'+t.id])+'" target="_blank" class="btn btn-sm">📄 View invoice</a>':''}
     <button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
   openModal('txDetail');
@@ -4485,11 +4493,23 @@ async function deleteNdisTx(id){
   // just this one record, and resurface on the next load looking exactly
   // like the deletion didn't stick.
   const dupKey=tx?.invoiceNo&&tx?.provider?(tx.invoiceNo.trim()+'|'+tx.provider.trim().toLowerCase()):null;
+  const idsBeingRemoved=[id];
   S.ndisTransactions=S.ndisTransactions.filter(t=>{
     if(t.id===id)return false;
-    if(dupKey&&t.invoiceNo&&t.provider&&(t.invoiceNo.trim()+'|'+t.provider.trim().toLowerCase())===dupKey)return false;
+    if(dupKey&&t.invoiceNo&&t.provider&&(t.invoiceNo.trim()+'|'+t.provider.trim().toLowerCase())===dupKey){
+      idsBeingRemoved.push(t.id);
+      return false;
+    }
     return true;
   });
+  // Record every removed id that came from the hardcoded historical
+  // NDIS_IMPORT data, so migrateNdisImports() never resurrects it again on
+  // a future load.
+  const importIds=new Set(NDIS_IMPORT.map(t=>t.id));
+  const newlyExcluded=idsBeingRemoved.filter(rid=>importIds.has(rid));
+  if(newlyExcluded.length){
+    S.overall.deletedNdisImportIds=Array.from(new Set([...(S.overall.deletedNdisImportIds||[]),...newlyExcluded]));
+  }
   saveS();closeModal('txDetail');renderNDIS();
   if(document.getElementById('sb7'))renderWorkflow();
 }
