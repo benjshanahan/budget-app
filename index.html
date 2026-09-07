@@ -4233,6 +4233,43 @@ async function uploadFileToDriveFolder(folderId,filename,base64Data,mimeType){
     tc.requestAccessToken({prompt:''});
   });
 }
+async function deleteFileFromDrive(fileId){
+  // Same OAuth token pattern as uploadFileToDriveFolder — deletion needs to
+  // go through the browser's own Google login too, for the same reason
+  // upload does: a Service Account has no permission over files it didn't
+  // create, so this can't go through the server-side function either.
+  async function doDelete(token){
+    const resp=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId,{
+      method:'DELETE',
+      headers:{'Authorization':'Bearer '+token}
+    });
+    if(!resp.ok&&resp.status!==404){
+      // 404 means it's already gone from Drive — treat that as success
+      // rather than an error, since the end state the user wants is the
+      // same either way.
+      let msg='Delete failed';
+      try{const err=await resp.json();msg=err.error?.message||msg;}catch(e){}
+      if(resp.status===401)window._googleDriveToken=null;
+      throw new Error(msg);
+    }
+    return true;
+  }
+  if(window._googleDriveToken){
+    try{return await doDelete(window._googleDriveToken);}catch(e){if(!e.message.includes('401'))throw e;}
+  }
+  return new Promise((resolve,reject)=>{
+    const tc=google.accounts.oauth2.initTokenClient({
+      client_id:CLIENT_ID,
+      scope:'https://www.googleapis.com/auth/drive.file',
+      callback:async(tr)=>{
+        if(tr.error){reject(new Error(tr.error));return;}
+        window._googleDriveToken=tr.access_token;
+        try{resolve(await doDelete(tr.access_token));}catch(e){reject(e);}
+      }
+    });
+    tc.requestAccessToken({prompt:''});
+  });
+}
 function genNdisFilename(t){
   const d=t.date.split('-');
   const dateStr=d[2]+'_'+d[1]+'_'+d[0];
@@ -4428,8 +4465,21 @@ function updateNdisStatus(id,status){
   }
 }
 
-function deleteNdisTx(id){
-  if(!confirm('Delete this NDIS transaction?'))return;
+async function deleteNdisTx(id){
+  if(!confirm('Delete this NDIS transaction? If it has an invoice attached, this will also delete the file from Google Drive.'))return;
+  const tx=S.ndisTransactions.find(t=>t.id===id);
+  if(tx?.driveFileId){
+    try{
+      await deleteFileFromDrive(tx.driveFileId);
+    }catch(e){
+      console.error('Drive delete error:',e);
+      // Don't block removing the local record on a Drive failure — the
+      // user has already confirmed they want this gone. They can clean up
+      // the file in Drive manually if needed; a failed Drive delete
+      // shouldn't trap them with a transaction they can't remove.
+      alert('⚠️ Could not delete the file from Google Drive: '+e.message+'\n\nThe transaction itself has still been removed — you may need to delete the file manually from Drive.');
+    }
+  }
   S.ndisTransactions=S.ndisTransactions.filter(t=>t.id!==id);
   saveS();closeModal('txDetail');renderNDIS();
   if(document.getElementById('sb7'))renderWorkflow();
