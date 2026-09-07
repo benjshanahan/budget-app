@@ -316,6 +316,7 @@ input[type=file]{opacity:0;position:absolute;width:0;height:0;pointer-events:non
     <div id="tab-transactions" class="screen">
       <div class="filter-row">
         <select id="f-cat" onchange="renderTxList()"><option value="">All categories</option></select>
+        <select id="f-subcat" onchange="renderTxList()" style="display:none"><option value="">All sub-categories</option></select>
         <select id="f-status" onchange="renderTxList()"><option value="">All status</option><option value="accepted">Accepted</option><option value="pending">Pending</option><option value="flagged">Flagged</option></select>
         <select id="f-method" onchange="renderTxList()"><option value="">All methods</option><option value="credit">Credit card</option><option value="cash">Cash</option><option value="transfer">Transfer</option></select>
         <select id="f-period" onchange="renderTxList()">
@@ -1470,8 +1471,35 @@ function renderTxList(){
     method:'credit',status:t.status==='unpaid'?'pending':'accepted',source:'ndis',
     _ndisId:t.id
   }));
-  let txs=[...S.transactions,...ndisTxsForList].sort((a,b)=>b.date.localeCompare(a.date));
+  const allTxs=[...S.transactions,...ndisTxsForList];
+  // Populate the sub-category filter based on whatever subcat values
+  // actually appear for the currently selected category — this naturally
+  // covers every category type (Bills, Presents, NDIS, Additional Money,
+  // anything else with a subcat) without needing separate handling for
+  // each one, and only shows the dropdown at all when there's something
+  // to filter by.
+  const subcatSel=document.getElementById('f-subcat');
+  let scf='';
+  if(subcatSel){
+    if(cf){
+      const subcats=[...new Set(allTxs.filter(t=>t.category===cf).map(t=>t.subcat).filter(Boolean))].sort();
+      if(subcats.length){
+        const prevVal=subcatSel.value;
+        subcatSel.innerHTML='<option value="">All sub-categories</option>'+subcats.map(s=>'<option value="'+s+'"'+(s===prevVal?' selected':'')+'>'+s+'</option>').join('');
+        subcatSel.style.display='';
+      } else {
+        subcatSel.style.display='none';
+        subcatSel.value='';
+      }
+    } else {
+      subcatSel.style.display='none';
+      subcatSel.value='';
+    }
+    scf=subcatSel.value;
+  }
+  let txs=allTxs.sort((a,b)=>b.date.localeCompare(a.date));
   if(cf)txs=txs.filter(t=>t.category===cf);
+  if(scf)txs=txs.filter(t=>t.subcat===scf);
   if(sf)txs=txs.filter(t=>t.status===sf);
   if(mf)txs=txs.filter(t=>t.method===mf);
   if(pf){
