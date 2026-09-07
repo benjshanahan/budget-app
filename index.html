@@ -1699,11 +1699,39 @@ function revertCycle(id){
   // For transactions entered this cycle: remove CSV/workflow ones, set manual back to pending
   S.transactions.forEach(t=>{
     if(cycle.transactionIds&&cycle.transactionIds.includes(t.id)){
+      // Restore the original source before checking it — matching during
+      // CSV review overwrites source to 'csv', which would otherwise make a
+      // genuinely manual transaction indistinguishable from a real CSV one
+      // right here, causing it to be wrongly deleted instead of correctly
+      // kept as pending. Same fix as "Start over" already has.
+      if(t.originalSource){t.source=t.originalSource;delete t.originalSource;}
       if(t.source==='manual'){t.status='pending';}
       else{t._revertDelete=true;}
     }
   });
   S.transactions=S.transactions.filter(t=>!t._revertDelete);
+  // Restore anything removed via "Remove" during this fortnight's CSV
+  // review before it was finalised — those are genuinely gone from
+  // S.transactions (moved to the Bin), so the above can't bring them back
+  // on its own. Same underlying fix as "Start over" already has, reading
+  // from the copy of that session's workflowData saved into this cycle
+  // record at finalise time.
+  const sessionDeletedIds=cycle.completedSteps?.sessionDeletedTxIds||[];
+  if(sessionDeletedIds.length){
+    S.deletedTransactions=S.deletedTransactions||[];
+    sessionDeletedIds.forEach(delId=>{
+      const idx=S.deletedTransactions.findIndex(t=>t.id===delId);
+      if(idx!==-1){
+        const restored={...S.deletedTransactions[idx]};
+        delete restored.deletedAt;
+        delete restored.keepAction;
+        if(restored.originalSource){restored.source=restored.originalSource;delete restored.originalSource;}
+        restored.status='pending';
+        S.transactions.push(restored);
+        S.deletedTransactions.splice(idx,1);
+      }
+    });
+  }
   // Remove the cycle record
   S.completedCycles=cycles.filter(c=>c.id!==id);
   saveS();
