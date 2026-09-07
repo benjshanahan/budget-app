@@ -1680,6 +1680,20 @@ function revertCycle(id){
   const cycles=S.completedCycles||[];
   const cycle=cycles.find(c=>c.id===id);
   if(!cycle)return;
+  // Restore the mortgage figure and spending balances to what they were
+  // before this fortnight was finalised, using the workflowData snapshot
+  // that finaliseWorkflow() saved into completedSteps at the time — the
+  // same underlying data "Start over" now uses for the same purpose.
+  // Only available for fortnights finalised since that tracking was added;
+  // older cycle records won't have these fields.
+  if(cycle.completedSteps?.prevMortgageAhead!==undefined){
+    S.overall.mortgageAhead=cycle.completedSteps.prevMortgageAhead;
+  }
+  if(cycle.completedSteps?.spendingSnapshot){
+    S.spendingBalances=S.spendingBalances||{};
+    S.spendingBalances.benj={...(S.spendingBalances.benj||{}),current:cycle.completedSteps.spendingSnapshot.benj};
+    S.spendingBalances.kasie={...(S.spendingBalances.kasie||{}),current:cycle.completedSteps.spendingSnapshot.kasie};
+  }
   // Remove the tithe transaction for this cycle
   S.transactions=S.transactions.filter(t=>!(t.source==='tithe'&&t.date===cycle.date));
   // For transactions entered this cycle: remove CSV/workflow ones, set manual back to pending
@@ -1694,7 +1708,7 @@ function revertCycle(id){
   S.completedCycles=cycles.filter(c=>c.id!==id);
   saveS();
   closeModal('cycleHistory');
-  alert('Fortnight reverted successfully.');
+  alert('Fortnight reverted successfully.'+(cycle.completedSteps?.prevMortgageAhead===undefined?'\n\nNote: mortgage/spending balances could not be restored — this fortnight was finalised before that tracking was added.':''));
 }
 function finaliseWorkflow(){
   if(!confirm('Finalise this fortnight? This will:\n• Accept the tithe transaction\n• Confirm all reviewed transactions into your budgets\n• Add one fortnightly allocation to all budgets\n\nThis cannot be undone (except by reverting the whole fortnight).'))return;
