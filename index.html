@@ -2390,16 +2390,16 @@ function completeNdisTx(txId){
 }
 
 function finaliseNdisStep(){
-  // Sum all NDIS transactions processed this fortnight (from step 9)
-  const processedIds=S.workflowData.ndisProcessed||[];
-  // Also include any ndisTransactions added this fortnight (status paid or claimed, after last tithe)
+  // Sum all NDIS invoices added/processed this fortnight, from
+  // S.ndisTransactions alone — every NDIS invoice, whether it came from a
+  // credit card transaction in Step 1 or was added standalone, now
+  // correctly gets its own entry there via the unified checklist flow.
+  // This used to ALSO separately sum matching entries straight from
+  // S.transactions, which double-counted anything CSV-sourced: it has both
+  // its original transaction record AND a corresponding ndisTransactions
+  // entry, so it was being added twice.
   const cutoff=getLastCompletedCycleDate();
-  // From main transactions (credit card NDIS)
-  const processedTxs=S.transactions.filter(t=>t.category==='NDIS'&&(t.status==='accepted'||t.status==='reviewed')&&processedIds.includes(t.id));
-  const txTotal=processedTxs.reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
-  // From ndisTransactions (manually added invoices this fn)
-  const ndisInvoiceTotal=(S.ndisTransactions||[]).filter(t=>t.date>cutoff&&(t.status==='paid'||t.status==='claimed')).reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
-  const totalNdis=txTotal+ndisInvoiceTotal;
+  const totalNdis=(S.ndisTransactions||[]).filter(t=>t.date>cutoff&&(t.status==='paid'||t.status==='claimed')).reduce((a,t)=>a+(parseFloat(t.amount)||0),0);
   // Replace (not add) NDIS owed figure
   S.overall.ndisOwed=totalNdis;
   saveS();
