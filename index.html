@@ -3708,18 +3708,28 @@ function saveAMTile(key){
     }
   }
   renderAMBody();
+  // Persist immediately rather than only refreshing the modal's own view —
+  // previously this change only became real (saved, and reflected on the
+  // dashboard behind this modal) once the modal's separate outer Save
+  // button was clicked afterward. If that never happened — closing via X,
+  // Cancel, or just navigating away — the edit was silently lost, and the
+  // dashboard correctly kept showing the old total, looking exactly like a
+  // sync bug rather than an unsaved edit.
+  saveS();
 }
 function addAMExtra(){
   const extras=S.overall.additionalCategories||[];
   extras.push({id:'amc_'+Date.now(),name:'New category',balance:0,startingBalance:0,dateAdded:localISODate()});
   S.overall.additionalCategories=extras;
   renderAMBody();
+  saveS();
 }
 function removeAMExtra(i){
   const extras=S.overall.additionalCategories||[];
   extras.splice(i,1);
   S.overall.additionalCategories=extras;
   renderAMBody();
+  saveS();
 }
 async function saveAdditionalMoney(){
   closeModal('additionalMoney');
