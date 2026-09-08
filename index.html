@@ -2044,11 +2044,17 @@ function openTxDetail(id){
     ${tx.flag?'<div class="banner banner-err" style="margin-bottom:10px">⚠ '+tx.flag+'</div>':''}
     <div class="field"><label>Description / summary</label><input type="text" id="edit-desc" value="${tx.description}" style="width:100%"></div>
     <div class="frow">
-      <div class="field"><label>Category</label><select id="edit-cat" onchange="updateEditSubcat()">${CATS.map(c=>'<option value="'+c.name+'"'+(c.name===tx.category?' selected':'')+'>'+c.name+'</option>').join('')}<option value="Other"${tx.category==='Other'?' selected':''}>Other</option></select></div>
+      <div class="field"><label>Category</label><select id="edit-cat" onchange="updateEditSubcat();toggleEditSplit(this.value)"><option value="Split">⇄ Split transaction</option>${CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort().map(n=>'<option value="'+n+'"'+(n===tx.category?' selected':'')+'>'+n+'</option>').join('')}<option value="Other"${tx.category==='Other'?' selected':''}>Other</option><option value="NDIS"${tx.category==='NDIS'?' selected':''}>🏥 NDIS</option><option value="Additional Money"${tx.category==='Additional Money'?' selected':''}>💰 Additional Money</option><option value="➕ Add to Cash Savings"${tx.category==='➕ Add to Cash Savings'?' selected':''}>➕ Add to Cash Savings</option><option value="💰 Add to Money Owed"${tx.category==='💰 Add to Money Owed'?' selected':''}>💰 Add to Money Owed</option></select></div>
       <div class="field"><label>Date</label><input type="date" id="fix-date" value="${tx.date}"></div>
     </div>
     <div id="edit-subcat-wrap" class="field" style="${txCat?.subs?'':'display:none'}"><label>Sub-category</label><select id="edit-subcat">${txCat?.subs?txCat.subs.map(s=>'<option value="'+s+'"'+(s===tx.subcat?' selected':'')+'>'+s+'</option>').join(''):''}</select></div>
     ${tx.notes?'<div class="field"><label>Notes</label><input type="text" id="edit-notes" value="'+tx.notes+'" style="width:100%"></div>':''}
+    <div id="edit-split-area" style="display:none;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Split into</div>
+      <div id="edit-split-rows"></div>
+      <button class="btn btn-sm" style="margin-top:4px" onclick="addEditSplitRow()">+ Add part</button>
+      <div style="font-size:11px;color:var(--text2);margin-top:6px">Total: <span id="edit-split-total">$0.00</span> of ${fmt(tx.amount)}</div>
+    </div>
     `;
   const actions=document.getElementById('txd-actions');
   let btns=`<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteTx('${id}')">🗑 Delete</button><button class="btn btn-sm" onclick="closeModal('txDetail')">Close</button>`;
@@ -2725,11 +2731,80 @@ function restoreTx(id){
   S.transactions.push(tx);
   saveS();renderRecycleBin();
 }
+function toggleEditSplit(catVal){
+  const area=document.getElementById('edit-split-area');
+  if(!area)return;
+  if(catVal==='Split'){
+    area.style.display='block';
+    const rows=document.getElementById('edit-split-rows');
+    if(rows&&!rows.querySelector('.edit-split-row')){
+      // Seed with two blank rows to start
+      addEditSplitRow();
+      addEditSplitRow();
+    }
+  } else {
+    area.style.display='none';
+  }
+}
+function addEditSplitRow(){
+  const container=document.getElementById('edit-split-rows');
+  if(!container)return;
+  const sortedCats=CATS.filter(c=>!c.specialAction&&!c.noGrid).map(c=>c.name).sort();
+  const div=document.createElement('div');
+  div.className='edit-split-row';
+  div.style.cssText='margin-bottom:8px;display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)';
+  div.innerHTML='<div style="display:flex;gap:4px;align-items:center"><select onchange="updateEditSplitTotal()" style="flex:1;min-width:0;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><option value="">-- Category --</option>'+sortedCats.map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'<option value="Other">Other</option></select><button class="btn btn-sm" onclick="this.parentNode.parentNode.remove();updateEditSplitTotal()" style="color:var(--red);border-color:var(--red);padding:5px 8px;flex-shrink:0">✕</button></div><input type="text" placeholder="Description" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit"><input type="number" placeholder="Amount" step="0.01" min="0" oninput="updateEditSplitTotal()" style="width:100%;font-size:12px;padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit">';
+  container.appendChild(div);
+  updateEditSplitTotal();
+}
+function updateEditSplitTotal(){
+  const rows=document.querySelectorAll('#edit-split-rows .edit-split-row');
+  let total=0;
+  rows.forEach(row=>{total+=parseFloat(row.querySelectorAll('input[type=number]')[0]?.value)||0;});
+  const totalEl=document.getElementById('edit-split-total');
+  if(totalEl)totalEl.textContent=fmt(total);
+}
+function getEditSplitRows(){
+  const rows=document.querySelectorAll('#edit-split-rows .edit-split-row');
+  const splits=[];
+  rows.forEach(row=>{
+    const cat=row.querySelector('select')?.value||'';
+    const inputs=row.querySelectorAll('input');
+    const desc=inputs[0]?.value||'';
+    const amt=parseFloat(inputs[1]?.value)||0;
+    if(cat&&amt)splits.push({category:cat,description:desc,amount:amt});
+  });
+  return splits;
+}
 function saveEdits(id){
   const tx=S.transactions.find(t=>t.id===id);if(!tx)return;
+  const dc=document.getElementById('edit-cat');
+  // Splitting an existing transaction: remove the original single record
+  // and replace it with one new transaction per split row, sharing a
+  // splitGroupId — same shape as a genuine split created any other way, so
+  // it's correctly recognised everywhere splits are handled (matching,
+  // grouped display, etc).
+  if(dc&&dc.value==='Split'){
+    const splits=getEditSplitRows();
+    if(!splits.length){alert('Add at least one split part with a category and amount before saving.');return;}
+    const splitTotal=splits.reduce((a,s)=>a+s.amount,0);
+    if(Math.abs(splitTotal-tx.amount)>0.01){
+      if(!confirm('Split parts total '+fmt(splitTotal)+', but the original transaction was '+fmt(tx.amount)+'. Save anyway?'))return;
+    }
+    const splitGroupId='sg_'+Date.now();
+    const baseDesc=document.getElementById('edit-desc')?.value||tx.description;
+    const baseDate=document.getElementById('fix-date')?.value||tx.date;
+    splits.forEach(sp=>{
+      S.transactions.push({id:'tx_'+Date.now()+'_'+Math.random(),date:baseDate,description:sp.description||baseDesc,amount:sp.amount,category:sp.category,subcat:'',method:tx.method,status:tx.status,source:tx.source,splitGroupId,splitTotal:tx.amount});
+    });
+    S.transactions=S.transactions.filter(t=>t.id!==id);
+    saveS();closeModal('txDetail');
+    if(document.getElementById('sb7'))renderWorkflow();
+    return;
+  }
   const di=document.getElementById('fix-date');if(di)tx.date=di.value;
   const dd=document.getElementById('edit-desc');if(dd)tx.description=dd.value;
-  const dc=document.getElementById('edit-cat');if(dc)tx.category=dc.value;
+  if(dc)tx.category=dc.value;
   const ds=document.getElementById('edit-subcat');if(ds&&document.getElementById('edit-subcat-wrap')?.style.display!=='none')tx.subcat=ds.value;
   const dn=document.getElementById('edit-notes');if(dn)tx.notes=dn.value;
   delete tx.flag;
@@ -3101,7 +3176,13 @@ function handleCSV(e){
         // for manual review rather than guessed at.
         if(matchedSubset){
           matchedSubset.forEach(m=>matchedManualIds.add(m.id));
-          const pendingInSubset=matchedSubset.filter(m=>m.status==='pending');
+          // Include every part in what's displayed, not just the pending
+          // ones — an already-accepted Money Owed part genuinely
+          // contributes to the total (it was already being counted in
+          // sumTotal below), so hiding it from the visible list made the
+          // numbers look like they didn't add up even though they
+          // genuinely did.
+          const pendingInSubset=matchedSubset;
           // High confidence only for a genuine recorded split group (not the
           // generic sum-guessing fallback), with every part on the exact CSV
           // date and the total landing almost exactly on the CSV amount —
@@ -3591,12 +3672,21 @@ function acceptCSVReview(){
       // Split group match - keep manual entries, just mark them as credit method
       (m.manualGroup||[]).forEach(mt=>{
         const tx=S.transactions.find(t=>t.id===mt.id);
+        if(!tx)return;
         // Preserve the pre-match source before overwriting it — "Start
         // over" needs to know this was originally a manual entry (to
         // correctly revert it to pending rather than removing it
         // entirely), and that information would otherwise be permanently
         // lost the moment source gets set to 'csv' below.
-        if(tx){tx.originalSource=tx.originalSource||tx.source;tx.method='credit';tx.status='reviewed';tx.source='csv';}
+        tx.originalSource=tx.originalSource||tx.source;
+        tx.method='credit';
+        tx.source='csv';
+        // Only pending parts move to "reviewed" here — an already-accepted
+        // Money Owed part (now included in this group for display) must
+        // stay accepted rather than being incorrectly downgraded back into
+        // the reviewed→accepted pending lifecycle it never needed to go
+        // through in the first place.
+        if(tx.status==='pending')tx.status='reviewed';
       });
     } else {
       // Single match - keep manual transaction, update with any edits made
@@ -3619,10 +3709,25 @@ function acceptCSVReview(){
   // Add unmatched CSV as pending
   unmatchedCSV.forEach((t,i)=>{
     const splitKey='c'+i;
-    const splitArea=document.getElementById('csv-split-'+splitKey);
-    if(splitArea&&splitArea.style.display!=='none'){
+    // Check the actual data (t.category==='Split'), not the DOM element's
+    // current display state — checking the DOM was the actual bug: if the
+    // review screen re-rendered for any reason between setting up a split
+    // and clicking Accept (adding a row, editing another field elsewhere,
+    // anything), that element could end up not found or not reflecting the
+    // real state anymore, silently falling through to save the transaction
+    // with its category still literally "Split" instead of being split.
+    if(t.category==='Split'){
       const splits=getCSVSplitRows(splitKey);
-      splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
+      if(splits.length){
+        splits.forEach(sp=>S.transactions.push({id:'csv_split_'+Date.now()+'_'+Math.random(),date:t.date,description:sp.description||t.description,amount:sp.amount,category:sp.category,subcat:'',method:'credit',status:'pending',source:'csv'}));
+      } else {
+        // The split rows genuinely couldn't be read (empty, or the DOM
+        // really is gone) — rather than silently losing this transaction
+        // entirely or saving it with a meaningless "Split" category, flag
+        // it immediately for manual review instead of relying on the next
+        // page load's repair pass to catch it.
+        S.transactions.push({...t,status:'flagged',flag:'Split category needs reassigning — please edit this transaction'});
+      }
     } else if(t.category==='Renovations'){
       S.overall.renovationsBalance=(S.overall.renovationsBalance||0)-t.amount;
       S.transactions.push({...t,status:'pending'});
